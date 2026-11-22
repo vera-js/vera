@@ -28,8 +28,8 @@
     {
       "code": "ssr-cdata-unknown",
       "params": [],
-      "message": "a `<![CDATA[` in a template or value that does not open its own `<svg>` or `<math>` could end at its first `>` (as a bogus comment, in HTML) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
-      "fix": "Open the `<svg>` in the same template as the CDATA section, or keep `>` out of the section before its `]]>`."
+      "message": "a `<![CDATA[` in a template serialized at a bare foreign depth, where the namespace is not known, could end at its first `>` (as a bogus comment, in HTML) or at `]]>` (in SVG), and the two readings disagree here — so it is refused rather than guessed.",
+      "fix": "Render the template into its parent's hole instead (it then starts in the parent's namespace), or keep `>` out of the section before its `]]>`."
     },
     {
       "code": "ssr-listener-threw",

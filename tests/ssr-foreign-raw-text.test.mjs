@@ -33,16 +33,16 @@ process.stdout.write(JSON.stringify({ rows: ROWS.map(run), exact: EXACT.map(run)
  * it is a JSON data block (this table's values are not), and in a foreign template or inside `<noscript>` a script takes
  * no value at all (`ssr-script-hole`, README). The `text`, `url` and `styleInside` holes put the value in the script's
  * content; `quoted` and `unquoted` put it in an attribute, which is served escaped. A `<plaintext>` read as HTML
- * never ends, so it is refused with every hole (`ssr-plaintext`) — everywhere but straight inside an `<svg>`/`<math>`
- * the template opened itself, where it is a foreign element that ends; a template that inherited its depth cannot
- * know which it is. Nothing else is refused.
+ * never ends, so it is refused with every hole (`ssr-plaintext`) in the contexts whose content is HTML, and in an
+ * `svg`/`mathml` template, whose output may be parsed as either; in SVG and MathML — a child template rendered into
+ * a parent's foreign position included — it is a foreign element that ends. Nothing else is refused.
  */
 const IN_SCRIPT_CONTENT = new Set(['text', 'url', 'styleInside']);
-const PLAINTEXT_ENDS = new Set(['svg', 'math', 'SVG', 'Svg', 'svgUnquoted']);
+const HTML_CONTENT = new Set(['html', 'foreignObject', 'mtext', 'svgTemplate', 'mathmlTemplate']);
 const REFUSED = Object.keys(CONTEXTS).flatMap((context) =>
   Object.keys(HOLES).flatMap((hole) => [
     ...(IN_SCRIPT_CONTENT.has(hole) ? [`${context} × <script> × ${hole}`] : []),
-    ...(PLAINTEXT_ENDS.has(context) ? [] : [`${context} × <plaintext> × ${hole}`]),
+    ...(HTML_CONTENT.has(context) ? [`${context} × <plaintext> × ${hole}`] : []),
   ]),
 );
 

@@ -168,16 +168,14 @@ const breakOut = (opens: Open[]): number => {
  * **Whether a `<![CDATA[` here is a CDATA section**, which runs to `]]>`, rather than the bogus comment it is in HTML,
  * which ends at the first `>`. Only inside SVG or MathML, read off the innermost tracked element: `<noscript>` and
  * `<select>` raise the depth too, and read there as CDATA, `<select><![CDATA[><textarea>` hid a live `<textarea>` from
- * the scan (measured, Chromium, Firefox and WebKit). With nothing tracked — a template or value that inherited its
- * depth from its parent — the namespace is not known here: when the first `>` after `from` is the one ending the first
- * `]]>`, both readings end at the same place and it is read as CDATA; otherwise they disagree on where the section ends,
- * and it is refused (`ssr-cdata-unknown`), in every build, rather than guessed.
+ * the scan (measured, Chromium, Firefox and WebKit). A template rendered into a parent's hole knows the namespace there
+ * (its root entry; see `positionOf`). Where it is not known — a bare depth — and the first `>` after `from` is the one
+ * ending the first `]]>`, both readings end at the same place and it is read as CDATA; otherwise they disagree on where
+ * the section ends, and it is refused (`ssr-cdata-unknown`), in every build, rather than guessed.
  */
 const cdataHere = (opens: Open[], text: string, from: number): boolean => {
-  if (opens.length !== 0) {
-    const space = opens[opens.length - 1].space;
-    return space === 'svg' || space === 'math';
-  }
+  const space = opens.length === 0 ? '?' : opens[opens.length - 1].space;
+  if (space !== '?') return space === 'svg' || space === 'math';
   const end = text.indexOf(']]>', from);
   if (end !== -1 && text.indexOf('>', from) === end + 2) return true;
   throw own(new Error(ssrMisuse('ssr-cdata-unknown', PROSE['ssr-cdata-unknown']!())));
@@ -222,7 +220,7 @@ const INTO_TEXTAREA = -3;
 const structural = (opens: Open[], tagName: string, closing: boolean, selfClosing: boolean, encoding: string, font: number, foreign: number, inert: number): number => {
   /** The innermost element this scan opened that changes parsing, and the namespace this tag is read in. */
   let top = opens.length === 0 ? undefined : opens[opens.length - 1];
-  let space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '';
+  let space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '?';
   /**
    * **A breakout** — see `BREAKOUT`. The ONE rule here that moves the scan from foreign content toward HTML, the
    * dangerous direction, so it acts only where its target is certain: inside SVG or MathML content (never at an
@@ -247,16 +245,26 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
    * foreign elements even in HTML, so their `/>` closes them; inside foreign content every `/>` does.
    */
   const selfClosed = selfClosing && (space !== 'html' || reentry || tagName === 'svg' || tagName === 'math');
-  if (!closing && space === '' && (TEXT_ONLY.has(tagName) || tagName === 'style')) {
+  if (!closing && !selfClosed && (tagName === 'script' || tagName === 'textarea') && top !== undefined && top.name === 'select' && top.foreign === 0) {
     /**
-     * **A text-only or raw-text element where the namespace is unknown** (`<noscript>`, `<select>`, or a template
-     * that inherited its depth) is tracked for its closer, at the same depth, `/>` or not. A parser with scripting off
+     * Straight inside a `<select>` opened in HTML, the two parsers agree on these two (2026-11-21; parse5 and
+     * Chromium 159, Firefox 159, WebKit 27.2): a `<script>` is raw text (the older select parser reads it by the
+     * head's rules), and a `<textarea>` is text (the older parser closes the select first). So they are read as at
+     * depth 0. Read as markup, the `<b` of `<script>if (a<b)` opened a tag in the source: a later hole in the
+     * select's text was refused, and a hole the scan placed inside that tag was served into the code.
+     */
+    return tagName === 'script' ? INTO_SCRIPT : INTO_TEXTAREA;
+  }
+  if (!closing && (space === '' || space === '?') && (TEXT_ONLY.has(tagName) || tagName === 'style')) {
+    /**
+     * **A text-only or raw-text element in `<noscript>`/`<select>` markup, or where the namespace is unknown** (`''`
+     * or `'?'`) is tracked for its closer, at the same depth and in the same namespace, `/>` or not. A parser with scripting off
      * reads `<noscript><textarea>` as HTML, where the textarea is text, so the server's `</noscript>` became its text
      * and the page after it with it (measured, jsdom with scripting off: `<textarea>`, `<title>`, `<style>`; the `/`
      * of `<textarea/>` is ignored in HTML). Its content is still scanned as markup, which over-escapes, never injects.
      * Where the element was foreign, or never opened, its end tag closes it or is ignored.
      */
-    opens.push({ name: tagName, foreign, inert, space: '' });
+    opens.push({ name: tagName, foreign, inert, space });
     return foreign;
   }
   if (closing || selfClosed) return foreign;
@@ -324,16 +332,6 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
   if (reentry) {
     opens.push({ name: tagName, foreign, inert, space: 'math' });
     return 1;
-  }
-  if ((tagName === 'script' || tagName === 'textarea') && top !== undefined && top.name === 'select' && top.foreign === 0) {
-    /**
-     * Straight inside a `<select>` opened in HTML, the two parsers agree on these two (2026-11-21; parse5 and
-     * Chromium 159, Firefox 159, WebKit 27.2): a `<script>` is raw text (the older select parser reads it by the
-     * head's rules), and a `<textarea>` is text (the older parser closes the select first). So they are read as at
-     * depth 0. Read as markup, the `<b` of `<script>if (a<b)` opened a tag in the source: a later hole in the
-     * select's text was refused, and a hole the scan placed inside that tag was served into the code.
-     */
-    return tagName === 'script' ? INTO_SCRIPT : INTO_TEXTAREA;
   }
   if (space !== 'html' && tagName === 'script') {
     /**
@@ -632,14 +630,13 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       rawFrom = i + 1;
     } else if (foreign === 0 && !closing && TEXT_ONLY.has(tagName)) textTag = tagName;
     /**
-     * A `<plaintext>` where the namespace is not SVG or MathML for certain: straight inside a `<noscript>` or
-     * `<select>` (the entries scanned as markup at a raised depth, `space` ''), where a parser with scripting off, or
-     * one of today's select parsers, reads it as HTML and from there it swallows the page; or in a template that
-     * inherited its depth, which cannot tell `<svg>` from `<select>` around it, and where the two readings never agree
-     * (an SVG element ends, an HTML one never does). Read as its text here, so the template or value ends inside it
-     * and is refused.
+     * A `<plaintext>` where the namespace is not SVG or MathML for certain: in `<noscript>` or `<select>` markup (the
+     * entries scanned as markup at a raised depth, `space` ''), where a parser with scripting off, or one of today's
+     * select parsers, reads it as HTML and from there it swallows the page; or where the namespace is unknown (`'?'`,
+     * a bare depth; see `positionOf`), where the two readings never agree (an SVG element ends, an HTML one never
+     * does). Read as its text here, so the template or value ends inside it and is refused.
      */
-    else if (tagName === 'plaintext' && !closing && (opens.length === 0 || opens[opens.length - 1].space === '')) textTag = tagName;
+    else if (tagName === 'plaintext' && !closing && (opens.length === 0 || opens[opens.length - 1].space === '' || opens[opens.length - 1].space === '?')) textTag = tagName;
     else {
       const next = structural(opens, tagName, closing, selfClosing, encoding, font, foreign, inert);
       font = 0;
@@ -691,7 +688,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
 /** The end-of-input closers a scan state owes: its open comment (or foreign CDATA section) or raw-text or text-only element, then every element it opened that changes parsing (svg, math, noscript, select, template, an integration point), innermost first. Shared by `compile` and `fortify`. */
 export const closersOf = (end: ScanState): string =>
   (end.comment || (end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '')) +
-  end.opens.reduceRight((closing, open) => closing + `</${open.name}>`, '');
+  end.opens.reduceRight((closing, open) => (open.name === '' ? closing : closing + `</${open.name}>`), '');
 /**
  * **The empty `opens` every fresh scan copies — already an array of OBJECTS to V8** (2026-11-20). An `[]` literal starts
  * as an array of small integers and changes kind at its first push of an entry, so each fresh scan's `opens` reached
@@ -706,8 +703,34 @@ export const closersOf = (end: ScanState): string =>
 const NO_OPENS: Open[] = [{ name: '', foreign: 0, inert: 0, space: '' }];
 NO_OPENS.pop();
 
-/** A scan state at foreign depth `depth` and nothing else open — its own `opens` (a copy of `NO_OPENS`), since `scanTag` mutates it. */
-export const freshScan = (depth: number): ScanStart => ({ inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens: NO_OPENS.slice(), attrRaw: '', encoding: '', font: 0 });
+/**
+ * **A position: the foreign depth a template or value starts at, and the namespace it starts in**, as one small integer
+ * (2026-11-22). A child template inherited only its parent's depth, so it could not tell `<svg>` from `<select>` around
+ * it: a `<![CDATA[` there is a section to `]]>` in one and a bogus comment to `>` in the other, and a `<plaintext>` ends
+ * in one and never in the other, so the child refused what either reading could not settle — an icon's
+ * `<style><![CDATA[ .a > .b {} ]]>` included — and a text element tracked at an unknown namespace read as HTML. The
+ * parent knows the namespace at the hole, so it hands it down: the low 24 bits are the depth, the bits above it the
+ * namespace (an index into `SPACES`; 0 is unknown, so a bare depth reads as one). An integer, so the plan's `depths` and every
+ * call that carries one stay small integers to V8; a depth past 2^24 would need a template of tens of megabytes.
+ */
+const SPACES = ['?', 'svg', 'math', ''];
+/** The namespace's unit: a depth is below it, so `position % SPACE_UNIT` is the depth. */
+const SPACE_UNIT = 2 ** 24;
+export const positionOf = (depth: number, space: string): number => (depth === 0 ? 0 : depth + (space === 'svg' ? 1 : space === 'math' ? 2 : space === '' ? 3 : 0) * SPACE_UNIT);
+/** The position of a hole at the end of a scan: its depth, in the namespace of the innermost element it holds open. */
+export const positionAt = (foreign: number, opens: Open[]): number => positionOf(foreign, opens.length === 0 ? '?' : opens[opens.length - 1].space);
+/**
+ * A scan state at `position` and nothing else open — its own `opens` (a copy of `NO_OPENS`), since `scanTag` mutates it.
+ * Past depth 0 it holds one ROOT entry, named `''`, standing for the parent's element the position is inside: it
+ * carries the namespace, so `structural` reads it as it reads any tracked element. No end tag names it (`closeTo`), a
+ * breakout stops at it (`breakOut`: its `foreign` is never 0), and it owes no closer (`closersOf`).
+ */
+export const freshScan = (position: number): ScanStart => {
+  const depth = position % SPACE_UNIT;
+  const opens = NO_OPENS.slice();
+  if (depth !== 0) opens.push({ name: '', foreign: depth, inert: 0, space: SPACES[(position - depth) / SPACE_UNIT] ?? '?' });
+  return { inTag: false, phase: OUTSIDE, inValue: false, quote: '', rawTag: '', tagName: '', attrName: '', serial: 0, closing: false, inert: 0, comment: '', textTag: '', foreign: depth, opens, attrRaw: '', encoding: '', font: 0 };
+};
 
 /**
  * What the template compiler reads of this module besides the scan itself — exported as SEPARATE bindings. The scan

@@ -9,7 +9,7 @@ import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
 import type { ScanResult, ScanStart, SsrTemplate } from './types.js';
-import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
+import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, positionAt, positionOf, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
 
 /** Module-local, because serializeValue (the hottest function here) reads it: an imported binding is a live one, which
  *  V8 reaches less directly (CLAUDE.md, measured on the tokenizer's constants). */
@@ -722,7 +722,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
          * is read the way the browser will read it. A custom-element host took the `COMPONENT_PROP` branch above.
          */
         kinds.push(CONTENT);
-        depths[kinds.length - 1] = tagState.foreign + (owner === 'svg' || owner === 'math' || owner === 'select' ? 1 : 0);
+        depths[kinds.length - 1] = owner === 'svg' || owner === 'math' ? positionOf(tagState.foreign + 1, owner) : owner === 'select' ? positionOf(tagState.foreign + 1, '') : positionAt(tagState.foreign, tagState.opens);
       } else if ((kind === '.' || kind === '!') && isFormProperty(owner, sigilName)) {
         /**
          * `!name` is a **live** property, and still a property: the sigil only changes when the client re-writes it,
@@ -839,7 +839,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      * comment that swallowed the page after it; `-${…}->` joined to `-->` and ended a comment early.
      */
     parts.push(tagState.comment !== '' && !inert ? part + ' ' : taker ? part + '\n' : part);
-    if (tagState.foreign) depths[kinds.length] = tagState.foreign;
+    /** Its position: the depth and the namespace there, so a template rendered into it starts where it is (see `positionOf`). */
+    if (tagState.foreign) depths[kinds.length] = positionAt(tagState.foreign, tagState.opens);
     /**
      * Inside `<noscript>` too, at any depth (2026-11-18): the client reads a noscript's content as raw text (Firefox, and
      * the renderer's scanner everywhere) and writes its values as encoded text, so a template there cannot be placed —
@@ -981,7 +982,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 };
 
 /**
- * `depth` is the foreign-content depth of the position the template renders into — 0 at the top and in HTML.
+ * `depth` is the position the template renders into (see `positionOf`): its foreign-content depth — 0 at the top and
+ * in HTML — and, past depth 0, the namespace there; a bare depth reads as an unknown namespace.
  *
  * **Where a template renders decides how its raw text parses, and the template cannot see it.** The browser parses
  * the ONE string this produces, so `html`<svg>${child}</svg>`` puts `child`'s `<style>` inside SVG, where its
@@ -995,6 +997,12 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
   const { strings, values } = template;
   /** Absent on core's `html`, and `undefined > 1` is false — the answer wanted; the `!` only lets the comparison be written. */
+  /**
+   * A bare depth: the namespace stays unknown (see `positionOf`). The client parses an `svg`/`mathml` template inside a
+   * wrapper, but its server output may be spliced anywhere, and outside an `<svg>` it is HTML: read as SVG, its
+   * `<title>` became an integration point and a `<style>` in it raw text, which standalone HTML ends at `</title>`
+   * (the raw-text table's `svgTemplate × <title>` row injected).
+   */
   if (template['_$litType$']! > 1 && depth === 0) depth = 1;
   /**
    * `strings` is any value here, a forgery's included: the cast only names the key the maps hold, and `WeakMap#get`

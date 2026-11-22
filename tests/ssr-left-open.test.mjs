@@ -89,28 +89,53 @@ test('KNOWN: a template that closes its own div across an open table leaves the 
 });
 
 /**
- * **A CDATA section is read where the namespace is known.** Inside `<select>` or `<noscript>` a `<![CDATA[` is a bogus
- * comment to the first `>` (the rows above), and a child template, which inherits only a depth, cannot tell `<svg>` from
- * `<select>` around it: where the two readings end at the same place it is served, and where they disagree it is
- * refused (`ssr-cdata-unknown`) rather than guessed.
+ * **A child template starts in its parent's namespace.** Inside `<select>` or `<noscript>` a `<![CDATA[` is a bogus
+ * comment to the first `>` (the rows above), inside `<svg>` a section to `]]>`, and a `<plaintext>` ends in SVG and
+ * never in HTML. A child inherited only a depth, so it could not tell `<svg>` from `<select>` around it; the parent
+ * now hands down the namespace at the hole, and the child reads each as the browser will. Only a bare depth leaves it
+ * unknown: there a section is served where both readings end at the same place and refused (`ssr-cdata-unknown`) where
+ * they disagree, and a `<plaintext>` is refused.
  */
-test('a CDATA section or a plaintext in a child template is served where both readings agree and refused where they do not', () => {
+test("a CDATA section or a plaintext in a child template is read in its parent's namespace", () => {
   const inSvg = (inner) => html`<div id="host"><svg>${inner}</svg></div><p id="after">after</p>`;
   const inSelect = (inner) => html`<div id="host"><select>${inner}</select></div><p id="after">after</p>`;
-  for (const draw of [inSvg, inSelect]) assert.ok(contained(serializeTemplate(draw(literal('<![CDATA[ x ]]>')))));
-  /** A `<plaintext>` never reads the same both ways — an SVG element ends, an HTML one never does — so it is refused. */
-  for (const draw of [inSvg, inSelect]) assert.throws(() => serializeTemplate(draw(literal('<plaintext>x</plaintext>'))), /ssr-plaintext/);
-  const refused = [];
+  const leaked = [];
   for (const [name, draw, markup] of [
+    ['svg', inSvg, '<![CDATA[ x ]]>'],
+    ['svg', inSvg, '<style><![CDATA[ .a > .b {} ]]></style>'],
+    ['svg', inSvg, '<![CDATA[ x'],
+    ['svg', inSvg, '<style><![CDATA[ a>b'],
+    ['svg', inSvg, '<style><![CDATA[ a>b <title>'],
+    ['svg', inSvg, '<title><![CDATA[ x>'],
+    ['svg', inSvg, '<plaintext>x</plaintext>'],
+    ['select', inSelect, '<![CDATA[ x ]]>'],
     ['select', inSelect, '<![CDATA[><textarea>]]>'],
-    ['svg', inSvg, '<![CDATA[ .a > .b {} ]]>'],
-    ['svg, unclosed', inSvg, '<![CDATA[ x'],
+    ['select', inSelect, '<style><![CDATA[><textarea>]]>'],
   ]) {
     try {
-      refused.push(`${name}: served ${serializeTemplate(draw(literal(markup)))}`);
+      const served = serializeTemplate(draw(literal(markup)));
+      if (!contained(served)) leaked.push(`${name} ${JSON.stringify(markup)} leaked: ${served}`);
     } catch (error) {
-      if (!/ssr-cdata-unknown/.test(error.message)) refused.push(`${name}: threw ${error.message}`);
+      leaked.push(`${name} ${JSON.stringify(markup)} threw ${error.message}`);
     }
   }
-  assert.deepEqual(refused, []);
+  assert.deepEqual(leaked, []);
+  /** The icon shape, served as written: CSS with a `>` combinator inside an SVG style's CDATA. */
+  assert.equal(serializeTemplate(inSvg(literal('<style><![CDATA[ .a > .b {} ]]></style>'))), '<div id="host"><svg><style><![CDATA[ .a > .b {} ]]></style></svg></div><p id="after">after</p>');
+  assert.throws(() => serializeTemplate(inSelect(literal('<plaintext>x</plaintext>'))), /ssr-plaintext/);
+  const unknown = [];
+  for (const [markup, code] of [
+    ['<![CDATA[><textarea>]]>', 'ssr-cdata-unknown'],
+    ['<![CDATA[ .a > .b {} ]]>', 'ssr-cdata-unknown'],
+    ['<![CDATA[ x', 'ssr-cdata-unknown'],
+    ['<plaintext>x</plaintext>', 'ssr-plaintext'],
+  ]) {
+    try {
+      unknown.push(`${JSON.stringify(markup)}: served ${serializeTemplate(literal(markup), 1)}`);
+    } catch (error) {
+      if (!error.message.includes(code)) unknown.push(`${JSON.stringify(markup)}: threw ${error.message}`);
+    }
+  }
+  assert.deepEqual(unknown, []);
+  assert.equal(serializeTemplate(literal('<![CDATA[ x ]]>'), 1), '<![CDATA[ x ]]>');
 });
