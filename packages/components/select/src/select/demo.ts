@@ -7,7 +7,7 @@ import type { ComponentDemo } from '@verajs/shared-types';
  */
 const FLAVORS =
   '<optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup>' +
-  '<vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#93c572"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option>' +
+  '<vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option>' +
   '<option value="strawberry" data-group="Modern">Strawberry</option>';
 
 export const selectDemo = {
@@ -21,7 +21,7 @@ export const selectDemo = {
     {
       title: 'Several, as chips, clearable',
       markup:
-        '<vera-select multi clearable clear-message="Clear all" remove-message="Remove {label}" aria-label="Toppings"><vera-option value="sprinkles" selected><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><rect x="3" y="7" width="10" height="2" fill="#e05"/></svg> Sprinkles</vera-option><option value="fudge" selected>Fudge</option><option value="nuts">Nuts</option></vera-select>',
+        '<vera-select multi clearable clear-message="Clear all" remove-message="Remove {label}" aria-label="Toppings"><vera-option value="sprinkles" selected><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><rect x="3" y="7" width="10" height="2" fill="currentColor"/></svg> Sprinkles</vera-option><option value="fudge" selected>Fudge</option><option value="nuts">Nuts</option></vera-select>',
     },
     {
       title: 'Searchable, and creatable',

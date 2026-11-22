@@ -25,7 +25,7 @@ export const inputDemo = {
     },
     {
       title: 'Sizes',
-      note: 'scale: sm, md or lg, in the styles layer',
+      note: 'scale: sm, md or lg; not yet styled',
       markup: '<label>Small <vera-input scale="sm"><input name="s"></vera-input></label> <label>Large <vera-input scale="lg"><input name="l"></vera-input></label>',
     },
     {
