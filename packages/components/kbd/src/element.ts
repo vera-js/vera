@@ -32,9 +32,11 @@ const SHEET = '_$veraKbdWords$';
  * A symbol key's word, spoken from the alt text of empty generated content (`content: "" / …`): never shown, never
  * copied. The trailing space keeps the words apart ("Shift Command K", not "ShiftCommandK", measured). Zero specificity,
  * so a page's own rule wins. Keyed on our own attributes, never the tag: under `defineAs('my-kbd')` a tag selector
- * matched nothing and every symbol was silent (a browser row).
+ * matched nothing and every symbol was silent (a browser row). And on `data-vera-kbd`, the mark every key this element
+ * writes carries: part names are one vocabulary shared by every component, so a rule on the name alone would speak a
+ * word on another component's `key` part (a browser row).
  */
-const WORDS = ':where([data-vera-part="key"][data-vera-word])::before{content:"" / attr(data-vera-word) " "}';
+const WORDS = ':where([data-vera-part="key"][data-vera-kbd][data-vera-word])::before{content:"" / attr(data-vera-word) " "}';
 
 const PLATFORMS: readonly string[] = ['apple', 'windows', 'other'];
 
@@ -79,8 +81,8 @@ export const setup = (host: KbdHost) => {
     return html`<kbd data-vera-part="combo">${spelled.map((key, index) => [
       joined && index > 0 ? '+' : '',
       key.word === null
-        ? html`<kbd data-vera-part="key">${key.text}</kbd>`
-        : html`<kbd data-vera-part="key" data-vera-word=${key.word}><span aria-hidden="true">${key.text}</span></kbd>`,
+        ? html`<kbd data-vera-part="key" data-vera-kbd>${key.text}</kbd>`
+        : html`<kbd data-vera-part="key" data-vera-kbd data-vera-word=${key.word}><span aria-hidden="true">${key.text}</span></kbd>`,
     ])}</kbd>`;
   };
 };

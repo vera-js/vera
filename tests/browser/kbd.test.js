@@ -54,6 +54,21 @@ describe('vera-kbd: the words rule, unwired styles', () => {
     b.remove();
   });
 
+  it("another component's key part of the same name gets no word (the rule asks for kbd's own mark)", async () => {
+    const ours = make();
+    document.body.append(ours);
+    flush();
+    await frame();
+    const foreign = document.createElement('kbd');
+    foreign.setAttribute('data-vera-part', 'key');
+    foreign.setAttribute('data-vera-word', 'Shift');
+    document.body.append(foreign);
+    expect(spoken(ours), 'positive control: the rule is in the document').to.include('Shift');
+    expect(getComputedStyle(foreign, '::before').content).to.be.oneOf(['none', 'normal']);
+    ours.remove();
+    foreign.remove();
+  });
+
   it('under a tag of the caller\'s own (defineAs): the word rule applies, found by its mark, never by the tag', async () => {
     const kbd = document.createElement('my-kbd');
     kbd.setAttribute('keys', 'Mod+Shift+K');
