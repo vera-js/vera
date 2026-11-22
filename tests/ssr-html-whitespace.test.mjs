@@ -97,3 +97,35 @@ test('CONTROL: the same payload in ordinary positions is served, and inert', () 
   assert.ok(!injected(tree), page);
   assert.ok(page.includes('title="'), 'the value was written');
 });
+
+/**
+ * The static attribute names a duplicate check reads (`recordNames`) are read by a character loop that replaced a
+ * pattern; the two are held equal here on the edges and on a seeded corpus, both in the order found. The pattern is the
+ * one it replaced, with HTML's five spaces: a space, then a letter and `[\w:-]*`, followed by `=`, `>`, a space or the end.
+ */
+test('the static-name loop finds what the pattern it replaced finds, in order, on edges and a seeded corpus', async () => {
+  const { recordNames } = await import('../packages/ssr/dist/vera/serializer.js');
+  const PATTERN = /[\t\n\f\r ]([a-zA-Z][\w:-]*)(?==|[\t\n\f\r >]|$)/g;
+  const byPattern = (text) => [...new Set([...text.matchAll(PATTERN)].map((m) => m[1].toLowerCase()))];
+  const byLoop = (text) => {
+    const into = new Set();
+    recordNames(text, into);
+    return [...into];
+  };
+  const EDGES = [
+    '<b hidden', '<b hidden>', '<b a=1 B=2', '<b x:y=1 a_b-c9 z>', '<b\ta\nb\fc\rd e', '<b a"', '<b a/', '<b 9a 1 -a _a', '<b a\u000bb=1',
+    '<b a b=1', ' a', ' ', '', 'a b', ' a  b ', ' A:B', ' a=', ' a>', ' a<', ' Ab ab AB', '<b  ', ' a-', ' a:',
+  ];
+  let seed = 20261122;
+  const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const ALPHABET = ['a', 'Z', 'q', '0', '9', ':', '_', '-', '=', '>', '"', '/', '<', ' ', ' ', '\t', '\n', '\f', '\r', '\u000b', ' '];
+  const corpus = Array.from({ length: 400 }, () => Array.from({ length: Math.floor(random() * 30) }, () => ALPHABET[Math.floor(random() * ALPHABET.length)]).join(''));
+  let names = 0;
+  for (const text of [...EDGES, ...corpus]) {
+    const expected = byPattern(text);
+    names += expected.length;
+    assert.deepEqual(byLoop(text), expected, JSON.stringify(text));
+  }
+  assert.equal(names, 160, 'CONTROL: the seeded corpus holds exactly the names it held when written (2026-11-22)');
+  assert.deepEqual(byLoop('<b x:y=1 a_b-c9 z>'), ['x:y', 'a_b-c9', 'z'], 'CONTROL: a known string');
+});

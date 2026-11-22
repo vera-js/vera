@@ -340,9 +340,10 @@ const deliverProperty = (node: ElementShim, tag: string, name: string, value: un
  * how `<b hidden ?hidden=${x}>` arrives here, and its bare `hidden` is exactly the duplicate that
  * has to be seen. A name is a letter and then `[\w:-]*`, followed by `=`, a space, `>` or the end; the spaces are
  * HTML's five. Read by a character loop: the pattern it replaced, with HTML's spaces in place of `\s`, cost a compile
- * 1% (measured 2026-11-22), and the loop runs in about 60% of the old pattern's time.
+ * 1% (measured 2026-11-22), and the loop runs in about 60% of the old pattern's time. Exported for the test that holds the
+ * loop equal to that pattern (`tests/ssr-html-whitespace.test.mjs`).
  */
-const recordNames = (text: string, into: Set<string>): void => {
+export const recordNames = (text: string, into: Set<string>): void => {
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
     if (c !== 32 && c !== 9 && c !== 10 && c !== 12 && c !== 13) continue;
