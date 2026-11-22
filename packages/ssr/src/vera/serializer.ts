@@ -914,6 +914,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   rawFroms[strings.length - 1] = end.rawFrom;
   if (end.inValue || (end.inTag && end.tagName))
     throw refusal('ssr-unfinished-tag');
+  /** A `<plaintext>` has no closer: served, everything after it on the page parsed as its text. */
+  if (end.textTag === 'plaintext') throw refusal('ssr-plaintext');
   const closers = closersOf(end);
   if (closers) parts[parts.length - 1] += closers;
 
@@ -1459,13 +1461,15 @@ const INERT_TYPE = ' type="text/x-vera-inert"';
  * an inert thing inert — and `scanTag` errs that way wherever it is deliberately incomplete (see its foreign depth).
  *
  * Whatever the markup leaves open is closed, so it cannot reach the host's parent: its comment, raw-text element and
- * svg/math/noscript/select/template (`closersOf`). An UNFINISHED tag is dropped, as an assignment's parser drops it at the
+ * svg/math/noscript/select/template (`closersOf`); a `<plaintext>`, which nothing closes, is refused. An UNFINISHED tag is dropped, as an assignment's parser drops it at the
  * end of input — served, it swallowed the page's next markup into its attributes. A `<` or `</` that never started a
  * tag is text, written escaped, so the host's own end tag cannot become the rest of it.
  */
 const fortify = (markup: string, depth: number): string => {
   const edits: number[] = [];
   const end = scanTag(markup, freshScan(depth), edits);
+  /** The one thing nothing closes: a `<plaintext>` (see `compile`). An assignment contains it; a served page does not. */
+  if (end.textTag === 'plaintext') throw refusal('ssr-plaintext');
   let stop = markup.length;
   let tail = '';
   if (end.phase === TAG_OPEN || end.phase === END_TAG_OPEN) {

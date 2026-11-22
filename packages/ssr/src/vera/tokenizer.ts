@@ -41,9 +41,9 @@ const RAWTEXT = new Set(['style', 'script']);
  * page. So the set has to hold everything the parser treats as raw: the first three are the client's `RAW_TEXT_TAGS`;
  * `xmp`, `noembed`, `noframes` and `plaintext` are obsolete (the client's scanner lists them too since 2026-11-19, as
  * never-shown content), and the browser still parses them as raw text — without them, `<xmp><style>${x}</style></xmp>` wrote `x` raw inside what the
- * browser reads as one run of text, and `</xmp>` in the value closed it. `plaintext` never closes at all; ending it
- * at `</plaintext` here only ever resumes escaping too early, which writes `<style>` content raw into text the
- * browser shows verbatim — still text.
+ * browser reads as one run of text, and `</xmp>` in the value closed it. `plaintext` never closes at all, and the scan
+ * reads it that way (no `</plaintext` ends it), so a template or value that opens one ends inside it, which `compile`
+ * and `fortify` refuse: no closer exists, and served, it made the rest of the page its text.
  *
  * `<noscript>` — the client's fourth — is not here, because it is not always raw: a browser with scripting OFF, the
  * one that shows it, parses its content as markup, so `<noscript><a href="${url}">` must be URL-checked like any
@@ -358,7 +358,8 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
      */
     if (rawTag !== '' || textTag !== '') {
       const name = rawTag || textTag;
-      const at = closerAt(text, i, name);
+      /** Nothing ends a `<plaintext>`: the parser reads to the end of the input (see `TEXT_ONLY`). */
+      const at = name === 'plaintext' ? -1 : closerAt(text, i, name);
       if (at === -1) break;
       rawTag = '';
       textTag = '';
@@ -372,13 +373,14 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
     /**
      * Inside a comment nothing is markup until its closer — the client's scanner reads it the same way, and a binding
      * here is dropped on both sides (see `compile`). A comment ends at `-->` or `--!>`; a BOGUS comment — `<!` not
-     * followed by `--`, `<?`, or `</` not followed by a letter — at the first `>`, quotes or not.
+     * followed by `--`, `<?`, or `</` not followed by a letter — at the first `>`, quotes or not; and a CDATA section,
+     * which exists only in foreign content, at the first `]]>` (left open, it is closed with one, see `closersOf`).
      */
     if (comment !== '') {
-      if (comment === '>') {
-        const at = text.indexOf('>', i);
+      if (comment !== '-->') {
+        const at = text.indexOf(comment, i);
         if (at === -1) break;
-        i = at;
+        i = at + comment.length - 1;
         comment = '';
         continue;
       }
@@ -442,6 +444,10 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
           if (text[i + 1] === '>') i += 1;
           else if (text.startsWith('->', i + 1)) i += 2;
           else comment = '-->';
+        } else if (foreign !== 0 && text.startsWith('[CDATA[', i + 1)) {
+          /** In SVG or MathML a `<![CDATA[` runs to `]]>` (in HTML it is a bogus comment to the first `>`, as below). */
+          i += 7;
+          comment = ']]>';
         } else comment = '>';
         phase = OUTSIDE;
         continue;
@@ -626,7 +632,7 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
 };
 
 
-/** The end-of-input closers a scan state owes: its open comment or raw-text or text-only element, then every element it opened that changes parsing (svg, math, noscript, select, template, an integration point), innermost first. Shared by `compile` and `fortify`. */
+/** The end-of-input closers a scan state owes: its open comment (or foreign CDATA section) or raw-text or text-only element, then every element it opened that changes parsing (svg, math, noscript, select, template, an integration point), innermost first. Shared by `compile` and `fortify`. */
 export const closersOf = (end: ScanState): string =>
   (end.comment || (end.rawTag ? `</${end.rawTag}>` : end.textTag ? `</${end.textTag}>` : '')) +
   end.opens.reduceRight((closing, open) => closing + `</${open.name}>`, '');

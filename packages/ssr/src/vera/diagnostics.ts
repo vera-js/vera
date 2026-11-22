@@ -34,6 +34,10 @@ export const PROSE: Record<string, Prose> = {
     'a template cannot end inside a tag — the client drops an unfinished tag.',
     'Close the tag inside the template.',
   ],
+  'ssr-plaintext': () => [
+    'a `<plaintext>` never ends — no end tag closes it, so everything after it on the page would be its text.',
+    'Remove it; to show markup as text, render it as a string inside a `<pre>`.',
+  ],
   'ssr-template-in-text': () => [
     'a template cannot render inside a text-only element (`<style>`, a JSON `<script>`, `<title>`, `<textarea>`, or never-shown content: `<noscript>`, `<iframe>`) — its content is text.',
     'Render a string there; a list of strings is joined.',
