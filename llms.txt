@@ -1856,7 +1856,7 @@ const { html, styles, title } = await renderToString(new URL('./app.js', import.
 | `timeout` | `renderToStringAsync` only: how long it waits on promises a component starts (an `async connectedCallback`, a promise a frame callback returns), in ms from the start of its turn, default 2000. When it runs out the render serves what it has and warns (`ssr-timeout`). **`0` waits for nothing; there is no unlimited wait** (the largest value is 2147483647) |
 | `static` | `true` = a page that will not be interactive: store reads skip tracking (faster in proportion to the tracked reads: 47.1 vs 118.6 µs, fastest of 7, on a 100-row table reading 300 store properties; little gain where a render tracks little), identical markup. A store *write* during such a render throws (both builds) |
 
-A wrong option type throws a `TypeError` naming the option. Returns `{ html, styles, title }`:
+A wrong option type, or a name that is not an option, throws a `TypeError` naming it. Returns `{ html, styles, title }`:
 `styles` is the light-DOM `@scope` CSS for the page's `<style>`, already escaped for that element.
 
 Rules an assistant must not guess around:

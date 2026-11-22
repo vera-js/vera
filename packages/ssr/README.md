@@ -80,7 +80,8 @@ already awaits. A render that throws does not stop the queue.
 | `timeout` | how long `renderToStringAsync` waits on promises a component starts, in milliseconds (default 2000), before serving what it has and warning — see below. **`0` waits for nothing** (it is not "no limit", which this option cannot express): every such promise is abandoned at once |
 
 A wrong type is refused with a `TypeError` naming the option (`children: 5` used to surface as
-`markup.includes is not a function`).
+`markup.includes is not a function`), and so is a name that is not an option (`timeOut`, `prop`), which used to
+configure nothing and say nothing (`ssr-option-unknown`).
 
 **Pass `location`; never assign `globalThis.location` yourself.** The global belongs to the process
 and a request does not: the call awaits `import()`, which yields on a module's first import, so
