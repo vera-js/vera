@@ -26,6 +26,19 @@ import { ROWS, EXACT } from './tests/fixtures/ssr-foreign-raw-text.mjs';
 const run = (row) => { try { return { out: serializeTemplate(row.template()) }; } catch (error) { return { error: error.message }; } };
 process.stdout.write(JSON.stringify({ rows: ROWS.map(run), exact: EXACT.map(run) }));
 `;
+/**
+ * **The rows the server must refuse, derived from its rules, not copied from its output**, so a regression that refuses
+ * one more row cannot quietly shrink what the injection checks below exercise, and a bug cannot be pinned as correct.
+ * A hole whose value lands in a `<script>`'s CONTENT is refused in every context: in HTML a value there is code unless
+ * it is a JSON data block (this table's values are not), and in a foreign template or inside `<noscript>` a script takes
+ * no value at all (`ssr-script-hole`, README). The `text`, `url` and `styleInside` holes put the value in the script's
+ * content; `quoted` and `unquoted` put it in an attribute, which is served escaped. Nothing else is refused.
+ */
+const IN_SCRIPT_CONTENT = new Set(['text', 'url', 'styleInside']);
+const REFUSED = Object.keys(CONTEXTS).flatMap((context) =>
+  Object.keys(HOLES).flatMap((hole) => (IN_SCRIPT_CONTENT.has(hole) ? [`${context} × <script> × ${hole}`] : [])),
+);
+
 const served = JSON.parse(
   execFileSync(process.execPath, ['--input-type=module', '-e', serverScript], { cwd: new URL('..', import.meta.url), encoding: 'utf8' })
 );
@@ -53,8 +66,9 @@ test('the two parses differ: scripting on makes <noscript> raw text', () => {
 
 test('the table is exercised: every tag, context and hole, mostly served', () => {
   assert.equal(served.rows.length, TAGS.length * Object.keys(CONTEXTS).length * Object.keys(HOLES).length);
-  const refused = served.rows.filter((row) => row.error);
-  assert.ok(refused.length < served.rows.length / 4, `${refused.length} of ${served.rows.length} refused: ${refused.slice(0, 3).map((r) => r.error)}`);
+  /** The exact refused rows: a share let a regression that refuses more rows quietly shrink what the checks below see. */
+  const refused = served.rows.flatMap((row, i) => (row.error ? [ROWS[i].label] : []));
+  assert.deepEqual([...refused].sort(), [...REFUSED].sort(), `${refused.length} of ${served.rows.length} refused`);
 });
 
 test('the control: in plain HTML a <style> value really is written raw', () => {

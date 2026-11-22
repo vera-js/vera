@@ -155,10 +155,9 @@ exactly as a browser coalesces them.
 - **The async chain lets promises settle between rounds.** A frame that returns a promise is awaited,
   whatever it awaits; work a frame starts without returning it is caught if it lands within three idle
   microtask turns (measured: a chain four microtasks deep).
-- **a `'layout'` effect runs on a microtask.** Through `renderToStringAsync` its state reaches the
-  markup, as on the client. Through `renderToString` it runs — a side effect inside one *happens* on the
-  server — but after the template was serialized, so state it settles is not in the markup: settle it
-  before `render()`, or use `renderToStringAsync`.
+- **A `'layout'` effect's state reaches the markup through both chains**, as on the client: each round of
+  the drain runs core's queued work first, so `renderToString` serializes the same settled markup as
+  `renderToStringAsync`.
 
 **Generated ids restart at each render.** Hooks that give elements ids (`@vera-hooks/labeled` first) count through
 one counter every copy of the library shares, which in a server lives as long as the process: the same page served

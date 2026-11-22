@@ -20,7 +20,8 @@ test('a frame that reschedules itself forever still renders, in bounded rounds',
   const { runs } = await import(fixture('raf-loop'));
   const { html } = await renderToString(fixture('raf-loop'));
   assert.match(html, /<p>looping<\/p>/);
-  assert.ok(runs.count > 0 && runs.count <= 100, `ran ${runs.count} rounds, bounded`);
+  /** Exactly the README's 20 rounds (frames.ts FRAME_ROUNDS): a looser bound let the documented number drift unguarded. */
+  assert.equal(runs.count, 20, `ran ${runs.count} rounds`);
 });
 
 /**

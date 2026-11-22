@@ -78,6 +78,14 @@ test('`timeout` is checked: a number of milliseconds from 0 to 2^31 − 1', asyn
     await assert.rejects(renderToStringAsync(MODULE, { tag: 'never-frame', timeout: bad }), /`timeout` must be a number of milliseconds/, String(bad));
 });
 
+/** The README's largest value, accepted: the edge an off-by-one in the check (`>=` for `>`) would refuse. */
+test('`timeout: 2^31 − 1` is accepted, and a render that settles first is served at once', async () => {
+  const start = performance.now();
+  const { html } = await renderToStringAsync(MODULE, { tag: 'late-settle', timeout: 2 ** 31 - 1 });
+  assert.match(html, /data-done="late"/, 'the promise it started was awaited');
+  assert.ok(performance.now() - start < 1500, 'served when it settled, not at the budget');
+});
+
 test('a synchronous render is untouched: it awaits nothing, and accepts the option', async () => {
   const { html } = await renderToString(MODULE, { tag: 'never-frame', timeout: 1 });
   assert.ok(html.includes('<p>frame</p>'));
