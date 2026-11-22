@@ -23,4 +23,9 @@ The server's markup scan and its DOM now agree with the engines in more places.
   value is escaped.
 - **A `@verajs/lite` component whose style holds text that only looks like an end tag** (`</stylex>`) is served on the
   server, the same bytes core writes, where it was refused (`tier-hole-position`).
+- **Faster server DOM**: `getElementById` parses only markup that can hold the id (a lookup that misses no longer
+  parses the page), and a node no longer runs `EventTarget`'s constructor, which the server DOM's own listeners never
+  used: parsing a 50 KB `innerHTML` takes about a quarter less time. One call changes: `EventTarget.prototype` methods
+  called explicitly on a node (`EventTarget.prototype.addEventListener.call(node, …)`) throw; the node's own methods
+  are unchanged.
 - **An unknown `renderToString` option is refused** (`ssr-option-unknown`), naming it and the options there are.
