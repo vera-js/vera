@@ -183,8 +183,13 @@ export const parsePattern = (routePattern: string): ParsedPattern => {
   return { pattern, keys, regExp: new RegExp(`^${regexPattern}$`) };
 };
 
+/**
+ * The URL without its fragment, and where the fragment starts. **At the FIRST `#`**, as the URL parser takes it
+ * (2026-11-23): a fragment may hold `#` itself (`/p#!/x#y` is path `/p`, hash `#!/x#y`), and splitting at the last one
+ * routed such a landing URL to not-found, or read `/search?q=a#top#x`'s query as `q=a#top`.
+ */
 export const removeHashFragment = (str: string): [string, number] => {
-  const hashIndex = str.lastIndexOf('#');
+  const hashIndex = str.indexOf('#');
   const trimmedHref = hashIndex > 0 ? str.substring(0, hashIndex) : str;
   return [trimmedHref, hashIndex];
 };
