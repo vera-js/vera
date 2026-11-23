@@ -80,14 +80,26 @@ export const setup = (host: TabsHost) => {
   const tabs = (): Element[] => [...list.children];
   /** The panels, paired with `all` by key, else by order over the host's other children that are not headings. */
   const panels = (all: Element[]): (Element | null)[] => {
-    const children = [...host.children].filter((child) => child !== list);
-    const keyed = all.map((tab, index) => {
-      const key = keyOf(tab, index);
-      const named = tab.getAttribute('aria-controls');
-      return children.find((child) => child.getAttribute('data-value') === key || (named !== null && child.id === named)) ?? null;
-    });
-    if (keyed.some((panel) => panel !== null)) return keyed;
-    const ordered = children.filter((child) => !isHeading(child));
+    /** One pass over the host's children: each by its key and by its id (the first holder of each wins, as in order). */
+    const byKey = new Map<string, Element>();
+    const byId = new Map<string, Element>();
+    const ordered: Element[] = [];
+    for (const child of host.children) {
+      if (child === list) continue;
+      const value = child.getAttribute('data-value');
+      if (value !== null && !byKey.has(value)) byKey.set(value, child);
+      if (child.id !== '' && !byId.has(child.id)) byId.set(child.id, child);
+      if (!isHeading(child)) ordered.push(child);
+    }
+    const keyed: (Element | null)[] = [];
+    let found = false;
+    for (let index = 0; index < all.length; index++) {
+      const named = all[index].getAttribute('aria-controls');
+      const panel = byKey.get(keyOf(all[index], index)) ?? (named === null ? undefined : byId.get(named)) ?? null;
+      if (panel !== null) found = true;
+      keyed.push(panel);
+    }
+    if (found) return keyed;
     if (__DEV__ && ordered.length !== all.length && first('tabs-count-mismatch'))
       console.warn(diagnostic('tabs', '<vera-tabs>', 'tabs-count-mismatch', __DEV__ && PROSE['tabs-count-mismatch'](String(all.length), String(ordered.length))));
     return all.map((_, index) => ordered[index] ?? null);
@@ -104,18 +116,17 @@ export const setup = (host: TabsHost) => {
     let index = all.findIndex((tab, i) => keyOf(tab, i) === current && (tab as HTMLButtonElement).disabled !== true);
     if (index < 0) index = all.findIndex((tab) => !off(tab));
     current = index < 0 ? null : keyOf(all[index], index);
-    all.forEach((tab, i) => {
+    for (let i = 0; i < all.length; i++) {
+      const tab = all[i];
       if (__DEV__ && tab.localName !== 'button' && first('tabs-not-button'))
         console.warn(diagnostic('tabs', '<vera-tabs>', 'tabs-not-button', __DEV__ && PROSE['tabs-not-button']()));
       const panel = paired[i];
       if (!tab.id) tab.id = `${id}-tab-${i}`;
       tab.setAttribute('role', 'tab');
       tab.setAttribute('aria-selected', String(i === index));
-      if (i === index) (tab as HTMLElement).style.setProperty('anchor-name', anchor);
-      else (tab as HTMLElement).style.removeProperty('anchor-name');
       if (panel === null) {
         tab.removeAttribute('aria-controls');
-        return;
+        continue;
       }
       if (!panel.id) panel.id = `${id}-panel-${i}`;
       tab.setAttribute('aria-controls', panel.id);
@@ -136,7 +147,7 @@ export const setup = (host: TabsHost) => {
       }
       if (i === index) panel.removeAttribute('hidden');
       else panel.setAttribute('hidden', UNTIL_FOUND && host.findable !== 'false' ? 'until-found' : '');
-    });
+    }
     if (current !== null && host.getAttribute('value') !== current) host.setAttribute('value', current);
     if (__DEV__ && UNTIL_FOUND) {
       const hidden = paired.find((panel) => panel?.getAttribute('hidden') === 'until-found');
@@ -155,6 +166,8 @@ export const setup = (host: TabsHost) => {
     host.dispatchEvent(new CustomEvent('tabchange', { detail, bubbles: true }));
   };
 
+  current = host.value;
+  apply();
   /** The `value` attribute or property: a write from code shows its tab and fires nothing. */
   effect(() => {
     const value = host.value;
@@ -163,8 +176,6 @@ export const setup = (host: TabsHost) => {
       apply();
     }
   });
-  current = host.value;
-  apply();
 
   /** The listeners, the observer and the tab stop, undone on removal and set again on a move (core's effect rule). */
   effect(() => {

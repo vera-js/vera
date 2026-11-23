@@ -4,9 +4,11 @@
  * and is zero specificity, so a page's own rule wins; `data-vera-look="none"` on the host drops the look and keeps the
  * structure (only the hidden panels, which `hidden` itself handles).
  *
- * **The indicator is the tablist container's own `::after`**, anchored to the selected tab, whose per-instance anchor
- * name the element sets inline (a shared name is document-wide in light DOM, so every indicator would follow the last
- * tablist's tab) and passes to the pseudo-element through `--_vera-tabs-anchor`. It lives inside the scrolling
+ * **The indicator is the tablist container's own `::after`**, anchored to the selected tab. The element sets one
+ * per-instance anchor name inline on the container as `--_vera-tabs-anchor` (a shared name is document-wide in light
+ * DOM, so every indicator would follow the last tablist's tab); a rule here gives that name to the
+ * `[aria-selected="true"]` tab and the pseudo-element anchors to it, so the anchor follows the selection with no write
+ * per tab (the element's own anchor writes cost about 4% of a set's creation, measured on Chromium). It lives inside the scrolling
  * container, so it scrolls with the tabs; it writes no node into the author's container. An author's own `::after` on
  * that container wins (zero specificity), and then our indicator is not drawn: the README says so. Without anchor
  * positioning the selected tab draws its own underline and nothing slides. Reduced motion: no slide. Forced colors: the
@@ -27,6 +29,7 @@ export const LOOK =
   `${look(`${TAB}:disabled`)},${look(`${TAB}[aria-disabled="true"]`)}{opacity:.5;cursor:default}` +
   `${look(`${TAB}:focus-visible`)}{outline:2px solid var(--vera-accent,#7c3aed);outline-offset:-2px;border-radius:var(--vera-radius,6px)}` +
   '@supports (top: anchor(bottom)){' +
+  `${look(`${TAB}[aria-selected="true"]`)}{anchor-name:var(--_vera-tabs-anchor)}` +
   `${look(`${LIST}::after`)}{content:"";position:absolute;position-anchor:var(--_vera-tabs-anchor);` +
   'left:anchor(left);width:anchor-size(width);top:calc(anchor(bottom) - 2px);height:2px;background:var(--vera-accent,#7c3aed);pointer-events:none}' +
   `${look(`${LIST}[aria-orientation="vertical"]::after`)}{left:calc(anchor(right) - 2px);width:2px;top:anchor(top);height:anchor-size(height)}` +
