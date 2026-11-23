@@ -3,8 +3,8 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 21560,
-      "gzip": 8302
+      "raw": 21600,
+      "gzip": 8323
     },
     "lite": {
       "raw": 9913,
@@ -75,8 +75,8 @@
       "gzip": 311
     },
     "slots": {
-      "raw": 17759,
-      "gzip": 6368
+      "raw": 17825,
+      "gzip": 6387
     },
     "namespaces": {
       "raw": 1119,

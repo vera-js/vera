@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->14 754 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->13 153 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->14 775 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->13 153 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -78,7 +78,7 @@ already produces from the same package when the code does not reach for a store.
 
 **There is no smaller honest number than <!--size:app.kb-->12.8 KB<!--/size:app.kb-->.** Core ships no
 renderer — a component with none registered warns and paints nothing — so "core alone" is not a tier
-anyone can ship. Quoting core's standalone <!--size:core.gzip-->8.11 KB<!--/size:core.gzip--> as an
+anyone can ship. Quoting core's standalone <!--size:core.gzip-->8.13 KB<!--/size:core.gzip--> as an
 app size would be a bait-and-switch.
 
 *(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
@@ -122,7 +122,7 @@ describing the bytes honestly.)*
 <!--size:table.permodule-->
 | Module | gzip | |
 | --- | ---: | --- |
-| `@verajs/core` | 8 302 B | state (incl. Map and Set), hooks, lifecycle, render |
+| `@verajs/core` | 8 323 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/lite` | 4 315 B | the lite tier: `define`, `signal`, `html`, a renderer that patches in place |
 | `@verajs/static` | 1 777 B | the static tier: `define` and `html` rendered once into markup, values never code |
 | `@verajs/renderer` | 6 452 B | keyed template renderer, refs, `hold` |
@@ -140,7 +140,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer/native-elements` | 626 B | `nativeElements` — `init` on a built-in host (a div, a section…) with a custom element's lifecycle, and the components of a window that goes away retired |
 | `@verajs/renderer/multi-window` | 425 B | `multiWindow` — components left in a pop-out or an iframe are released when that window closes |
 | `@verajs/renderer/until` | 311 B | `until(promise, fallback)` — a promise at a child position: the fallback, then its value |
-| `@verajs/renderer/slots` | 6 368 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
+| `@verajs/renderer/slots` | 6 387 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/renderer/namespaces` | 672 B | an `html` template parsed in the namespace of the position it lands in — SVG children of components |
 | `@verajs/renderer/elements` | 800 B | behavior attached to claimed elements in templates, mounted and unmounted with their instances |
 | `@verajs/renderer/portal` | 699 B | drawing into another element from a component, in a range of its own |
