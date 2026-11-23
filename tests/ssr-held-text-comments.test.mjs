@@ -79,12 +79,23 @@ const hasHandler = (html) => {
 /** The served markup from the held element's own start tag on, read as foreign content (comments are real there). */
 const markupReading = (served, element) => `<svg>${served.slice(served.lastIndexOf(`<${element}>`))}`;
 const DASHES = [['--', '>'], ['-', '->']];
+/**
+ * Shapes whose PAGE reading is the markup one: at an integration point an end tag is read by the foreign-content rules
+ * and pops to a foreign element of its name, so the `<style>`/`<textarea>` after it is SVG or MathML (BROWSER-LEDGER,
+ * the three engines). Whether the scan holds these or knows them, no value may make a handler.
+ */
+const POPPED = [
+  ['<svg><g><title></g><style><!--', '--></style></svg>'],
+  ['<svg><a><title></a><style><!--', '--></style></svg>'],
+  ['<math><mrow><mtext></mrow><style><!--', '--></style></math>'],
+  ['<svg><g><desc></g><textarea><!--', '--></textarea></svg>'],
+];
 const ATTACK = 'x onerror=alert(1)';
 
 test('a value cannot end the held comment in the reading where it is markup, so a later hole stays text', () => {
   assert.equal(hasHandler(`<svg><style><!----><img title=${ATTACK}></style></svg>`), true, 'CONTROL: raw dashes end the comment in the markup reading');
   let rows = 0;
-  for (const [lead, tail] of HELD) {
+  for (const [lead, tail] of [...HELD, ...POPPED]) {
     const element = /<(style|textarea)>/.exec(lead)[1];
     for (const [dashes, close] of DASHES) {
       const served = serializeTemplate(template([lead, `${close}<img title=`, `>${tail}`], [dashes, ATTACK]));
@@ -93,7 +104,14 @@ test('a value cannot end the held comment in the reading where it is markup, so 
       rows++;
     }
   }
-  assert.equal(rows, HELD.length * DASHES.length);
+  assert.equal(rows, (HELD.length + POPPED.length) * DASHES.length);
+  /** The whole element, not only its comments: a plain hole in each popped element makes no markup either. */
+  for (const [lead] of POPPED) {
+    const open = lead.replace(/<!--$/, '');
+    const element = /<(style|textarea)>$/.exec(open)[1];
+    const served = serializeTemplate(template([open, `</${element}>`], [`</${element}><img src=x onerror=alert(1)>`]));
+    assert.equal(hasHandler(served), false, `${open}: a plain hole made a handler -> ${served}`);
+  }
 });
 
 test('a template in that hole is refused, as in a text-only element', () => {

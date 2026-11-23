@@ -114,14 +114,15 @@ const RAW_TEXT_CLOSERS: Partial<Record<string, RegExp>> = { style: /<\/(style)/g
 export const HELD_COMMENT = '--';
 
 export const escapeRawText = (value: unknown, tag: string): string => {
-  if (tag === HELD_COMMENT) return escapeHtml(value).replace(/-/g, '&#45;');
   /**
    * A JSON data block's value (`dataBlock`, `serializer.ts`): `<` as `\u003c`, lossless in JSON — it ends no element
    * and opens no escaped-script state (`<!--<script>` in a script's text swallows the rest of the page: BROWSER-LEDGER).
    */
   if (tag === 'json') return `${value}`.replace(/</g, '\\u003c');
   const closer = RAW_TEXT_CLOSERS[tag];
-  return closer ? `${value}`.replace(closer, '<\\/$1') : escapeHtml(value);
+  if (closer) return `${value}`.replace(closer, '<\\/$1');
+  /** Asked last, so a style, script or JSON value takes exactly the path it took before `HELD_COMMENT` existed. */
+  return tag === HELD_COMMENT ? escapeHtml(value).replace(/-/g, '&#45;') : escapeHtml(value);
 };
 
 /**
