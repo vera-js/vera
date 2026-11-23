@@ -229,9 +229,14 @@ one run, the one in [Performance](#performance).
 - **The markup is identical**, and not on a chosen example: `tests/ssr-static-mode.test.mjs` renders
   *every* fixture in the suite both ways and compares markup, styles and title. A mode that cannot
   drift is why this is an option rather than a second renderer.
-- **A store written during a static render throws**, naming the option, rather than serving markup
-  that reflects none of the writes. In both builds — a server runs the production build, so a
-  development-only guard would be missing from the only place it matters.
+- **A write to a store's own properties during a static render throws**, naming the option, rather
+  than serving markup that reflects none of the writes. In both builds — a server runs the production
+  build, so a development-only guard would be missing from the only place it matters.
+- **A write below them is not caught**: `state.list.push(x)` or `state.user.name = 'x'` changes that
+  object for good and renders nothing, and in a store that outlives the request (one at module level)
+  the next request sees it. Static reads skip the store's proxy to be fast, so a nested object comes
+  back as itself; catching a write there would put a trap on every nested read, which measured +85%
+  on the 100-row store table above, most of what static saves. Write state before the render.
 - It applies to the render, not to the process: a render queued behind a static one, and any store
   written outside a render, are reactive as ever.
 
