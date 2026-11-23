@@ -1334,3 +1334,14 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   (`InvalidCharacterError`); a parser reading such a name back keeps it whole. jsdom refuses every control. Consequence:
   `@verajs/ssr`'s DOM refuses only the parser's whitespace, NUL, `/`, `>` and `=` in a name (and quotes and `<` in a tag
   name, which markup cannot carry); the spread rule, client and server, still refuses every control on purpose.
+- **A URL property reads its attribute resolved against the page's URL, and `about:blank` hides it.** On a page with a
+  real URL, in Chromium 159, Firefox 159 and WebKit 27.2 (Playwright 1.65, headless, 2026-11-23, identical): 20
+  reflected properties (`a.href`, `area.href`, `link.href`, `img.src`, `img.lowsrc`, `img.longDesc`, `iframe.src`,
+  `iframe.longDesc`, `embed.src`, `script.src`, `source.src`, `track.src`, `input.src`, `object.data`,
+  `object.codeBase`, `video.poster`, and `cite` on `blockquote`, `q`, `del`, `ins`) answer `''` when absent, the value
+  resolved against `document.baseURI` when it parses (`zz` → `http://host/dir/zz`, spaces trimmed and encoded), and the
+  value as written when it does not (`http://[bad`). On `about:blank` a relative value does not parse, so each read back
+  exactly what was written. `base.href`, `form.action` and `formAction` answer the document's URL when absent and
+  differ between engines (Chromium keeps the fragment in an absent `base.href` and reads `http://[bad` in `action` as
+  `http://[bad/`). Consequence: `@verajs/ssr`'s DOM reads the 20 as `url` rows, resolved the same way; the four stay
+  out of its table; the reflection table is measured on a page with a URL.

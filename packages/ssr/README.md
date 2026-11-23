@@ -396,9 +396,11 @@ dependency involved.
   `'disabled' in paragraph` stays `false`. Without this, `button.disabled = true` stored a plain
   property and **served a button that was not disabled** until the bundle landed. A property is in the
   table only when all three engines agree and reading the attribute back gives what was written, which
-  excludes ones resolved against a document URL (`form.action`), read from layout (`input.width`) or
-  clamped (`meter.value`). `value`, `checked` and `selected` are mirrored to the markup deliberately:
-  a browser keeps them off it, but on a server the markup is the whole output.
+  excludes ones read from layout (`input.width`), clamped (`meter.value`) or answering the document's URL when
+  absent (`form.action`). A URL property reads back resolved against the document's URL, as a browser's does:
+  `a.href = '/x'` reads `http://localhost/x`, or the same path on the `location` the render was given, while the
+  markup keeps `/x`. `value`, `checked` and `selected` are mirrored to the markup deliberately: a browser keeps them
+  off it, but on a server the markup is the whole output.
 - **Events are real and propagate** — capture, target and bubble phases, `once`, `handleEvent`
   objects, `stopPropagation`, `stopImmediatePropagation`, `composedPath()`, a `dispatchEvent` return
   reflecting `preventDefault`, and a shadow boundary crossed only by a `composed` event. The walk is

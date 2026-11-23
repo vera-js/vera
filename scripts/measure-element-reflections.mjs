@@ -46,7 +46,14 @@ const TAGS = [
 const measure = async (browserType, name) => {
   const browser = await browserType.launch();
   const page = await browser.newPage();
-  await page.setContent('<!doctype html><html><body></body></html>');
+  /**
+   * A page with a real URL: on `about:blank` a relative URL does not parse, so a URL property read back exactly what was
+   * written and looked like a string (2026-11-23). Served by the route, so nothing is fetched.
+   */
+  await page.route('http://vera.test/**', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body></body></html>' })
+  );
+  await page.goto('http://vera.test/dir/page.html');
   const data = await page.evaluate((tags) => {
     /** Members shared with every element are generic and already covered; only the extras matter. */
     const generic = new Set();
@@ -92,6 +99,8 @@ const measure = async (browserType, name) => {
           written,
           readsBack: type === 'number' || type === 'boolean' ? readsBack : String(readsBack),
           drivenByAttribute: readsBack === fresh[prop],
+          /** A `url` row: what was written reads back resolved against the page's URL. */
+          resolves: type === 'string' && readsBack !== written && readsBack === new URL(written, document.baseURI).href,
         });
       }
       if (rows.length) out[tag] = rows;

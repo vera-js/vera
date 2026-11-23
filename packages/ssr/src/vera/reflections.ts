@@ -20,8 +20,9 @@
  * reading it back gives. A property is only recorded when all three engines agree on every one of
  * those cells, and when reading the attribute back yields exactly what was written — which is what
  * drops `input.width` (laid out, so it reads `0`), `meter.value` (clamped to its max) and
- * `form.action` (resolved against a document URL this DOM does not have). The reasons are listed at
- * the bottom of this file rather than left to be rediscovered.
+ * `form.action` (the document's URL when absent, where the engines disagree). A URL property reads back what was
+ * written resolved against the page's URL, so it is measured on a page that has one and recorded as `url`. The
+ * reasons are listed at the bottom of this file rather than left to be rediscovered.
  *
  * This is the same discipline the generic table in `nodes.js` was built with, and for the same
  * reason: every value there that was written from memory turned out to be wrong. `tabIndex` had no
@@ -45,6 +46,8 @@ import { asciiLower } from './escaping.js';
 type PresenceReflection = readonly [kind: 'presence', attribute: string, absent?: boolean];
 /** `string`: the attribute's text, or `''` when it is absent. */
 type StringReflection = readonly [kind: 'string', attribute: string];
+/** `url`: the attribute resolved against the document's base URL, as written when it does not parse, `''` when absent. */
+type UrlReflection = readonly [kind: 'url', attribute: string];
 /** `number`: the attribute parsed as an integer, or the third cell when absent or unparseable. */
 type NumberReflection = readonly [kind: 'number', attribute: string, absent: number];
 /** `enum`: a limited set of states, answered canonically, with its own answer for absent and for invalid. */
@@ -56,7 +59,7 @@ type EnumReflection = readonly [
   states: readonly string[],
 ];
 /** One row of the table: how a property answers from, and writes to, its content attribute. */
-type Reflection = PresenceReflection | StringReflection | NumberReflection | EnumReflection;
+type Reflection = PresenceReflection | StringReflection | UrlReflection | NumberReflection | EnumReflection;
 /** Per tag, per property. */
 type ReflectionTable = Readonly<Record<string, Readonly<Record<string, Reflection>>>>;
 
@@ -72,6 +75,10 @@ type Accessors = {
  * - `presence` — a boolean; the attribute's presence is the value. A third entry is the answer when
  *   the attribute is absent, for the one case where that is not `false` (`script.async`).
  * - `string` — the attribute's text, or `''` when it is absent.
+ * - `url` — the attribute resolved against the document's base URL (`/x` reads `http://host/x`), or its text when it
+ *   does not parse as a URL, or `''` when it is absent: what every engine answered for each of these 20 rows on every
+ *   input, measured on a page with a real URL (2026-11-23). The table was first measured on `about:blank`, where a
+ *   relative URL does not parse, so these read back exactly what was written and were recorded as `string`.
  * - `number` — the attribute parsed as an integer, or the third entry when absent or unparseable.
  * - `enum` — `[missing, invalid, states]`: a limited set of states, answered canonically, with its
  *   own answer for absent and for anything outside the set.
@@ -93,7 +100,7 @@ export const ELEMENT_REFLECTIONS = {
     charset: ["string","charset"],
     coords: ["string","coords"],
     download: ["string","download"],
-    href: ["string","href"],
+    href: ["url","href"],
     hreflang: ["string","hreflang"],
     name: ["string","name"],
     ping: ["string","ping"],
@@ -108,7 +115,7 @@ export const ELEMENT_REFLECTIONS = {
     alt: ["string","alt"],
     coords: ["string","coords"],
     download: ["string","download"],
-    href: ["string","href"],
+    href: ["url","href"],
     noHref: ["presence","nohref"],
     ping: ["string","ping"],
     referrerPolicy: ["enum","referrerpolicy","","",["","no-referrer","no-referrer-when-downgrade","same-origin","origin","strict-origin","origin-when-cross-origin","strict-origin-when-cross-origin","unsafe-url"]],
@@ -120,7 +127,7 @@ export const ELEMENT_REFLECTIONS = {
     target: ["string","target"],
   },
   blockquote: {
-    cite: ["string","cite"],
+    cite: ["url","cite"],
   },
   br: {
     clear: ["string","clear"],
@@ -163,7 +170,7 @@ export const ELEMENT_REFLECTIONS = {
     value: ["string","value"],
   },
   del: {
-    cite: ["string","cite"],
+    cite: ["url","cite"],
     dateTime: ["string","datetime"],
   },
   details: {
@@ -184,7 +191,7 @@ export const ELEMENT_REFLECTIONS = {
     align: ["string","align"],
     height: ["string","height"],
     name: ["string","name"],
-    src: ["string","src"],
+    src: ["url","src"],
     type: ["string","type"],
     width: ["string","width"],
   },
@@ -235,13 +242,13 @@ export const ELEMENT_REFLECTIONS = {
     frameBorder: ["string","frameborder"],
     height: ["string","height"],
     loading: ["enum","loading","eager","eager",["eager","lazy"]],
-    longDesc: ["string","longdesc"],
+    longDesc: ["url","longdesc"],
     marginHeight: ["string","marginheight"],
     marginWidth: ["string","marginwidth"],
     name: ["string","name"],
     referrerPolicy: ["enum","referrerpolicy","","",["","no-referrer","no-referrer-when-downgrade","same-origin","origin","strict-origin","origin-when-cross-origin","strict-origin-when-cross-origin","unsafe-url"]],
     scrolling: ["string","scrolling"],
-    src: ["string","src"],
+    src: ["url","src"],
     srcdoc: ["string","srcdoc"],
     width: ["string","width"],
   },
@@ -255,12 +262,12 @@ export const ELEMENT_REFLECTIONS = {
     hspace: ["number","hspace",0],
     isMap: ["presence","ismap"],
     loading: ["enum","loading","eager","eager",["eager","lazy"]],
-    longDesc: ["string","longdesc"],
-    lowsrc: ["string","lowsrc"],
+    longDesc: ["url","longdesc"],
+    lowsrc: ["url","lowsrc"],
     name: ["string","name"],
     referrerPolicy: ["enum","referrerpolicy","","",["","no-referrer","no-referrer-when-downgrade","same-origin","origin","strict-origin","origin-when-cross-origin","strict-origin-when-cross-origin","unsafe-url"]],
     sizes: ["string","sizes"],
-    src: ["string","src"],
+    src: ["url","src"],
     srcset: ["string","srcset"],
     useMap: ["string","usemap"],
     vspace: ["number","vspace",0],
@@ -291,14 +298,14 @@ export const ELEMENT_REFLECTIONS = {
     readOnly: ["presence","readonly"],
     required: ["presence","required"],
     size: ["number","size",20],
-    src: ["string","src"],
+    src: ["url","src"],
     step: ["string","step"],
     type: ["enum","type","text","text",["text","password","checkbox","radio","submit","reset","button","hidden","image","file","number","range","date","month","week","time","datetime-local","email","url","search","tel","color"]],
     useMap: ["string","usemap"],
     webkitdirectory: ["presence","webkitdirectory"],
   },
   ins: {
-    cite: ["string","cite"],
+    cite: ["url","cite"],
     dateTime: ["string","datetime"],
   },
   label: {
@@ -316,7 +323,7 @@ export const ELEMENT_REFLECTIONS = {
     charset: ["string","charset"],
     disabled: ["presence","disabled"],
     fetchPriority: ["enum","fetchpriority","auto","auto",["high","low","auto"]],
-    href: ["string","href"],
+    href: ["url","href"],
     hreflang: ["string","hreflang"],
     imageSizes: ["string","imagesizes"],
     imageSrcset: ["string","imagesrcset"],
@@ -350,9 +357,9 @@ export const ELEMENT_REFLECTIONS = {
     archive: ["string","archive"],
     border: ["string","border"],
     code: ["string","code"],
-    codeBase: ["string","codebase"],
+    codeBase: ["url","codebase"],
     codeType: ["string","codetype"],
-    data: ["string","data"],
+    data: ["url","data"],
     declare: ["presence","declare"],
     height: ["string","height"],
     hspace: ["number","hspace",0],
@@ -398,7 +405,7 @@ export const ELEMENT_REFLECTIONS = {
     max: ["number","max",1],
   },
   q: {
-    cite: ["string","cite"],
+    cite: ["url","cite"],
   },
   script: {
     async: ["presence","async",true],
@@ -410,7 +417,7 @@ export const ELEMENT_REFLECTIONS = {
     integrity: ["string","integrity"],
     noModule: ["presence","nomodule"],
     referrerPolicy: ["enum","referrerpolicy","","",["","no-referrer","no-referrer-when-downgrade","same-origin","origin","strict-origin","origin-when-cross-origin","strict-origin-when-cross-origin","unsafe-url"]],
-    src: ["string","src"],
+    src: ["url","src"],
     type: ["string","type"],
   },
   select: {
@@ -428,7 +435,7 @@ export const ELEMENT_REFLECTIONS = {
     height: ["number","height",0],
     media: ["string","media"],
     sizes: ["string","sizes"],
-    src: ["string","src"],
+    src: ["url","src"],
     srcset: ["string","srcset"],
     type: ["string","type"],
     width: ["number","width",0],
@@ -538,7 +545,7 @@ export const ELEMENT_REFLECTIONS = {
     default: ["presence","default"],
     kind: ["enum","kind","subtitles","metadata",["subtitles","captions","descriptions","chapters","metadata"]],
     label: ["string","label"],
-    src: ["string","src"],
+    src: ["url","src"],
     srclang: ["string","srclang"],
   },
   ul: {
@@ -548,7 +555,7 @@ export const ELEMENT_REFLECTIONS = {
   video: {
     disablePictureInPicture: ["presence","disablepictureinpicture"],
     height: ["number","height",0],
-    poster: ["string","poster"],
+    poster: ["url","poster"],
     width: ["number","width",0],
   },
 
@@ -709,6 +716,18 @@ export const interfaceFor = (tag: string, Base: typeof ElementShim): typeof Elem
           this.setAttribute(attribute, `${value}`);
         },
       });
+    } else if (kind === 'url') {
+      define(proto, property, {
+        get() {
+          const raw = this.getAttribute(attribute);
+          if (raw === null) return '';
+          const base = this.ownerDocument?.baseURI ?? '';
+          return URL.canParse(raw, base) ? new URL(raw, base).href : raw;
+        },
+        set(value) {
+          this.setAttribute(attribute, `${value}`);
+        },
+      });
     } else if (kind === 'number') {
       
 /**
@@ -820,9 +839,10 @@ const absent = (entry as NumberReflection)[2];
  * **What the engines expose that this table deliberately does not**, so the next reader does not
  * have to measure it again to find out why:
  *
- * - `base.href`, `form.action`, `button.formAction`, `input.formAction` — resolved against the
- *   document's URL, which a server render does not have. Answering the raw attribute would be a
- *   different value from the browser's; answering an absolute URL would require inventing an origin.
+ * - `base.href`, `form.action`, `button.formAction`, `input.formAction` — URLs that answer the document's URL when the
+ *   attribute is absent, where the engines disagree: Chromium keeps the fragment in an absent `base.href` and reads an
+ *   unparseable `form.action` as `http://[bad/`, Firefox and WebKit do neither (measured 2026-11-23). The other URL
+ *   properties are the `url` kind above.
  * - `input.width`, `input.height` — read back from layout, so a browser answers `0` for anything it
  *   has not laid out, whatever the attribute says.
  * - `meter.value`, `meter.low`, `meter.high`, `meter.optimum`, `progress.value` — clamped against

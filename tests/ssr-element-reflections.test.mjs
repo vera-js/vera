@@ -64,8 +64,7 @@ test('a string property answers the attribute, and an empty string when it is ab
   for (const [tag, property, attribute] of [
     ['input', 'placeholder', 'placeholder'],
     ['input', 'name', 'name'],
-    ['a', 'href', 'href'],
-    ['img', 'src', 'src'],
+    ['a', 'download', 'download'],
     ['img', 'alt', 'alt'],
     ['label', 'htmlFor', 'for'],
     ['option', 'label', 'label'],
@@ -231,4 +230,51 @@ test('a string reflection that looks numeric still echoes what it was given', ()
       `<${tag}>.width is a DOMString reflection and should echo; the numeric conversion has been over-applied`
     );
   }
+});
+
+/**
+ * A URL property reads its attribute resolved against the document's base URL, as every engine does (`url` rows): a
+ * component reading `a.href` after writing `/x` got `/x` here and an absolute URL in the browser. The markup keeps what
+ * was written, as a browser's does. The table was first measured on `about:blank`, where a relative URL does not parse,
+ * so these rows read back exactly what was written and looked like strings.
+ */
+test('a URL property reads back resolved against the document URL; the attribute keeps what was written', () => {
+  const base = globalThis.document.baseURI;
+  assert.ok(base.startsWith('http'), `a base URL to resolve against: ${base}`);
+  for (const [tag, property, attribute] of [
+    ['a', 'href', 'href'],
+    ['img', 'src', 'src'],
+    ['q', 'cite', 'cite'],
+    ['video', 'poster', 'poster'],
+    ['object', 'data', 'data'],
+  ]) {
+    const element = make(tag);
+    assert.equal(element[property], '', `${tag}.${property} absent`);
+    element[property] = '/x y';
+    assert.equal(element.getAttribute(attribute), '/x y', `${tag}.${property} writes what it was given`);
+    assert.equal(element[property], new URL('/x y', base).href, `${tag}.${property} reads it resolved`);
+    assert.notEqual(element[property], '/x y');
+    element.setAttribute(attribute, 'http://[bad');
+    assert.equal(element[property], 'http://[bad', `${tag}.${property} answers what does not parse as written`);
+  }
+  assert.equal(parse('<a href="../up">x</a>').href, new URL('../up', base).href);
+  assert.match(parse('<a href="/x y">x</a>').outerHTML, /href="\/x y"/);
+});
+
+/** The document's URL is the render's: a component reading `a.href` sees the `location` this request was given. */
+test("a URL property resolves against the render's location", async () => {
+  const { renderToString } = await import('@verajs/ssr');
+  const url = new URL('./fixtures/ssr/url-read-ssr.js', import.meta.url);
+  const read = async (options) => (await renderToString(url, { tag: 'url-read-ssr', ...options })).html;
+  assert.match(await read({ location: 'https://shop.test/en/cart' }), />https:\/\/shop\.test\/en\/x</);
+  assert.match(await read({ location: '/en/cart' }), />http:\/\/localhost\/en\/x</);
+});
+
+test('CONTROL: a string property that is not a URL reads back exactly what was written', () => {
+  const a = make('a');
+  a.download = '/x y';
+  assert.equal(a.download, '/x y');
+  const link = make('link');
+  link.setAttribute('hreflang', 'zz');
+  assert.equal(link.hreflang, 'zz');
 });

@@ -94,6 +94,9 @@ const measure = (tag, property) => {
   return { attribute: added[0], type, missing, written: element.getAttribute(added[0]) };
 };
 
+/** A relative URL (no scheme, no host) that this run's server answers. */
+const SERVED = '/tests/browser/element-reflections.test.js';
+
 for (const [tag, properties] of Object.entries(ELEMENT_REFLECTIONS)) {
   it(`<${tag}> reflects what this engine reflects`, () => {
     const element = document.createElement(tag);
@@ -109,6 +112,18 @@ for (const [tag, properties] of Object.entries(ELEMENT_REFLECTIONS)) {
         expect(found.missing, `${tag}.${property} with the attribute absent`).to.equal(
           entry[0] === 'presence' ? (entry[2] ?? false) : entry[0] === 'number' ? entry[2] : ''
         );
+      /**
+       * A `url` row reads a relative value back resolved against this page's URL, and a `string` row reads it back as
+       * written. This page has a real URL; the run that first built the table did not, so the two looked alike there.
+       * The value is a path the test server serves, because an `<img>` fetches its `src` even detached.
+       */
+      if (entry[0] === 'url' || entry[0] === 'string') {
+        const relative = document.createElement(tag);
+        relative.setAttribute(entry[1], SERVED);
+        expect(relative[property], `${tag}.${property} read back with a relative value`).to.equal(
+          entry[0] === 'url' ? new URL(SERVED, document.baseURI).href : SERVED
+        );
+      }
     }
 
     /** And nothing this engine reflects is missing from the table. */
