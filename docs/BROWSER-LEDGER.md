@@ -1300,7 +1300,16 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   attribute `x"type` and `<script =type="application/json">` the one attribute `=type`, neither a `type`, in all three
   engines (same run); `<script a'b type='application/json'>` keeps its `type` (the control). Consequence: the data-block
   judgment (`dataBlock`, client and server) reads names as the parser does, so such a script is code, and a hole in it
-  is refused on both sides.
+  is refused on both sides. 2026-11-23, Chromium, Firefox and WebKit (Playwright 1.65, headless, identical, matching
+  parse5): `<` belongs to a name too (`a<b`), and `a="x"=y` is `a` plus the name `=y`. Consequence: `@verajs/ssr` has
+  one attribute grammar, HTML's tokenizer rule, for its DOM's parser and for the rebuild of a nested component, which
+  had split `x"title="v"` into `x` plus a `title` nobody wrote. A name led by `=` is kept by the parser but refused by
+  `setAttribute`, the server DOM's only way in: its parser declines such markup, and the rebuild skips the name.
+- **A repeated attribute is its first occurrence.** `<a href="javascript:…" href="/safe">` is a `javascript:` link and
+  `<p title="first" TITLE="second">` has the title `first`, in Chromium, Firefox and WebKit (Playwright 1.65, headless,
+  2026-11-23, identical, matching parse5): the tokenizer drops a later name already on the tag, case-folded.
+  Consequence: `@verajs/ssr`'s parser and its nested-component rebuild keep the first, so what the server's DOM reads
+  is what the served bytes do.
 - **An element's text inside an `<svg>` is markup unless an integration point intervenes.** `<svg><style><img src=x
   onerror=…></style></svg>` parses the `<img>` as an element, breaking out of the svg, in all three engines (same run):
   an HTML `<style>` appended to an `<svg>` through the DOM is served there as SVG's. Consequence: `@verajs/ssr` writes a

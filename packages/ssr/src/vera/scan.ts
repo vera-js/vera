@@ -12,8 +12,8 @@
 import { registry } from './shim.js';
 import { PROSE } from './diagnostics.js';
 import { own, ssrMisuse } from './report.js';
-/** The attribute-name charset, from the parser that owns it — see `ATTRIBUTE` below. */
-import { ATTRIBUTE_NAME } from './parse.js';
+/** The attribute grammar, from the parser that owns it — see `ATTRIBUTE` below. */
+import { ATTRIBUTE_SOURCE } from './parse.js';
 import { freshScan, scanTag } from './tokenizer.js';
 import type { ScannedTag } from './types.js';
 import type { ShadowRootShim } from './nodes.js';
@@ -30,9 +30,30 @@ import type { ShadowRootShim } from './nodes.js';
  * which is narrower than what a start tag may carry: `data-a.b="v"` split at the dot into
  * `data-a=""` and `b="v"`, so a nested component was rebuilt with attributes its author never
  * wrote and read `null` for the one they did — server-side only, silently. The same
- * single-fact-two-copies shape this file's own tag walk had with the tokenizer, and the same fix.
+ * single-fact-two-copies shape this file's own tag walk had with the tokenizer, and the same fix. The whole grammar
+ * is now `parse.js`'s (2026-11-23): this copy allowed no whitespace around `=`, so `<x-kid title = "a b">` rebuilt
+ * the child with `title=""`, `a=""` and `b=""`.
  */
-export const ATTRIBUTE = new RegExp(`(${ATTRIBUTE_NAME})(?:=(?:"([^"]*)"|'([^']*)'|([^\\t\\n\\f\\r >]+)))?`, 'g');
+export const ATTRIBUTE = new RegExp(ATTRIBUTE_SOURCE, 'g');
+/**
+ * **The same grammar where no whitespace touches an `=`**, the shape nearly every open tag has: whitespace around `=`
+ * is all that tells the two apart, so on such text they read the same attributes. Asked first because it is the
+ * cheaper regex: the full one cost ~1% of a page's cold renders (2026-11-23).
+ */
+export const ATTRIBUTE_TIGHT = new RegExp(ATTRIBUTE_SOURCE.replaceAll('[\\t\\n\\f\\r ]*', ''), 'g');
+/** HTML's whitespace, as a code unit (`NaN` past either end is none). */
+const htmlSpace = (c: number): boolean => c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
+/**
+ * **Whitespace beside an `=`: the one shape that needs the full `ATTRIBUTE`.** A look either side of each `=`, not a
+ * regex: a second regex test per nested component cost about half of the grammar's 1% on a page's cold renders
+ * (2026-11-23). An `=` inside a quoted value can answer true; the full grammar is right on any text, so that costs only
+ * the slower regex.
+ */
+export const spacedEquals = (text: string): boolean => {
+  for (let at = text.indexOf('='); at !== -1; at = text.indexOf('=', at + 1))
+    if (htmlSpace(text.charCodeAt(at - 1)) || htmlSpace(text.charCodeAt(at + 1))) return true;
+  return false;
+};
 
 /**
  * **How deep a component tree may nest before the server calls it a cycle.**

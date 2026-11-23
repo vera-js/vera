@@ -23,7 +23,7 @@
  */
 import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint, leadingNewline, normalizeNewlines as normalized, tokenNul } from './escaping.js';
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
-import { rawTextCloserAt as closerAt } from './tokenizer.js';
+import { RAW_TEXT_TAGS, TEXT_ONLY_TAGS, rawTextCloserAt as closerAt } from './tokenizer.js';
 
 /** The entity spellings this package emits, plus the handful every document uses. */
 const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -195,18 +195,46 @@ const adjustAttribute = (name: string, namespace: string): string =>
   namespace === SVG_NS ? (SVG_ATTRIBUTES.get(name) ?? name) : namespace === MATHML_NS && name === 'definitionurl' ? 'definitionURL' : name;
 
 /**
- * **The attribute-name charset, owned here and shared.** Everything a start tag can carry as a
- * name: anything that is not whitespace, `/`, `>`, `=`, a quote, or `<`. Deliberately WIDE — every
- * real engine accepts `a.b`, `a(b)`, `a|b` and `a?b` (recorded in the repo's conventions), so a
- * narrower charset does not reject those names, it MIS-PARSES them.
+ * **The attribute-name charset, owned here and shared: HTML's tokenizer rule.** A first character that is not
+ * whitespace, `/` or `>`, then anything but those and `=`. Deliberately WIDE — every real engine accepts `a.b`, `a(b)`,
+ * `a|b` and `a?b` (recorded in the repo's conventions), so a narrower charset does not reject those names, it
+ * MIS-PARSES them. That held for quotes and `<` too (2026-11-23): Chromium, Firefox and WebKit read `<x a"b="v">` as
+ * the one attribute `a"b`, and `=a` as the name `=a`; the rebuild in `index.js` read `a""` plus a `b="v"` nobody wrote.
  *
  * Exported because `index.js` scans the same grammar when it rebuilds a nested component from the
  * open tag this module wrote. It kept its own `[\w:-]+` copy, which split `data-a.b="v"` into
  * `data-a=""` and `b="v"` — the child then read the wrong attributes, server-side only. Same fact, two spellings, one of them wrong: CODE-PRINCIPLES #5, and the same fix
  * `RAW_TEXT_ELEMENTS` already got in this package.
  */
-export const ATTRIBUTE_NAME = "[^\\t\\n\\f\\r />=\"'<]+";
-const ATTRIBUTE = new RegExp(`^(${ATTRIBUTE_NAME})(?:[\\t\\n\\f\\r ]*=[\\t\\n\\f\\r ]*(?:"([^"]*)"|'([^']*)'|([^\\t\\n\\f\\r >]*)))?`);
+export const ATTRIBUTE_NAME = "[^\\t\\n\\f\\r />][^\\t\\n\\f\\r />=]*";
+/**
+ * **One attribute, as a start tag carries it**: the name, then optionally `=` with whitespace on either side and a
+ * double-quoted, single-quoted or unquoted value (captures: name, double, single, bare). Shared with `scan.ts`, which
+ * rebuilt a nested component from its open tag with its own copy that allowed no whitespace around `=`:
+ * `<x-kid title = "a b">` gave the child `title=""`, `a=""` and `b=""` (2026-11-23).
+ */
+export const ATTRIBUTE_SOURCE = `(${ATTRIBUTE_NAME})(?:[\\t\\n\\f\\r ]*=[\\t\\n\\f\\r ]*(?:"([^"]*)"|'([^']*)'|([^\\t\\n\\f\\r >]*)))?`;
+const ATTRIBUTE = new RegExp(`^${ATTRIBUTE_SOURCE}`);
+
+/**
+ * **Every element whose content the parser reads as text, from the tokenizer that owns the list** (2026-11-23): its
+ * raw-text and text-only elements, and `<noscript>` (scripting on). This parse kept escaping's six-name set, which
+ * lacks `xmp`, `noembed`, `noframes` and `plaintext`, so `<xmp><img src=x onerror=…></xmp>` assigned through
+ * `innerHTML` gave a query an `<img>` that every engine reads as text. A `<plaintext>` has no end tag: its parse finds
+ * no closer and declines, as an unclosed raw-text element does. Their text still serializes escaped (`TextShim.markup`).
+ */
+const PARSED_AS_TEXT = new Set([...RAW_TEXT_ELEMENTS, ...RAW_TEXT_TAGS, ...TEXT_ONLY_TAGS]);
+
+/**
+ * **Whether a name is already among the first `count` attributes** (2026-11-23). HTML's tokenizer keeps the FIRST of
+ * a repeated attribute and drops the rest, so `<a href="javascript:…" href="/safe">` is a `javascript:` link in every
+ * engine. Kept the last, this DOM answered `/safe` while the page it served navigated to the first: a check made on
+ * this DOM was not a check of the page. A plain loop: a tag has a handful of attributes.
+ */
+export const heldAt = (attributes: ReadonlyArray<readonly [string, string]>, count: number, name: string): boolean => {
+  for (let i = 0; i < count; i++) if (attributes[i]![0] === name) return true;
+  return false;
+};
 
 /** The node factories `parseFragment` builds with; the caller owns node identity, so this file never imports the DOM it builds. */
 type NodeFactories = {
@@ -386,9 +414,20 @@ export const parseFragment = (
       if (markup.startsWith('/>', cursor) || markup[cursor] === '>') break;
       const attribute = ATTRIBUTE.exec(markup.slice(cursor));
       if (!attribute || cursor >= markup.length) return null;
+      /**
+       * A name led by `=` is one HTML's parser keeps (`<p =a>` holds `=a`) and `setAttribute` refuses: this DOM builds
+       * through `setAttribute`, so it declines here, never a throw.
+       */
+      if (markup.charCodeAt(cursor) === 61) return null;
       const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
       const lower = asciiLower(nul ? tokenNul(attribute[1]) : attribute[1]);
-      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(nul ? tokenNul(normalized(value)) : normalized(value))]);
+      const named = elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace);
+      /** A repeated name is dropped: the FIRST is the attribute, as the tokenizer keeps it (see `heldAt`). */
+      if (heldAt(attributes, attributes.length, named)) {
+        cursor += attribute[0].length;
+        continue;
+      }
+      attributes.push([named, decode(nul ? tokenNul(normalized(value)) : normalized(value))]);
       cursor += attribute[0].length;
     }
     const selfClosing = markup.startsWith('/>', cursor);
@@ -501,7 +540,7 @@ export const parseFragment = (
     }
 
     /** Raw text runs to its own end tag and is never parsed as markup (HTML's rule: foreign content has none). */
-    if (!foreign && RAW_TEXT_ELEMENTS.has(name)) {
+    if (!foreign && PARSED_AS_TEXT.has(name)) {
       const close = closerAt(markup, index, name);
       if (close === -1) return null;
       const closeEnd = markup.indexOf('>', close);

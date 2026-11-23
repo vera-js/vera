@@ -34,14 +34,14 @@ import {
   LOCATION_PARTS,
 } from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
-import { decode as decodeEntities } from './parse.js';
-import { ATTRIBUTE, renderComponentTags } from './scan.js';
+import { decode as decodeEntities, heldAt } from './parse.js';
+import { ATTRIBUTE, ATTRIBUTE_TIGHT, renderComponentTags, spacedEquals } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
 import { currentRenderingTag } from './stylesheets.js';
 import { discard as discardFrames } from './frames.js';
 import type { ElementShim, ShadowRootShim } from './nodes.js';
-import { INLINE_HANDLER, thrownMessage } from './escaping.js';
+import { INLINE_HANDLER, asciiLower, thrownMessage } from './escaping.js';
 import { PROSE } from './diagnostics.js';
 import { isOwn, once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
 import type { SsrRenderOptions, SsrRenderResult, SsrTemplate } from './types.js';
@@ -213,14 +213,24 @@ const chain = <K extends keyof ServerChains>(name: K) =>
  * land on it too (values decoded: they were read back out of markup this module escaped).
  */
 const buildInstance = (tag: string, attrString: string, enclosing: ShadowRootShim | null): ComponentInstance => {
-  /** A tag with no attributes — most of them — does no attribute work at all (`matchAll` copies its regex). */
-  const attributes = attrString
-    ? [...attrString.matchAll(ATTRIBUTE)].map(([, name, quoted, single, bare]): [string, string] => [
-        name,
-        decodeEntities(quoted ?? single ?? bare ?? ''),
-      ])
-    : undefined;
-  const marker = attributes?.find(([name]) => name === INSTANCE_ATTRIBUTE)?.[1];
+  /**
+   * A tag with no attributes — most of them — does no attribute work at all. The rest are read by `exec` on the shared
+   * regex, not `matchAll`, which copies its regex per call; nothing runs between the reads but `decodeEntities`, so the
+   * shared `lastIndex` is this loop's alone. The instance marker is found in the same pass: the first, as `heldAt` keeps.
+   */
+  let attributes: Array<[string, string]> | undefined;
+  let marker: string | undefined;
+  if (attrString) {
+    const grammar = spacedEquals(attrString) ? ATTRIBUTE : ATTRIBUTE_TIGHT;
+    attributes = [];
+    grammar.lastIndex = 0;
+    for (let read = grammar.exec(attrString); read !== null; read = grammar.exec(attrString)) {
+      const name = asciiLower(read[1]!);
+      const value = decodeEntities(read[2] ?? read[3] ?? read[4] ?? '');
+      if (marker === undefined && name === INSTANCE_ATTRIBUTE) marker = value;
+      attributes.push([name, value]);
+    }
+  }
   const pending = marker === undefined ? undefined : pendingInstances.get(marker);
   /**
    * This tag is the one rendering while it is constructed, so a constructor that throws is named by it, not by the
@@ -243,7 +253,19 @@ const buildInstance = (tag: string, attrString: string, enclosing: ShadowRootShi
    * the page, so all of them carry the field the same way.
    */
   element._enclosing = enclosing;
-  if (attributes) for (const [name, value] of attributes) element.setAttribute(name, value);
+  /**
+   * The first of a repeated name, as the parser keeps it (`heldAt`): the child reads what the browser's parse gives it.
+   * A name led by `=` is skipped: the gap between HTML's parser, which keeps it (a client-built child holds `=title`),
+   * and `setAttribute`, which refuses it and is the only way in here. So the server's child lacks it and the served
+   * tag does not carry it. The first attribute, the only one on most tags, asks no `heldAt`; the pair is indexed, not
+   * destructured, which runs the iterator in cold code (both measured on a page's cold renders, 2026-11-23).
+   */
+  if (attributes)
+    for (let i = 0; i < attributes.length; i++) {
+      const pair = attributes[i]!;
+      const name = pair[0];
+      if (name.charCodeAt(0) !== 61 && (i === 0 || !heldAt(attributes, i, name))) element.setAttribute(name, pair[1]);
+    }
   return element;
 };
 
