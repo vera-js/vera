@@ -449,6 +449,7 @@ const SHIM_ONLY = {
     upgrade: 'the registry runs a defined class on an element created before its definition through it (index.ts)',
     markup: "the serializer's protocol: an element's markup",
     openTag: "the serializer's protocol: the authored start tag, kept so a parsed tree reproduces its bytes",
+    markedHTML: "the serializer's protocol: the content with the render's instance markers, which the DOM reads leave out",
     align: KNOWN_GAP,
     assignedNodes: KNOWN_GAP,
     assignedElements: KNOWN_GAP,
@@ -460,6 +461,7 @@ const SHIM_ONLY = {
   shadowRoot: {
     templateAttributes: "the serializer's protocol: the declarative shadow root's <template> attributes",
     styleTags: "the serializer's protocol: the root's adopted sheets as <style> tags",
+    markedHTML: "the serializer's protocol: the content with the render's instance markers, which the DOM reads leave out",
     nextElementSibling: KNOWN_GAP,
     previousElementSibling: KNOWN_GAP,
     assignedSlot: KNOWN_GAP,

@@ -261,7 +261,7 @@ export const serializeElement = (element: ElementShim): string => {
    * ordinary element, which keeps its children and its end tag. The namespace is read only for a name that matches.
    */
   if (VOID_ELEMENTS.has(element.localName) && element._ns === HTML_NS) return open;
-  const inner = element.innerHTML;
+  const inner = element.markedHTML();
   /**
    * Content that starts with a line feed gets one more for the parser to take (`NEWLINE_TAKERS`) — unless the open
    * tag is parsed source still carrying the one the parser took from it, which is the only way it ends in anything
@@ -288,8 +288,9 @@ const serializeEntry = (entry: EntryShim): string =>
  * nothing has to alias `this`, and one cast because the methods are added to an array.
  */
 const namedNodeMap = (element: ElementShim): NamedNodeMapShim => {
+  const all = [...element._attributes];
   const list = (
-    [...element._attributes].map(([name, value]): AttributeShim => ({
+    (pendingInstances.size === 0 ? all : all.filter(([name]) => shown(name))).map(([name, value]): AttributeShim => ({
       name,
       value,
       localName: name,
@@ -405,8 +406,10 @@ const equalNodes = (a: DuckNode, b: DuckNode | null | undefined): boolean => {
   if (!b || b.nodeType !== a.nodeType || b.nodeName !== a.nodeName) return false;
   const mine = a._attributes ?? new Map();
   const theirs = b._attributes ?? new Map();
-  if (mine.size !== theirs.size) return false;
-  for (const [name, value] of mine) if (theirs.get(name) !== value) return false;
+  /** The render's instance marker is not an attribute to code reading the DOM (see `unmarked`), so it does not count here. */
+  const hidden = pendingInstances.size === 0 ? 0 : Number(mine.has(INSTANCE_ATTRIBUTE)) - Number(theirs.has(INSTANCE_ATTRIBUTE));
+  if (mine.size - theirs.size !== hidden) return false;
+  for (const [name, value] of mine) if (name !== INSTANCE_ATTRIBUTE && theirs.get(name) !== value) return false;
   const ours = nodesOf(a as ContainerShim);
   const others = nodesOf(b as ContainerShim);
   if (ours.length !== others.length) return false;
@@ -946,7 +949,15 @@ export class ContainerShim extends NodeBaseShim {
   override dispatchEvent(event: Event): boolean {
     return dispatch(this, event);
   }
+  /** The content as component code reads it: the render's instance markers left out (see `unmarked`). */
   get innerHTML(): string {
+    return unmarked(this.markedHTML());
+  }
+  /**
+   * The content as the render writes it, instance markers included: what the serializer, the nested-component scan
+   * and every internal read use (see `unmarked`).
+   */
+  markedHTML(): string {
     /**
      * A void element's children exist in the DOM but never in its serialization — the HTML
      * serialization algorithm skips them, so engines answer `""` here even with children attached
@@ -2263,7 +2274,8 @@ export class ElementShim extends ContainerShim {
     return namedNodeMap(this);
   }
   getAttributeNames(): string[] {
-    return [...this._attributes.keys()];
+    const names = [...this._attributes.keys()];
+    return pendingInstances.size === 0 ? names : names.filter(shown);
   }
 
   /**
@@ -2429,7 +2441,7 @@ export class ElementShim extends ContainerShim {
     this.removeAttribute(name);
   }
   hasAttributes(): boolean {
-    return this._attributes.size > 0;
+    return this._attributes.size > (pendingInstances.size !== 0 && this._attributes.has(INSTANCE_ATTRIBUTE) ? 1 : 0);
   }
   getAttributeNode(name: string): AttributeNodeShim | null {
     return this.hasAttribute(name) ? { name, value: this.getAttribute(name) } : null;
@@ -2522,7 +2534,7 @@ export class ElementShim extends ContainerShim {
   }
   /** The element's own markup, which the serializer builds anyway. */
   get outerHTML(): string {
-    return serializeElement(this);
+    return unmarked(serializeElement(this));
   }
   /**
    * **Replaces this element in its parent with the given markup.** Assigning it used to be a
@@ -2753,7 +2765,10 @@ const templateElement = (): typeof ElementShim =>
       return this._content;
     }
     override get innerHTML(): string {
-      return this._content === undefined ? (this._raw ?? '') : this._content.innerHTML;
+      return unmarked(this.markedHTML());
+    }
+    override markedHTML(): string {
+      return this._content === undefined ? (this._raw ?? '') : this._content.markedHTML();
     }
     /** `[LegacyNullToEmptyString]`, as every element's; the element constructor writes `''` here first. */
     override set innerHTML(markup: unknown) {
@@ -2809,6 +2824,19 @@ export const createElement = (localName: unknown, namespaceURI: string = HTML_NS
  * the marker, so nothing observable depends on it.
  */
 export const INSTANCE_ATTRIBUTE = `vera-ssr-${crypto.randomUUID()}`;
+
+/** Every instance marker as written into markup. */
+const MARKERS = new RegExp(` ${INSTANCE_ATTRIBUTE}="\\d+"`, 'g');
+/**
+ * **Markup with the instance markers left out**, which is what code reading the DOM gets (2026-11-23): the marker is
+ * the render's own handle, and a component that read a child's `outerHTML` or `getAttributeNames()` and wrote it out
+ * (a show-source or debug component) served the per-process name whose secrecy keeps injected markup from claiming a
+ * prepared instance. A browser's element has no such attribute either. The render's own reads take `markedHTML`, and
+ * the page's end sweep is this too. Nothing to strip while no instance is pending, the case of most reads.
+ */
+export const unmarked = (markup: string): string => (pendingInstances.size === 0 ? markup : markup.replaceAll(MARKERS, ''));
+/** An attribute name code reading the DOM sees: every one but the instance marker. */
+const shown = (name: string): boolean => name !== INSTANCE_ATTRIBUTE;
 
 /**
  * Marks `node` as a prepared instance and returns its id, so the nested-component scan renders THIS

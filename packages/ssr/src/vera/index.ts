@@ -31,6 +31,7 @@ import {
   resetPendingDefinitions,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
+  unmarked,
   LOCATION_PARTS,
 } from './shim.js';
 import { UNSAFE_ATTRIBUTE_NAME, serializeTemplate, serializeValue } from './serializer.js';
@@ -169,7 +170,11 @@ const serverRenderer = (template: unknown, container: HTMLElement): void => {
   const ours = (template as Partial<SsrTemplate> | null | undefined)?.strings
     ? serializeTemplate(template as SsrTemplate)
     : serializeValue(template);
-  const current = container.innerHTML;
+  /**
+   * The render's own read, markers kept (`markedHTML`), from the shim's containers; a process that also runs the
+   * client renderer hands this a real element too (its `innerHTML` holds no marker).
+   */
+  const current = typeof (container as unknown as Partial<ElementShim>).markedHTML === 'function' ? (container as unknown as ElementShim).markedHTML() : container.innerHTML;
   const last = written.get(container);
   /** Still shaped as we left it: our range is where we wrote it. Otherwise it is gone; start at the end. */
   const before = last !== undefined && current.startsWith(last.before + last.ours) ? last.before : current;
@@ -337,7 +342,7 @@ const finishInstance = (element: ComponentInstance, tag: string, previousTag: st
     else distributeLight(element, source);
   }
   const root = element._shadowRoot;
-  return { open: element.openTag(), root, shadow: root?.innerHTML ?? '', light: element.innerHTML };
+  return { open: element.openTag(), root, shadow: root?.markedHTML() ?? '', light: element.markedHTML() };
 };
 
 /**
@@ -690,7 +695,7 @@ const renderThrew = (tag: string, others: string, error: unknown): Error =>
  * component's styles once across a page of islands that share `seen`; and the title this render set.
  */
 const finishPage = (rendered: string, tag: string, seen: Set<string> | undefined): SsrRenderResult => {
-  const html = pendingInstances.size ? rendered.replaceAll(new RegExp(` ${INSTANCE_ATTRIBUTE}="\\d+"`, 'g'), '') : rendered;
+  const html = unmarked(rendered);
   if (failures.length) {
     const [first] = failures;
     const others = failures.length > 1 ? ` (and ${failures.length - 1} more)` : '';

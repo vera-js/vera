@@ -32,6 +32,7 @@ import {
   createElement,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
+  unmarked,
   NODE_CONSTANTS,
   validName,
 } from './nodes.js';
@@ -88,6 +89,7 @@ export {
   registry,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
+  unmarked,
 };
 
 /**

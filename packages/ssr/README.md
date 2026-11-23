@@ -207,7 +207,9 @@ page, while the client's template never sees the attribute and leaves it a forei
   get: that is the hydration contract. An **unregistered** dashed tag passes through untouched.
 - Both ride on a marker attribute that crosses the string boundary and is removed before the page is
   returned. **It only ever produces the component it was written for**: a copy of it on another tag is
-  ignored, and a copy on a second element of the same tag renders the instance once, not twice.
+  ignored, and a copy on a second element of the same tag renders the instance once, not twice. Code
+  reading the DOM never sees it: `getAttributeNames()`, `attributes`, `hasAttributes()`, `innerHTML`
+  and `outerHTML` answer as a browser's element does, which has no such attribute.
 - **Nesting is capped at 256 levels, and the client has no such cap.** A component that renders itself
   recurses without bound, which on a server is a hung request, so the render refuses past 256 and says
   so. 256 sits *below* where the client breaks (about 340 levels before a `RangeError`, engine-
