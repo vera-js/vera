@@ -212,7 +212,7 @@ TypeScript-only runtime syntax (CODE-PRINCIPLES #9).
 | npm + TypeScript | `exports.development` in dev, `exports.default` in prod, `exports.types` | `examples/npm-ts/` |
 | npm + plain JS | same bare specifiers, no type layer | `examples/npm-ts/` |
 | CDN / `<script>` | linked `dist/*.min.js`, no build, no bundler | `examples/cdn-js/` |
-| SSR | Node-only `@verajs/ssr`, no dependencies | `examples/ssr-node/` |
+| SSR | `@verajs/ssr` in Node or a Web Worker, no third-party dependencies (its Vera peers only) | `examples/ssr-node/` |
 
 **Modules are independent.** None requires core at runtime; each `.min.js` inlines everything (two bundles = two `inserts`
 Maps), so modules use core's registry: take `wire` from `@verajs/core`, never `@verajs/inserts`, in source and tests.

@@ -296,7 +296,8 @@ evaluator will measure. Small and **fast (#4)** are the paired thesis — neithe
 - **Every byte in `dist/*.min.js` must justify itself.** Core carries what most people genuinely need;
   everything else is an opt-in module. When something can live in a module, it lives in a module.
 - **No runtime dependencies in the browser packages.** A framework that pulls a dependency tree is not
-  tiny. (SSR is Node-only and is exempt — it is never shipped to a browser.)
+  tiny. (`@verajs/ssr` is exempt from the size budget: it runs on a server or in a Web Worker, off the page's
+  critical path. It still takes no third-party dependencies, only its Vera peers `@verajs/core` and `@verajs/styles`.)
 - **Know the number.** A change that moves bundle size should say so, with before/after. Growth is a
   trade to surface, not a silent cost.
 - **Tree-shakeability is part of size.** Keep exports granular and side-effect-free so consumers can
