@@ -86,3 +86,40 @@ test('a declarative shadow root assigned with innerHTML stays a template with co
   );
   assert.equal(typeof shim.createElement('div').setHTMLUnsafe, 'undefined');
 });
+
+/**
+ * **What the server serves inside a `<template>` is that template's content, one chunk, whatever it holds.** The parser
+ * keeps an HTML template's interior as ONE string up to its matching end tag (`parse.ts`, `OPAQUE`), so a template frame
+ * has at most one child and it is that string. Pinned through the serializer anyway, for the shapes that put more than
+ * markup inside one: values bound in its content, a registered component's tag in it (inert, never rendered there), and
+ * a nested template. Each: `content.innerHTML` is the served interior exactly, and the template has no children.
+ */
+test('what the serializer writes inside a template reads back as that template content, one chunk', async () => {
+  const { serializeTemplate } = await import('@verajs/ssr');
+  const { html } = await import('@verajs/core');
+  if (!customElements.get('x-inert-kid')) customElements.define('x-inert-kid', class extends HTMLElement {});
+  const interior = (served) => served.slice(served.indexOf('>', served.indexOf('<template')) + 1, served.lastIndexOf('</template>'));
+  const rows = [
+    ['values in its content', html`<div><template id="t"><p>${'a'}</p>${'b'}<i>${1}</i></template></div>`],
+    ['a registered tag in its content', html`<div><template><x-inert-kid></x-inert-kid><p>${'v'}</p></template></div>`],
+    ['a nested template', html`<div><template><template><b>${'n'}</b></template><p>${'o'}</p></template></div>`],
+  ];
+  for (const [label, template] of rows) {
+    const served = serializeTemplate(template);
+    const host = shim.createElement('div');
+    host.innerHTML = served;
+    const t = host.firstChild.firstChild;
+    assert.equal(t.localName, 'template', label);
+    assert.equal(`${t.children.length} ${t.childNodes.length}`, '0 0', label);
+    assert.equal(t.content.innerHTML, interior(served), label);
+    assert.ok(interior(served).length > 0, `${label}: the served interior is not empty`);
+    assert.equal(host.innerHTML, served, `${label}: round trip`);
+  }
+  /** The nested one, one level down: its own content is its own interior, and it has no children either. */
+  const served = serializeTemplate(rows[2][1]);
+  const host = shim.createElement('div');
+  host.innerHTML = served;
+  const inner = host.firstChild.firstChild.content.firstChild;
+  assert.equal(`${inner.localName} ${inner.children.length} ${inner.content.innerHTML}`, `template 0 ${inner.outerHTML.slice(inner.outerHTML.indexOf('>') + 1, inner.outerHTML.lastIndexOf('</template>'))}`);
+  assert.match(inner.content.innerHTML, /<b>/);
+});

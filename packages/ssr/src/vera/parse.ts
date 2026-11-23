@@ -593,6 +593,7 @@ export const parseFragment = (
      */
     const template = node.localName === 'template' && node.element._raw !== undefined;
     for (const child of node.children) {
+      /** One chunk by construction: an opaque interior is pushed whole, up to its matching end tag, and nothing after it. */
       if (template && typeof child === 'string') node.element._raw = child;
       else if (typeof child === 'string' || typeof child.markup === 'function') {
         node.element._entries.push(child);
