@@ -31,7 +31,7 @@
     "test:browser:all": "node scripts/test-batch.mjs npm run test:browser:all:steps",
     "gate": "node scripts/gate.mjs",
     "test:all:steps": "npm test && npm run test:prod && npm run test:browser",
-    "test:browser:all:steps": "node scripts/test-batch.mjs --light VERA_BROWSERS=chromium web-test-runner --config web-test-runner.config.mjs && node scripts/test-batch.mjs --light VERA_BROWSERS=firefox web-test-runner --config web-test-runner.config.mjs && node scripts/test-batch.mjs --light VERA_BROWSERS=webkit web-test-runner --config web-test-runner.config.mjs",
+    "test:browser:all:steps": "node scripts/browser-all.mjs",
     "test:tiers": "node scripts/test-batch.mjs node scripts/tier-suites.mjs",
     "test:tiers:prod": "node scripts/test-batch.mjs VERA_DIST=production node scripts/tier-suites.mjs"
   },
