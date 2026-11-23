@@ -313,23 +313,41 @@ export const parseFragment = (
     }
     text += markup.slice(index, next);
 
-    /** A comment or a doctype is content this DOM has no node for; keep the bytes and move on. */
-    if (markup.startsWith('<!--', next)) {
+    /**
+     * The character after `<`, read once: only `!` and `?` open a comment of either kind, so a tag pays one read here
+     * rather than a prefix test per kind (three of them cost a cold 50 KB parse about 1.5%, measured 2026-11-23).
+     */
+    const sigil = markup.charCodeAt(next + 1);
+    /** A comment keeps its bytes, for the round trip, beside the data component code reads. */
+    if (sigil === 33 && markup.startsWith('<!--', next)) {
       const end = commentEnd(markup, next);
       if (end === -1) return null;
       flushText();
-      const node = create.comment(normalized(markup.slice(next + 4, commentDataEnd(markup, next, end))));
+      /** A NUL in comment data is U+FFFD, as the tokenizer reads it — as in a name or a value. */
+      const data = normalized(markup.slice(next + 4, commentDataEnd(markup, next, end)));
+      const node = create.comment(nul ? tokenNul(data) : data);
       node._source = markup.slice(next, end);
       open().children.push(node);
       index = end;
       continue;
     }
-    if (markup.startsWith('<!', next)) {
-      /** In foreign content `<![CDATA[` is a text section, and the rest is error recovery: declined. */
-      if (foreign) return null;
+    /**
+     * **`<!` not opening a comment, and `<?`, open a BOGUS comment to the first `>`** (2026-11-23): `a<!x>b<?y>c` is
+     * the text `a`, a comment `x`, `b`, a comment `?y` and `c` to every parser, and it was read here as one text run
+     * holding the markup — component code reading it back saw what no browser has. The node keeps its bytes, as a
+     * comment does. A doctype, which a fragment's parser drops (no node to carry its bytes), and `<![CDATA[` in foreign
+     * content, a text section there, are declined.
+     */
+    const bang = sigil === 33;
+    if (bang || sigil === 63) {
+      if (bang && ((foreign && markup.startsWith('<![CDATA[', next)) || asciiLower(markup.slice(next + 2, next + 9)) === 'doctype')) return null;
       const end = markup.indexOf('>', next);
       if (end === -1) return null;
-      text += markup.slice(next, end + 1);
+      flushText();
+      const data = normalized(markup.slice(bang ? next + 2 : next + 1, end));
+      const node = create.comment(nul ? tokenNul(data) : data);
+      node._source = markup.slice(next, end + 1);
+      open().children.push(node);
       index = end + 1;
       continue;
     }
