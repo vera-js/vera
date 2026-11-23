@@ -251,6 +251,9 @@ const CORPUS = [
   '<div>\nabc</div>',
   '<p>&#38 &#x26 a&#10b</p>',
   '<p title="&#38">x</p>',
+  /* A NUL in an attribute value is U+FFFD, written raw or as a reference (2026-11-23). */
+  '<p title="a\0b" id=c\0d>x</p>',
+  '<p title="&#0;">x</p>',
 ];
 
 /**

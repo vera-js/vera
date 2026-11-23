@@ -21,7 +21,7 @@
  *    Declining is allowed; disagreeing is not. parse5 is a devDependency and stays one — it is the
  *    oracle, never a runtime dependency.
  */
-import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint, leadingNewline, normalizeNewlines as normalized } from './escaping.js';
+import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, attributeNul, decodeCodePoint, leadingNewline, normalizeNewlines as normalized } from './escaping.js';
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
 import { rawTextCloserAt as closerAt } from './tokenizer.js';
 
@@ -383,7 +383,7 @@ export const parseFragment = (
       if (!attribute || cursor >= markup.length) return null;
       const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
       const lower = asciiLower(attribute[1]);
-      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(normalized(value))]);
+      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(attributeNul(normalized(value)))]);
       cursor += attribute[0].length;
     }
     const selfClosing = markup.startsWith('/>', cursor);

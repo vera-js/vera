@@ -149,11 +149,10 @@ const run = (doc, op) => {
 };
 
 /**
- * **Known: the server's parser keeps a NUL in an attribute value**, where the engines read U+FFFD, so the NUL row's id
- * is not the engines' id (the same answer before `getElementById` searched markup selectively). Pinned exactly, both
- * ways: when the parser reads U+FFFD, this row turns red and joins the table.
+ * Rows where the server's DOM answers differently, pinned exactly both ways (none now). The NUL row was one until
+ * 2026-11-23: the parser kept a NUL in an attribute value where the engines read U+FFFD, so the id was not theirs.
  */
-const KNOWN = new Map([['an id holding a NUL (in markup assigned as innerHTML)', { shim: 'null', engines: 'x' }]]);
+const KNOWN = new Map();
 
 test('getElementById answers as the engines do, whatever the id holds', () => {
   const differ = [];
@@ -183,6 +182,7 @@ test('the markup an ancestor query parsed is served byte for byte as authored', 
     '<p id="x" class="a">text</p>',
     '<P CLASS=x ID=up>Upper</P>',
     '<p id=bare data-v=1>bare</p>',
+    '<p id="a\0b" title="n\0l">a NUL, read as U+FFFD and served as written</p>',
     '<p id="ref">&amp; &lt;b&gt; &#169; &copy;</p>',
     '<svg viewBox="0 0 1 1"><rect id="r"/></svg>',
     '<ul><li id="l">one<li>two</ul>',
