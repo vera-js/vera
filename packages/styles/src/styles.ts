@@ -60,13 +60,20 @@ const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1
  * `:host(…)`'s argument runs to its own closing parenthesis, not the first one, through two levels of nesting
  * (`:host(:not(:is(.a, .b)):hover)`): stopping at the first `)` turned `:host(:not(.a):hover)` into
  * `:scope:not(.a:hover)`, a different selector. `:host()` takes one compound selector, so a third level is not written.
- * The argument is matched as an UNROLLED loop (runs of non-parentheses, each nested call between them), not one
- * character per alternation: the per-character form cost WebKit ~17% per rewrite of a sheet with no nested argument,
- * and this one reads the same as the first-`)` regex it replaced, measured per call on three engines.
+ * An attribute selector is skipped whole at every level, so a `)` inside its value (`:host([data-x=")"])`) does not end
+ * the argument; in a compound selector a quote appears only there. Skipping `[…]` rather than each quoted string costs
+ * 18 B gzip where strings with escapes cost 37; it misses only a value holding `]` and then `)` (`[x="])"]`). The
+ * argument is matched as an UNROLLED loop (runs of plain characters, each `[…]` or nested call between them), not one
+ * character per alternation: the per-character form cost WebKit ~17% per rewrite of a sheet with no nested argument.
+ * Skipping `[…]` costs a sheet with `:host(` 4–5% per rewrite on Chromium and WebKit (Firefox unchanged), measured per
+ * call, headed, against the loop without it: about 0.2 µs, paid once per component class per page. The pattern is the
+ * same up to `:host(`, so a sheet without one pays nothing. Cheaper routes measured worse: a hand-written scanner was
+ * 9% slower on Firefox and 201 B larger, and any check that sends only an affected sheet down this path cost more in
+ * JavaScript (25–46% on Chromium) than the few percent it saved.
  */
 const forLightDom = (css: string): string =>
   css
-    .replace(/(^|[^\\]):host\(([^()]*(?:\([^()]*(?:\([^()]*\)[^()]*)*\)[^()]*)*)\)(?=[^{};]*\{)/g, (_, before, inner) => `${before}:scope${inner.trim()}`)
+    .replace(/(^|[^\\]):host\(([^()[]*(?:(?:\[[^\]]*\]|\([^()[]*(?:(?:\[[^\]]*\]|\([^()[]*(?:\[[^\]]*\][^()[]*)*\))[^()[]*)*\))[^()[]*)*)\)(?=[^{};]*\{)/g, (_, before, inner) => `${before}:scope${inner.trim()}`)
     .replace(/(^|[^\\]):host\b(?!-)(?=[^{};]*\{)/g, (_, before) => `${before}:scope`);
 
 /**

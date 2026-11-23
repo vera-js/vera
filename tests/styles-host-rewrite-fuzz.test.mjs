@@ -41,7 +41,7 @@ wire([renderer, styles]);
 const doc = dom.window.document;
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
-const SELECTORS = [':host', ':host(.a)', ':host(:not(.a):hover)', ':host-context(.z)', '.plain', 'p', ':is(:host, .x)', '.md\\:host', 'a:hover'];
+const SELECTORS = [':host', ':host(.a)', ':host(:not(.a):hover)', ':host([data-x=")"])', ':host-context(.z)', '.plain', 'p', ':is(:host, .x)', '.md\\:host', 'a:hover'];
 const DECLARATIONS = ['color: red', 'content: ":host"', 'background: url(/x/:host.png)', 'margin: 0'];
 const VALUE_HOST = /content: ":host"|url\(\/x\/:host\.png\)/g;
 
@@ -71,6 +71,23 @@ test(':host() keeps its whole argument, nested parentheses included', async () =
     assert.match(out, /:scope:not\(\.a\):hover \{ color: red \}/, out);
     assert.match(out, /:scope:not\(a\):not\(b\) \{ color: gray \}/, out);
     assert.match(out, /:scope:is\(\.a, :not\(\.b\)\)\.c b \{ color: blue \}/, out);
+    assert.match(out, /:scope\.flag \{ color: green \}/, `CONTROL: the plain argument still rewrites\n${out}`);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test(':host() skips an attribute selector in its argument, so a ) inside its value does not end it', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const out = await hoisted(
+      ':host([data-x=")"]) { color: teal }\n:host(:not([data-x=\'a)b\'])) { color: olive }\n' +
+        ':host([data-x="\\")"]) { color: maroon }\n:host(.flag) { color: green }'
+    );
+    assert.match(out, /:scope\[data-x="\)"\] \{ color: teal \}/, `a double-quoted ) at the top level\n${out}`);
+    assert.match(out, /:scope:not\(\[data-x='a\)b'\]\) \{ color: olive \}/, `a single-quoted ) one level down\n${out}`);
+    assert.match(out, /:scope\[data-x="\\"\)"\] \{ color: maroon \}/, `an escaped quote does not end the string\n${out}`);
     assert.match(out, /:scope\.flag \{ color: green \}/, `CONTROL: the plain argument still rewrites\n${out}`);
   } finally {
     console.warn = originalWarn;
