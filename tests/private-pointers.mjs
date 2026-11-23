@@ -5,6 +5,7 @@
  *
  * The forms, each with a planted control in `no-private-pointers.test.mjs`:
  * - a register or ledger id: `D14b`, `R4`, `C10`, `F1`, `S4`, `M1`; a dotted or ranged number (`F12-2`, `S4.1`) is not one;
+ * - a work-ledger item or a race bar: `L99`, `W99`, `BAR99` (two digits at least, so `L1` and `W3C` are not one);
  * - a session's name: `vera-5a`, `vera-js-c1`, but never the repository slug `vera-js/vera`;
  * - an attribution to a session: `(d7, 2026-11-20)`, `(d7's find)`, `(vera-js-73's find)`; the short name must hold a
  *   digit, so a parenthesized word (`(be's way)`) is not one;
@@ -18,6 +19,8 @@ import { comments } from './source-comments.mjs';
 export const POINTER = new RegExp(
   [
     String.raw`\b[BCDFGMQRST]\d{1,2}[a-z]?\b(?![-.]\d)`,
+    String.raw`\b[LW]\d{2,3}\b(?![-.]\d)`,
+    String.raw`\bBAR\d+\b`,
     String.raw`\bvera-[0-9a-f]{2}\b`,
     String.raw`\bvera-js-[0-9a-z]{2,}\b`,
     /** The gaps allow a wrapped comment's line break and its ` * `: `(d7,` on one line and `2026-11-20)` on the next. */

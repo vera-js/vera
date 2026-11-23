@@ -38,6 +38,7 @@ test('CONTROL: planted pointers are found, after a regex and a template too; cod
 test('CONTROL: every form the pattern gained is found, and its near-misses are not', () => {
   const planted = [
     ['ledger ids', '/** F1, S4 and M1 */', ['F1', 'S4', 'M1']],
+    ['work-ledger ids and a bar', '/** L99, W99 and BAR99 */', ['L99', 'W99', 'BAR99']],
     ['a session name with js', '/** asked vera-js-c1 */', ['vera-js-c1']],
     ['an attribution with a date', '/** the guard (d7, 2026-11-20) */', ['(d7, 2026-11-20)']],
     ["an attribution with 's", "/** the guard (d7's find) */", ["(d7's find)"]],
@@ -47,8 +48,8 @@ test('CONTROL: every form the pattern gained is found, and its near-misses are n
   ];
   for (const [what, comment, tokens] of planted)
     assert.deepEqual(pointers(`${comment}\nconst a = 1;\n`).map((p) => p.token), tokens, what);
-  const near = "/** vera-js/vera, F12-2, S4.1, (be's way), (ab, 2026-11-20), (Brian, 2026-11-20), run 2 renders, a dry-run, an arc */\nconst a = 1;\n";
-  assert.deepEqual(pointers(near).map((p) => p.token), [], 'the repository slug, a range, a decimal, a word, no digit, a person, the verb run, the word arc');
+  const near = "/** vera-js/vera, F12-2, S4.1, (be's way), (ab, 2026-11-20), (Brian, 2026-11-20), run 2 renders, a dry-run, an arc, L1, W3C, L10n, a BARE word */\nconst a = 1;\n";
+  assert.deepEqual(pointers(near).map((p) => p.token), [], 'the repository slug, a range, a decimal, a word, no digit, a person, the verb run, the word arc, one digit, a standard body, i18n shorthand, a word starting BAR');
 });
 
 /** Every package source file's pointers against `allowed`: what is not allowed, and what is allowed but no longer there. */
