@@ -76,9 +76,10 @@ const RESERVED = [
 test('the reserved element names are the spec\'s eight, in the home and in ssr\'s copy', async () => {
   const { RESERVED_ELEMENT_NAMES } = await import('@verajs/shared-utils');
   assert.deepEqual([...RESERVED_ELEMENT_NAMES].sort(), [...RESERVED].sort(), 'RESERVED_ELEMENT_NAMES');
-  const shim = read('packages/ssr/src/vera/shim.ts');
-  const copy = /const RESERVED_NAMES = new Set\(\[([^\]]*)\]\)/.exec(shim);
-  assert.ok(copy, 'the ssr shim still spells its copy as a Set literal this suite can read');
+  /** In `nodes.ts` since `attachShadow` asks it too (2026-11-23): `validName` is shared by `define` and the host check. */
+  const nodes = read('packages/ssr/src/vera/nodes.ts');
+  const copy = /const RESERVED_NAMES = new Set\(\[([^\]]*)\]\)/.exec(nodes);
+  assert.ok(copy, "ssr's DOM still spells its copy as a Set literal this suite can read");
   const names = [...copy[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
   assert.deepEqual(names.sort(), [...RESERVED].sort(), 'a name ssr treats as a custom element is one the client does not');
 });
