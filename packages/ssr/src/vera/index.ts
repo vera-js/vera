@@ -590,6 +590,13 @@ const renderModule = async (
         console.warn(ssrWarning(`<${tag}>`, 'ssr-timeout', PROSE['ssr-timeout']!(String(timeout ?? DEFAULT_TIMEOUT), list(timedOut), list(waits))));
     }
     staticRender = false;
+    /**
+     * No tag is left rendering: a component that threw leaves its own tag current (the catch above names it from that),
+     * and the NEXT render's module, imported before that render begins, hoisted a sheet it adopts at module scope under
+     * the stale tag, so it came back in the thrower's `styles` on its next render. Reset here, not at a render's start,
+     * because the import runs first.
+     */
+    setRenderingTag('');
     globalThis.document.title = title;
     saved?.forEach((value, i) => (place[LOCATION_PARTS[i]] = value));
     serverTurnOf?.(-1);

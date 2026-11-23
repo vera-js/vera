@@ -4,7 +4,8 @@
  * the render with the bare error, so a page of components said nothing about which one failed (`<x-nest>` holding a
  * throwing `<x-fail>` came back as just its message). Now the thrower is named — the inner tag, not the page's — and
  * its error is the cause, the identical object; in the async chain too, where a sibling prepared while the callback
- * awaited must not take its name. A frame's throw is named as before, and the next render starts clean.
+ * awaited must not take its name. A frame's throw is named as before, and the next render starts clean — no tag left
+ * current by the thrower, so a sheet the next render's module adopts is not filed under it.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -66,4 +67,16 @@ test("CONTROL: a frame's throw is named as before, and the next render starts cl
   const after = await renderToString(healthy('content-ssr.js'), { tag: 'content-page' });
   assert.ok(typeof after.html === 'string' && after.html.length > 0, 'a healthy render right after');
   assert.doesNotMatch(after.html, /boom/, 'nothing of the failed render leaks into the next');
+});
+
+test('a render after a throw files nothing under the thrower: the next module\'s sheet does not come back with it', async () => {
+  globalThis.flakySsrThrows = true;
+  const failed = await rejection(() => renderToString(fixture('flaky-ssr.js'), { tag: 'flaky-ssr' }));
+  globalThis.flakySsrThrows = false;
+  assert.match(failed.message, /<flaky-ssr> threw while rendering/, `CONTROL: the first render failed (${failed.message})`);
+  const sheet = await renderToString(fixture('module-sheet-ssr.js'), { tag: 'module-sheet-ssr' });
+  assert.match(sheet.html, />m</, 'CONTROL: the module rendered');
+  const again = await renderToString(fixture('flaky-ssr.js'), { tag: 'flaky-ssr' });
+  assert.match(again.html, />ok</, 'CONTROL: the second render succeeded');
+  assert.equal(again.styles, '', `the flaky page carries no other module's CSS (${again.styles})`);
 });
