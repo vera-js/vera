@@ -506,6 +506,8 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
      * here is dropped on both sides (see `compile`). A comment ends at `-->` or `--!>`; a BOGUS comment — `<!` not
      * followed by `--`, `<?`, or `</` not followed by a letter — at the first `>`, quotes or not; and a CDATA section,
      * which exists only in foreign content, at the first `]]>` (left open, it is closed with one, see `closersOf`).
+     * The comment rule is `commentEnd`'s (`escaping.ts`), streamed here across statics; `tests/comment-end-twins.test.mjs`
+     * holds the two equal.
      */
     if (comment !== '') {
       if (comment !== '-->') {

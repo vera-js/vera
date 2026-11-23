@@ -309,8 +309,10 @@ export const decodeSchemeReferences = (text: string): string =>
  * `--!>`, or ABRUPTLY at `<!-->` and `<!--->`. Answers the index just past it, or `-1` when it runs to the end of the
  * input — one number, never an allocation, since the component scan asks it for every comment of every render.
  *
- * Knowing only `-->` read `<p><!-->${value}</p>` as a comment swallowing the value, which the browser renders. Every
- * scanner here that meets a comment asks this one rule, and the client's scanner holds its twin.
+ * Knowing only `-->` read `<p><!-->${value}</p>` as a comment swallowing the value, which the browser renders. The
+ * scanners that read a whole string ask this rule (the DOM's parser); the template tokenizer (`tokenizer.ts`) streams
+ * statics one at a time, since a comment can span a hole, and holds a twin of it, as the client's scanner does.
+ * `tests/comment-end-twins.test.mjs` feeds this and the tokenizer the same comment texts and holds them equal.
  *
  * @param markup
  * @param open
