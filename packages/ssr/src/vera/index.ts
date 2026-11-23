@@ -132,6 +132,25 @@ const failures: Failure[] = [];
 const failed = (tag: string | undefined) => (error: unknown) => failures.push({ error, tag });
 wire({ on: 'error', fn: (error: unknown, element?: HTMLElement) => failed(element?.localName)(error), priority: 10 });
 
+/**
+ * True while a `static: true` render runs. Shared because every static-aware store handler reads it at each operation
+ * (see static mode below): a handler is made once per handler it wraps, not once per render.
+ */
+let staticRender = false;
+
+/**
+ * One static-aware handler per handler it wraps, never one per value: a copy per value cost a small
+ * render about 1.2 µs (a fifth of it) in allocation, and gave every nested proxy a handler of its own.
+ * Shared for the life of the process, because a store module's handler is.
+ */
+const staticAware = new WeakMap<ProxyHandler<object>, ProxyHandler<object>>();
+
+/** `href -> entry tag`, so a module rendered again is not re-imported and re-searched: shared across renders. */
+const entryTags = new Map<string, string>();
+
+/** The tail of the render queue (`takeTurn`): shared, because every render, from any caller, waits on the one before. */
+let turn: Promise<unknown> = Promise.resolve();
+
 /* ── the server renderer ─────────────────────────────────────────────────────────────────────── */
 
 /**
@@ -162,22 +181,16 @@ wire({ on: 'render', fn: serverRenderer, priority: 50 });
 
 /* ── static mode, as a store module ──────────────────────────────────────────────────────────── */
 
+const refuseStatic = (prop: string | symbol) =>
+  own(new TypeError(ssrMisuse('ssr-static-write', PROSE['ssr-static-write']!(quoted(String(prop))))));
 /**
  * **`static: true` — this page will not be interactive, so its stores need not be reactive.** A server
  * render is one shot, and the proxy's tracking is the whole reactivity cost of one: turning it off is
  * worth about 3x, with identical markup. A `'store'` insert wrapping every handler core or a module
  * chooses, so a store's reads during a static render bypass tracking and a WRITE is refused by name —
- * a write would change nothing anyone renders, silently. The flag is read at each operation, because a
- * store module decides once per type and a store must be reactive again the moment the render ends.
+ * a write would change nothing anyone renders, silently. The flag (`staticRender`) is read at each operation, because
+ * a store module decides once per type and a store must be reactive again the moment the render ends.
  */
-let staticRender = false;
-const refuseStatic = (prop: string | symbol) =>
-  own(new TypeError(ssrMisuse('ssr-static-write', PROSE['ssr-static-write']!(quoted(String(prop))))));
-/**
- * One static-aware handler per handler it wraps, never one per value: a copy per value cost a small
- * render about 1.2 µs (a fifth of it) in allocation, and gave every nested proxy a handler of its own.
- */
-const staticAware = new WeakMap<ProxyHandler<object>, ProxyHandler<object>>();
 const makeStaticAware = (handler: ProxyHandler<object>): ProxyHandler<object> => {
   const { get = Reflect.get, set = Reflect.set } = handler;
   return {
@@ -477,14 +490,10 @@ const UID = Symbol.for('vera.uid');
 /** The `timeout` an asynchronous render gets when none is given (see `beginBudget` in `frames.ts`). */
 const DEFAULT_TIMEOUT = 2000;
 
-/** `href -> entry tag`, so a module rendered again is not re-imported and re-searched. */
-const entryTags = new Map<string, string>();
-
 /**
  * **One render at a time**, so no render can see another's state — including a synchronous render fired
  * inside an asynchronous one's pause. A failed render must not stop the queue.
  */
-let turn: Promise<unknown> = Promise.resolve();
 const takeTurn = <T>(work: () => Promise<T>): Promise<T> => {
   const mine = turn.then(() => inRender(work));
   turn = mine.then(

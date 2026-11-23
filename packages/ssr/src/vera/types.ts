@@ -120,3 +120,6 @@ export interface ScanResult extends ScanState {
  * are collected, and none inside `<template>` content.
  */
 export type ScannedTag = { readonly at: number; readonly end: number; readonly name: string; readonly closing: boolean; readonly live: boolean };
+
+/** What a diagnostic says: the sentence naming what went wrong, and the fix when there is one (`report.ts`). */
+export type Said = readonly [string, string?];

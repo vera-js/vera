@@ -4,7 +4,7 @@
  * `tests/ssr-shared-twins.test.mjs` holds the generated strings equal — plus the two server rules:
  * text that came from outside is quoted, and a warning is said once per process per key, never at request rate.
  */
-export type Said = readonly [string, string?];
+import type { Said } from './types.js';
 
 const sentence = ([what, fix]: Said): string => `${what}${fix ? ` ${fix}` : ''}`;
 

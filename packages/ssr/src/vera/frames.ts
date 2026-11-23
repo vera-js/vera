@@ -25,6 +25,20 @@ const frames = new Map<number, Frame>();
 const idle = new Set<number>();
 let lastId = 0;
 
+/** Core's flush, as `index.ts` wires it (`setCoreFlush`): shared because every drain, from either chain, runs it. */
+let flushCore = (): void => {};
+
+/**
+ * The current render's time budget (`beginBudget`): when it ends, the one promise racing it, the timer behind that
+ * promise, and whether it has run out. Shared because renders take turns, so one budget is live at a time, and every
+ * await inside that render races the same one.
+ */
+const EXPIRED = Symbol('expired');
+let deadline = Number.POSITIVE_INFINITY;
+let expiry: Promise<typeof EXPIRED> | undefined;
+let timer: ReturnType<typeof setTimeout> | undefined;
+let expired = false;
+
 /** `requestAnimationFrame` (`isIdle` false) and `requestIdleCallback` (true): queue `fn`, answer its id. */
 export const requestFrame = (fn: Frame, isIdle: boolean): number => {
   const id = ++lastId;
@@ -90,9 +104,8 @@ const run = (frame: Frame, report?: FrameReport): unknown => {
  * budget), so the synchronous chain, which serializes without yielding, would otherwise serialize before a write's
  * re-render, while the asynchronous chain, which yields, would not: the two disagreed about the same page. Each round
  * of a drain runs it first, so renders and frames interleave until both are empty — and both chains serialize the
- * same settled markup. Set by `index.ts` from the core it wires (the one the page's components import).
+ * same settled markup. This sets `flushCore`, from the core `index.ts` wires (the one the page's components import).
  */
-let flushCore = (): void => {};
 export const setCoreFlush = (flush: () => void): void => {
   flushCore = flush;
 };
@@ -115,13 +128,8 @@ export const flushFrames = (report?: FrameReport): void => {
  * So each awaited promise races the time left in this render's budget (the `timeout` option, 2000 ms by default),
  * which starts when the render's turn does. When it runs out the promise is abandoned — it may settle later, harmlessly
  * — the render finishes with what it has, and `index.ts` says so in every build, because the served page changed.
+ * This starts a render's budget; the timer itself is made only when something is first awaited.
  */
-const EXPIRED = Symbol('expired');
-let deadline = Number.POSITIVE_INFINITY;
-let expiry: Promise<typeof EXPIRED> | undefined;
-let timer: ReturnType<typeof setTimeout> | undefined;
-let expired = false;
-/** Starts a render's budget; the timer itself is made only when something is first awaited. */
 export const beginBudget = (milliseconds: number): void => {
   deadline = performance.now() + milliseconds;
   expiry = undefined;

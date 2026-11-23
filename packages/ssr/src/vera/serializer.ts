@@ -4,7 +4,7 @@ import { decode } from './parse.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
-import type { Said } from './report.js';
+import type { Said } from './types.js';
 import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
@@ -1701,8 +1701,8 @@ const insertContent = (staticText: string, text: string, strip: string): string 
  * *remove* on the client and must remove here too. Kinds that never touch attributes client-side
  * (events, non-form properties) leave the tag alone.
  *
- * Splitting on the last `<` is safe: attribute values are escaped, so no raw `<` can appear inside
- * one.
+ * Splitting on the last `<` is safe: no raw `<` follows the open tag's own. A value's is escaped, and a `<` in a quoted
+ * static value is written `&#60;` (`valueLtsEscaped`).
  */
 /**
  * Removes an attribute already written into the open tag being built, so the last write wins.
@@ -1913,8 +1913,8 @@ const foldSpread = (
     if (!serializes) continue;
 
     /**
-     * Dropped, and dropped **before** anything is done with the name — `stripAttribute` compiles it
-     * into a pattern, so an unchecked name is a second way in.
+     * Dropped, and dropped **before** anything is done with the name: it is written into the open tag below, where a
+     * quote, a space, a `>` or a `=` in it would end the attribute or the tag.
      *
      * Silent here on purpose. A key that reaches this is either a mistake, which the identical check
      * in `@verajs/renderer/spread` reports in development where the author will see it, or it is

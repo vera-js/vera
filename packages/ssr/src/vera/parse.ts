@@ -133,7 +133,7 @@ export const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
  * integration point in foreign content, stay opaque boundaries, and their interior is parsed in its own namespace when
  * a node view of it is asked for (`nodes.ts`'s `parseChunks`, with `contentSpace`).
  */
-export type Space = 'html' | 'svg' | 'math' | 'math-text';
+type Space = 'html' | 'svg' | 'math' | 'math-text';
 
 /** MathML's text integration points: their content is HTML. */
 const MATH_TEXT = new Set(['mi', 'mo', 'mn', 'ms', 'mtext']);

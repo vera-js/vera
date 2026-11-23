@@ -22,6 +22,31 @@ import { once, ssrWarning } from './report.js';
 /** `@verajs/styles`' mark on a light child's sheet in a shadow root (see `styleTags`). */
 const LIGHT_SHEET = '_$veraLight$';
 
+/**
+ * Instances handed to `appendChild` before they have rendered, so the scan renders **them** rather
+ * than a fresh copy built from their markup.
+ *
+ * The nested-component scan reads emitted markup and instantiates what it finds, which is right for
+ * a tag written in a template and wrong for an element the component built itself: everything
+ * assigned to it — `kid.rows = data`, the ordinary way to hand structured data to a child — was
+ * lost, because an attribute cannot carry it and a fresh instance never saw it. The marker attribute
+ * is the handle, and `renderComponent` removes it as it renders. Shared because the scan that reads the marker runs
+ * in `index.ts`, outside the node that wrote it.
+ */
+export const pendingInstances = new Map<string, ElementShim>();
+
+/**
+ * The last instance id `markPending` handed out: shared, because an id must be unique across every container in the
+ * process for the scan to find the one node it names.
+ */
+let instanceCount = 0;
+
+/**
+ * One `ElementInternals` per element, as `attachInternals` guarantees. Kept here rather than in a field: only a custom
+ * element that calls `attachInternals` ever has one.
+ */
+const internals = new WeakMap<ElementShim, InternalsShim>();
+
 /** A retained child: an element, a text node or a comment — the nodes a container keeps by reference. */
 type ChildShim = ElementShim | TextShim | CommentShim;
 
@@ -2652,18 +2677,6 @@ export const createElement = (localName: unknown, namespaceURI: string = HTML_NS
 };
 
 /**
- * Instances handed to `appendChild` before they have rendered, so the scan renders **them** rather
- * than a fresh copy built from their markup.
- *
- * The nested-component scan reads emitted markup and instantiates what it finds, which is right for
- * a tag written in a template and wrong for an element the component built itself: everything
- * assigned to it — `kid.rows = data`, the ordinary way to hand structured data to a child — was
- * lost, because an attribute cannot carry it and a fresh instance never saw it. The marker attribute
- * is the handle, and `renderComponent` removes it as it renders.
- */
-export const pendingInstances = new Map<string, ElementShim>();
-
-/**
  * The marker's **name** carries a per-process random token, because the markup it is written into is
  * not all ours.
  *
@@ -2680,8 +2693,6 @@ export const pendingInstances = new Map<string, ElementShim>();
  */
 export const INSTANCE_ATTRIBUTE = `vera-ssr-${crypto.randomUUID()}`;
 
-let instanceCount = 0;
-
 /**
  * Marks `node` as a prepared instance and returns its id, so the nested-component scan renders THIS
  * instance rather than a fresh copy built from its markup. Two callers, one discipline:
@@ -2697,9 +2708,6 @@ export const markPending = (node: ElementShim): string => {
   pendingInstances.set(id, node);
   return id;
 };
-
-/** One `ElementInternals` per element, as `attachInternals` guarantees. */
-const internals = new WeakMap<ElementShim, InternalsShim>();
 
 /**
  * Installed once, here, because both are properties of *every* node of their kind rather than of any

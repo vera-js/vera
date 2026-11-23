@@ -137,6 +137,7 @@ const verdictOf = (node: WalkNode, whatToShow: number, filter: WalkFilter | unde
 /**
  * The links a walk follows, typed once. Every read goes through `linked`, which turns a MISSING member into `null`:
  * the document object here has no `firstChild` at all, and a walker rooted at it must walk nothing, not throw.
+ * An intersection, not an `interface … extends`: `WalkNode` is a union, and an interface cannot extend one.
  */
 type Linked = WalkNode & {
   readonly parentNode: WalkNode | null;
