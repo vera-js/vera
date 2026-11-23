@@ -222,9 +222,33 @@ const drain = () => {
       for (let i = 0; i < queue.length; i++) queue[i]._heldBy = undefined;
       running = undefined;
     }
-    queue = [];
-    next = 0;
-    flushing = false;
+    /** A pass that threw out of the flush (an `'error'` handler that rethrows) left passes unrun: see `strandedNone`. */
+    if (next < queue.length) /*@__NOINLINE__*/ strandedNone();
+    else {
+      queue = [];
+      next = 0;
+      flushing = false;
+    }
+  }
+};
+
+/**
+ * **A flush that a throw ended strands nothing** (2026-11-23). An `'error'` handler that rethrows (`log(e); throw e`)
+ * carries the error out of the pass, the flush and the scheduler; the passes queued after it were dropped with the
+ * queue but stayed marked queued, so no later write could queue them again, and hooks on unrelated signals never ran
+ * again. They are put back, in order, and a flush asked for (the error still goes on to whoever runs the flush). Cold:
+ * only a throw reaches it.
+ */
+const strandedNone = () => {
+  const rest = queue.slice(next);
+  queue = rest;
+  next = 0;
+  flushing = false;
+  scheduled = true;
+  try {
+    renderScheduler(drain, rest[0]._owner ?? undefined);
+  } catch {
+    scheduled = false;
   }
 };
 
@@ -253,7 +277,11 @@ export const setRenderScheduler = (scheduler: RenderScheduler) => {
     throw new TypeError(misuse('setRenderScheduler', 'scheduler-not-function', __DEV__ && PROSE['scheduler-not-function'](String(scheduler))));
   const previous = renderScheduler;
   renderScheduler = scheduler;
-  scheduled = next < queue.length;
+  /**
+   * Not during a flush (2026-11-23): that flush drains what is queued, and a scheduler that runs `drain` at once found it
+   * flushing and returned, leaving `scheduled` set for good, so no write asked for a flush again and nothing rendered.
+   */
+  scheduled = !flushing && next < queue.length;
   if (scheduled) scheduler(drain);
   return previous;
 };

@@ -514,9 +514,29 @@ const arrayHandler: ProxyHandler<object> = {
       /** A copy: the caller's descriptor is never changed. */
       if (store != null) descriptor = { ...descriptor, get: () => get.call(store) };
     }
+    const length = (obj as unknown[]).length;
     const defined = handler.defineProperty!(obj, prop, descriptor);
     /** The `set` trap's own re-entry is reported by `set`. */
-    if (defined && !(obj === writingObj && prop === writingProp)) items(obj);
+    if (defined && !(obj === writingObj && prop === writingProp)) {
+      /**
+       * **`length` moves here as it does through `set`** (2026-11-23): an index defined past the end grows it, and a
+       * `length` defined shorter deletes the indices past it, neither through an index or `length` trap of its own. So
+       * `length`'s readers, and the dropped indices' readers and the key set's, are told here as `set` tells them;
+       * before, `Object.defineProperty(rows, 2, …)` and `Object.defineProperty(rows, 'length', { value: 1 })` woke
+       * nobody who read `length` or a dropped row.
+       */
+      const after = (obj as unknown[]).length;
+      if (after > length) triggerAt(obj, 'length', after, length, nextWake());
+      else if (after < length) {
+        const keys = proxyCallbacks.get(obj);
+        if (keys !== undefined) {
+          const send = operation(obj, keys)!;
+          span(keys, send, after, length);
+          send(GLOBAL);
+        }
+      }
+      items(obj);
+    }
     return defined;
   },
   deleteProperty(obj, prop) {

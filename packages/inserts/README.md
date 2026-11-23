@@ -87,7 +87,8 @@ position:
   keeps the rest from initializing at all — which is why the practical rule below matters most
   here.
 - **`'error'` is the one that must not throw.** It is already handling a failure, and a throw from it
-  replaces the error being reported with its own.
+  replaces the error being reported with its own. If one does (`log(e); throw e`), its error leaves the flush that
+  ran the failing hook, and the hooks queued after that one run in a flush asked for at once: none is lost.
 
 The practical rule: an insert is framework-level code and is expected not to throw. If yours can,
 catch inside it and decide what to do — the callback knows what a failure means and core does not.
