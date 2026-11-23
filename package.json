@@ -66,6 +66,7 @@
         "./packages/components/tabs:build",
         "./packages/hooks/typeahead:build",
         "./packages/components/menu:build",
+        "./packages/components/dialog:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
         "./packages/styles:build",

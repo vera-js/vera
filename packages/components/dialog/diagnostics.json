@@ -1,0 +1,29 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "dialog-alert-no-autofocus",
+      "params": [],
+      "message": "is an alertdialog with no autofocus, so focus lands on its first focusable element, which may be the destructive action.",
+      "fix": "Put autofocus on the least destructive button, such as Cancel."
+    },
+    {
+      "code": "dialog-alert-no-description",
+      "params": [],
+      "message": "is an alertdialog with no description, so a screen reader announces its title but not the message it asks about.",
+      "fix": "Mark the message data-vera-part=\"description\", or give the <dialog> an aria-describedby."
+    },
+    {
+      "code": "dialog-no-dialog",
+      "params": [],
+      "message": "has no direct child <dialog>, so there is nothing to open: the element wires the author's own <dialog> and renders none.",
+      "fix": "Put a <dialog> inside it, as its direct child."
+    },
+    {
+      "code": "dialog-no-label",
+      "params": [],
+      "message": "has a dialog with no aria-label, no aria-labelledby and no heading, so a screen reader announces an unnamed dialog.",
+      "fix": "Start the dialog with a heading (it becomes the name), or give the <dialog> an aria-label."
+    }
+  ]
+}

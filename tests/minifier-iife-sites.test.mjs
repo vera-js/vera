@@ -54,6 +54,8 @@ const PINS = {
   'packages/components/input/dist/vera-input-element.min.js': 8,
   'packages/components/input/dist/vera-input.min.js': 8,
   'packages/components/spinner/dist/vera-spinner.min.js': 1,
+  'packages/components/dialog/dist/vera-dialog-element.min.js': 2,
+  'packages/components/dialog/dist/vera-dialog.min.js': 2,
   'packages/components/menu/dist/vera-menu-element.min.js': 2,
   'packages/components/menu/dist/vera-menu.min.js': 2,
   'packages/components/tabs/dist/vera-tabs-element.min.js': 1,

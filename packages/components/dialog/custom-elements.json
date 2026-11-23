@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/development/vera-dialog.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "vera-dialog",
+          "name": "VeraDialog",
+          "description": "A modal dialog over the author's own <dialog>: wired in place, opened by the platform's invokers or a trigger, labelled from its heading, light-dismissible on request, with a host open attribute that binds both ways and a CSS-only sheet placement.",
+          "attributes": [
+            {
+              "name": "open",
+              "description": "Observed. Present: the dialog is open as a modal; written by the app it opens or closes it, and a user close (Escape, a form, an invoker, an outside press) removes it, so bound state stays in step. Not the <dialog>'s own open, which is HTML's non-modal attribute."
+            },
+            {
+              "name": "dismiss",
+              "description": "Read at connect. \"outside\": a press and release both outside the dialog close it (closedby where the engine has it). Never for role=\"alertdialog\"."
+            },
+            {
+              "name": "placement",
+              "description": "Read by the sheet. \"end\", \"start\" or \"bottom\": docked to that edge, sliding in (a sheet). Default centered."
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "open",
+              "type": {
+                "text": "string | null"
+              },
+              "description": "The open attribute."
+            }
+          ],
+          "events": [],
+          "slots": [
+            {
+              "name": "trigger",
+              "description": "A direct child <button> that opens the dialog (the platform's commandfor and command=\"show-modal\")."
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "dialog",
+              "description": "The author's direct child <dialog>."
+            },
+            {
+              "name": "title",
+              "description": "Optional, the dialog's name when it has no heading: an element marked data-vera-part=\"title\"."
+            },
+            {
+              "name": "description",
+              "description": "Optional, the dialog's description (aria-describedby): an element marked data-vera-part=\"description\"."
+            }
+          ],
+          "cssProperties": [
+            {
+              "name": "--vera-border"
+            },
+            {
+              "name": "--vera-radius"
+            },
+            {
+              "name": "--vera-bg"
+            },
+            {
+              "name": "--vera-fg"
+            }
+          ],
+          "vera-states": [],
+          "vera-custom-states": []
+        }
+      ]
+    }
+  ]
+}

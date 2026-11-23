@@ -52,6 +52,7 @@ const LISTED = [
   { name: 'components/input', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'components/tabs', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'components/menu', tables: ['src/diagnostics.ts'], sources: SOURCES },
+  { name: 'components/dialog', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'styles', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'autoloader', tables: ['src/diagnostics.ts'], sources: SOURCES },
   { name: 'inserts', tables: ['src/diagnostics.ts'], sources: SOURCES },

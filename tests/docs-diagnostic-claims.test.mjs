@@ -275,6 +275,8 @@ const CLAIMS = new Map([
   ['packages/components/field/README.md#28ab022f68', 'field-unknown-when'], // Development warns for a `data-when` no key matches.
   ['packages/components/select/README.md#04a7f836ff', 'defined-twice'], // Two library versions on one page warn instead of silently forking — and `@vera-components/select/elemen
   ['packages/components/tabs/README.md#10207baee7', 'tabs-until-found-blocked'], // A page rule giving hidden elements `display: none` blocks this, and development says so.
+  ['packages/components/dialog/README.md#c70b13a873', 'dialog-no-label'], // **Its name.** … An unnamed dialog makes development say so.
+  ['packages/components/dialog/README.md#ea422d327c', 'pinned by tests/dialog.test.mjs: an alertdialog without autofocus warns dialog-alert-no-autofocus, without a description dialog-alert-no-description, once each'], // An alert dialog … development says when either is missing.
   ['packages/components/menu/README.md#81ba35f604', 'menu-no-label'], // Give the container an `aria-label`, since no trigger names it.
   ['packages/components/icon/README.md#87b616288b', 'icon-two-sources'], // both a child <svg> and src: the child wins — development says so
   ['packages/components/icon/README.md#fe276a1ee1', 'pinned by tests/icon.test.mjs: the decorative default and the label mode switch, both ways'], // naming: aria-hidden by default, role=img + aria-label with label

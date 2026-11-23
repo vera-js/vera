@@ -1,0 +1,116 @@
+{
+  "name": "@vera-components/dialog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A modal dialog over the author's own <dialog>: wired in place, opened by the platform's invokers or a trigger, labelled from its heading, light-dismissible on request, with a host open attribute that binds both ways and a CSS-only sheet placement.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/components/dialog"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./dist/vera-dialog.min.js",
+  "types": "./dist/development/vera-dialog.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-dialog.d.ts",
+      "development": "./dist/development/vera-dialog.js",
+      "default": "./dist/vera-dialog.min.js"
+    },
+    "./element": {
+      "types": "./dist/development/vera-dialog-element.d.ts",
+      "development": "./dist/development/vera-dialog-element.js",
+      "default": "./dist/vera-dialog-element.min.js"
+    }
+  },
+  "sideEffects": [
+    "./dist/development/vera-dialog.js",
+    "./dist/vera-dialog.min.js"
+  ],
+  "peerDependencies": {
+    "@verajs/core": "^0.5.0"
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "customElements": "custom-elements.json",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-dialog"
+}

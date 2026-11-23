@@ -30,6 +30,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
  * exports every shared text and never ships, so it is checked through the renderer's, which inlines it.
  */
 const MIGRATED = [
+  ['components/dialog', 'dist/*.min.js'],
   ['components/menu', 'dist/*.min.js'],
   ['components/tabs', 'dist/*.min.js'],
   ['components/spinner', 'dist/*.min.js'],

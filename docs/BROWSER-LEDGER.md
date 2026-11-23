@@ -314,6 +314,20 @@ from another machine, or after that is undone, has a variable changed.
   `contextmenu` by `button === -1`, and on Shift+F10 or ContextMenu opens the menu itself after the key's release only
   when no `contextmenu` came, so it opens once on every engine; a browser row counts the opens, red on Chromium with
   the check removed.
+- **Invokers, `closedby` and `requestClose()` are in all three engines measured, and every close request is cancelable.**
+  Chromium 159, Firefox 159 and WebKit 27.2 (Playwright 1.65, headed, Windows 11, 2026-11-23) each have
+  `commandForElement`, `closedBy` and `requestClose`; a `<button commandfor command="show-modal">` opens the dialog as
+  a modal (`:modal`, the control: `showModal()`), and `command="request-close"`, `requestClose()` and Escape each fire
+  a cancelable `cancel` that, canceled, keeps it open; uncanceled, `requestClose('bye')` closes it with that
+  `returnValue`. Playwright's WebKit is newer than stable Safari, which (per the compat data) lacks `closedby`.
+  Consequence: `<vera-dialog>` routes every user close through `cancel` and keeps a fallback for each (a click for the
+  trigger, the press-and-release rule for `dismiss="outside"`, a dispatched `cancel` then `close()`), none exercised here.
+- **When what opened a dialog is gone, focus at `close` is on the body in Firefox and still inside the closed dialog in
+  Chromium and WebKit.** A modal opened with focus on a button that is then removed, closed by Escape: at the dialog's
+  `close` event `document.activeElement` is `<body>` on Firefox 159 and the dialog's focused `<input>` on Chromium 159
+  and WebKit 27.2 (where it stays, on a hidden element). With the opener still there, the platform has returned focus to
+  it by `close` on all three (the control). Playwright 1.65, 2026-11-23. Consequence: `<vera-dialog>` moves focus to its
+  trigger when focus at `close` is on the body or inside the dialog; a browser row was red on Chromium and WebKit before.
 
 ## CSS and the cascade
 
@@ -368,6 +382,14 @@ from another machine, or after that is undone, has a variable changed.
   tablist's own `::after` anchored to the selected tab, with no measurement; it slides on Chromium and WebKit and jumps
   on Firefox, and the README says so. (Playwright 1.65.1, Windows 11, headless, 2026-11-23;
   `tests/browser/tabs-anchor.test.js`, whose Firefox row pins the jump.)
+- **`scrollbar-gutter: stable` on a page that never scrolled moves its centered content.** Locking a modal's page with
+  `html { overflow: hidden; scrollbar-gutter: stable }`: on Chromium 159 headed with classic scrollbars, a short page's
+  centered content moved 7.6 px at open (the gutter appeared), and a scrolling page's did not move (the control: without
+  the gutter it would jump by the scrollbar's width). Firefox 159 and WebKit 27.2 drew overlay scrollbars there, and
+  nothing moved. With a styled `::-webkit-scrollbar` (which WebKit draws taking room), WebKit 27.2 still moved a scrolling
+  page's centered content 7.5 px under `scrollbar-gutter: stable`. Playwright 1.65, Windows 11, 2026-11-23. Consequence:
+  `<vera-dialog>` gives the root the gutter only when the page was scrolling at open (one read at `beforetoggle`, a mark
+  on the root); a browser row pins the mark and the computed gutter on all three engines.
 
 ## Rendering, frames and timing
 

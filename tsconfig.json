@@ -30,6 +30,12 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
+      "@vera-components/dialog": [
+        "./packages/components/dialog/src/register.ts"
+      ],
+      "@vera-components/dialog/element": [
+        "./packages/components/dialog/src/index.ts"
+      ],
       "@vera-components/menu": [
         "./packages/components/menu/src/register.ts"
       ],
