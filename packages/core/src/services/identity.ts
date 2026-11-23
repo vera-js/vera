@@ -92,8 +92,8 @@ export const remember = (value: object, proxy: object | null) => {
  * it meets. Never onto a proxy (`MARK`'s self-mapping): defining through one is its own trap. A non-extensible object
  * refuses it and keeps the WeakMap.
  */
-export const promote = (value: object, proxy: object | null) => {
-  Reflect.defineProperty(value, PROXY, { value: { _owner: value, _store: proxy, _record: undefined } satisfies Slot, writable: true, configurable: true });
+export const promote = (value: object, proxy: object | null, record?: 1) => {
+  Reflect.defineProperty(value, PROXY, { value: { _owner: value, _store: proxy, _record: record } satisfies Slot, writable: true, configurable: true });
 };
 
 /** A new proxy over `data` — over a FROZEN one, marked `FIXED`. */

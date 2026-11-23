@@ -19,10 +19,14 @@ import { MARK, cached, promote, remember, wrap } from './identity.js';
  *
  * - Not for every store: a field defined on EVERY proxied object costs store rows at creation (`promote`'s note); this
  *   is one record per component.
+ *
+ * - Born a DATA RECORD (`_record` 1): core built it, a plain object of data properties nobody else writes, so its first
+ *   write skips `dataRecord`'s descriptor scan (`Object.getOwnPropertyDescriptors` over every prop, 2.2 ms per 1000
+ *   `<vera-button>`s in a Chromium profile). A later accessor defined THROUGH the store clears the mark as before.
  */
 export const createOwned = <T extends object>(data: T): T => {
   const proxy = wrap(data, handlerFor(data));
-  promote(data, proxy);
+  promote(data, proxy, 1);
   return proxy as T;
 };
 /** A reactive view of `data`: reads inside a hook subscribe it, writes re-run it. Nested objects are reactive too. */
