@@ -70,8 +70,8 @@ for (const file of FILES)
  * and went — a new promise is entered with its code or its pin.)
  */
 const CLAIMS = new Map([
-  ['llms.txt#cca4321cc9', 'computed-cycle'], // a computed that reads itself: development throws computed-cycle, production overflows
-  ['packages/core/README.md#6681f810e2', 'computed-cycle'], // the same sentence in core's README
+  ['llms.txt#c6051d8abb', 'computed-cycle'], // a computed that reads itself: development throws computed-cycle; production does not check
+  ['packages/core/README.md#294203e4a8', 'computed-cycle'], // the same sentence in core's README
   ['llms.txt#0954025b39', 'define-prop-shared-default'], // declared props: a Set, Map or class instance cannot be copied — development warns
   ['llms.txt#82f94baff5', 'define-attribute-type'], // attributes: a non-string default changes type — development warns
   ['packages/core/README.md#c81209e1a0', 'define-prop-shared-default'], // declared props: a Set, a Map or a class instance cannot be copied — development says so
