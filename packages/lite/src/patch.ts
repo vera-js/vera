@@ -7,7 +7,7 @@
  */
 import { JSON_BLOCK, SCRIPT_URL, SHARED, checkForeign, closedRawText, landing, misuse } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
-import { IN_TAG, RAW, SCRIPT_START, TEXT_MARK, TEXT_MARKS, TEXT_ONLY, VALUE_MARK, WRITTEN_NAME, genuine, onlyCore, refusedName, sayAttributeValue, sayBooleanChild, sayListener, sayRefused, sayScriptUrl, urlCheck } from './markup.js';
+import { IN_TAG, RAW, SCRIPT_START, TEXT_MARK, TEXT_MARKS, TEXT_ONLY, VALUE_MARK, WRITTEN_NAME, genuine, literal, onlyCore, refusedName, sayAttributeValue, sayBooleanChild, sayListener, sayRefused, sayScriptUrl, urlCheck } from './markup.js';
 import type { TemplateResult, LiteRoot } from './types.js';
 
 /**
@@ -489,8 +489,7 @@ const textOf = (value: unknown): string => {
     return text;
   }
   const strings = (value as TemplateResult)._$litType$ ? (value as TemplateResult).strings : undefined;
-  if (Array.isArray(strings) && Object.hasOwn(strings, 'raw'))
-    throw new TypeError(misuse('html', 'template-in-text', __DEV__ && SHARED.templateInText()));
+  if (literal(strings)) throw new TypeError(misuse('html', 'template-in-text', __DEV__ && SHARED.templateInText()));
   return `${value}`;
 };
 

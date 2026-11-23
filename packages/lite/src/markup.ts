@@ -58,8 +58,8 @@ export const SCRIPT_START = /<script\b(?:[^>"']|"[^"]*"|'[^']*')*>?/gi;
  */
 const FORGED = ((strings: TemplateStringsArray) => strings)`[object Object]`;
 
-/** A tagged template literal's strings: an array owning `raw` (core's check, identical). */
-const literal = (strings: unknown) => Array.isArray(strings) && Object.hasOwn(strings, 'raw');
+/** A tagged template literal's strings: an array owning `raw` (core's check, identical). One copy for the tier, `patch`'s included. */
+export const literal = (strings: unknown) => Array.isArray(strings) && Object.hasOwn(strings, 'raw');
 
 /**
  * **Only a tagged template literal is a template** — core's rule, identical (`@verajs/renderer`'s `getTemplate`, the check
@@ -154,7 +154,7 @@ export const onlyCore = (value: unknown) => {
    */
   const strings = (value as { strings?: unknown }).strings;
   if (strings !== undefined) {
-    if (Array.isArray(strings) && Object.hasOwn(strings, 'raw'))
+    if (literal(strings))
       warnOnce('lite', 'html', 'template-wrapper', __DEV__ && (() => SHARED.templateWrapper()), 'template-wrapper');
     else warnOnce('lite', 'html', 'forged-template', __DEV__ && (() => SHARED.forgedTemplate()), 'forged-template');
     return;
