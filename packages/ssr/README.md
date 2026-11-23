@@ -507,6 +507,11 @@ markup itself is served byte for byte as it was written.
   other text-only elements, `<svg>`, `<math>`, `<noscript>`, `<template>` — so a child can never reach its
   parent's markup. A plain `<b>` or `<div>` left open is not closed, so the parent's next markup nests inside it
   on the server and beside it on the client. Close every element inside the template that opens it.
+- **A value inside a comment keeps the server's spacing.** Neither side writes a value into a comment, but where a
+  binding is dropped the server leaves one space, so the statics on either side cannot join into another token:
+  `<!--a${x}b-->` is served as `<!--a b-->` where the client writes `<!--ab-->`. Hydration keeps a comment's text,
+  so the adopted page holds the server's; a comment is never shown. Asserted, with the server's real markup, in
+  `tests/hydrate-roundtrip.test.mjs`.
 - **Beyond that, three things cannot survive a server round trip, and are the only three**: that carriage return
   inside `<style>`/`<script>`, and two characters. **NUL** is dropped in text and becomes U+FFFD in an
   attribute or RAWTEXT, and no spelling round-trips, so it is left alone rather than silently

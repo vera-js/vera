@@ -12,6 +12,9 @@
  * there was only one such case. A list is what makes that question answerable, so this is the list —
  * and the other half of it is the assertion that **nothing else** differs, which is what would catch
  * a real divergence appearing.
+ *
+ * The markup here is written by hand. `hydrate-roundtrip.test.mjs` hydrates what `@verajs/ssr` actually serves, and
+ * holds a fifth difference that does not depend on a binding's kind: a value in a comment keeps the server's spacing.
  */
 import { hydrating } from './hydration.mjs';
 import { load, isProduction } from './dist.mjs';
