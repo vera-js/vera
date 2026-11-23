@@ -53,3 +53,36 @@ test('a template answers as jsdom does, row by row', () => {
   }
   assert.deepEqual(diffs, []);
 });
+
+/**
+ * **Declarative shadow DOM markup assigned with `innerHTML`, against an ENGINE.** jsdom is never the oracle for a served
+ * shadow root (it parses one as a `<template>` everywhere), so these values are Chromium 159's, measured 2026-11-23
+ * (Playwright 1.65): fragment parsing keeps the `<template shadowrootmode>` as the host's child, its markup as `content`,
+ * and attaches nothing (the document parser and `setHTMLUnsafe` attach it; the server DOM has neither). The plain
+ * template is the control: the same in every engine and every parse.
+ */
+test('a declarative shadow root assigned with innerHTML stays a template with content, as in Chromium', () => {
+  const read = (markup) => {
+    const root = shim.createElement('div');
+    root.innerHTML = markup;
+    const h = root.firstChild;
+    const t = [...h.childNodes].find((n) => n.localName === 'template') ?? null;
+    return JSON.stringify({
+      shadowRoot: h.shadowRoot ? h.shadowRoot.innerHTML : null,
+      hostChildren: [...h.children].map((c) => c.localName).join(','),
+      template: t ? { children: t.children.length, content: t.content ? t.content.childNodes.length : 'none', mode: t.shadowRootMode ?? 'none' } : null,
+      hostFindsP: !!h.querySelector('p'),
+      rootPs: root.querySelectorAll('p').length,
+      html: root.innerHTML,
+    });
+  };
+  assert.equal(
+    read('<div id="h"><template shadowrootmode="open"><p class="in">x</p><slot></slot></template><i>light</i></div>'),
+    '{"shadowRoot":null,"hostChildren":"template,i","template":{"children":0,"content":2,"mode":"open"},"hostFindsP":false,"rootPs":0,"html":"<div id=\\"h\\"><template shadowrootmode=\\"open\\"><p class=\\"in\\">x</p><slot></slot></template><i>light</i></div>"}',
+  );
+  assert.equal(
+    read('<div id="h"><template><p class="in">x</p></template><i>light</i></div>'),
+    '{"shadowRoot":null,"hostChildren":"template,i","template":{"children":0,"content":1,"mode":""},"hostFindsP":false,"rootPs":0,"html":"<div id=\\"h\\"><template><p class=\\"in\\">x</p></template><i>light</i></div>"}',
+  );
+  assert.equal(typeof shim.createElement('div').setHTMLUnsafe, 'undefined');
+});

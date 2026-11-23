@@ -449,6 +449,10 @@ dependency involved.
 
 **Where it deliberately differs:**
 
+- **Markup is parsed as `innerHTML` parses it in a browser**: a `<template shadowrootmode>` in markup a component assigns
+  stays a `<template>` whose `content` holds the root's markup, and the host gets no `shadowRoot` from it.
+  `setHTMLUnsafe` and `Document.parseHTMLUnsafe`, which would attach one, are absent: `renderToString` decides where a
+  declarative shadow root is written.
 - **A collection is a plain array**, not a live `NodeList` — `childNodes`, `children`,
   `querySelectorAll`, the `getElementsBy*` family. There is nothing to be live over in a single pass;
   `item()` and `namedItem()` are provided anyway.

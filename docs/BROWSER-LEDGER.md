@@ -1345,3 +1345,11 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   differ between engines (Chromium keeps the fragment in an absent `base.href` and reads `http://[bad` in `action` as
   `http://[bad/`). Consequence: `@verajs/ssr`'s DOM reads the 20 as `url` rows, resolved the same way; the four stay
   out of its table; the reflection table is measured on a page with a URL.
+- **Fragment parsing never attaches a declarative shadow root; the document parser and `setHTMLUnsafe` do.** In Chromium
+  159 (Playwright 1.65, headless, 2026-11-23): `<div><template shadowrootmode="open"><p>x</p><slot></slot></template>
+  <i>l</i></div>` assigned with `innerHTML` keeps the `<template>` as the host's first child, with no children, its
+  markup in `content` (2 nodes) and `shadowRootMode` `'open'`, and no `shadowRoot` on the host; the same markup parsed
+  by the document or by `setHTMLUnsafe` attaches the root (`host.shadowRoot.innerHTML` is the template's markup) and
+  leaves no template. A plain `<template>` is a template with content in all three ways. Consequence: `@verajs/ssr`'s
+  DOM parses markup as `innerHTML` does (the template keeps its markup as `content`, never its children), and has no
+  `setHTMLUnsafe` or `parseHTMLUnsafe`: `renderToString` decides where a declarative root is written.
