@@ -212,24 +212,29 @@ const drain = () => {
         pass.$q();
       }
     }
-  } finally {
+  } catch (error) {
     /**
-     * Development: `running` and each pass's `_heldBy` are read only DURING a flush (the loop warning names the writer), and
-     * left set they kept the last hooks that ran — and through them their components — alive after removal, in
-     * development only (found 2026-10-10 by tests/core-subscription-sweep's re-render row: one hook left, dev only).
+     * A pass that threw out of the flush (an `'error'` handler that rethrows) may have left passes unrun: see
+     * `strandedNone`. Here, not in a `finally`: a `finally` that asked whether any were left cost WebKit 4.5% on a flush
+     * per write (measured 2026-11-23); this way the path without a throw is the three resets below, as before.
      */
-    if (__DEV__) {
-      for (let i = 0; i < queue.length; i++) queue[i]._heldBy = undefined;
-      running = undefined;
-    }
-    /** A pass that threw out of the flush (an `'error'` handler that rethrows) left passes unrun: see `strandedNone`. */
-    if (next < queue.length) /*@__NOINLINE__*/ strandedNone();
-    else {
-      queue = [];
-      next = 0;
-      flushing = false;
-    }
+    /*@__NOINLINE__*/ strandedNone();
+    throw error;
   }
+  if (__DEV__) unhold();
+  queue = [];
+  next = 0;
+  flushing = false;
+};
+
+/**
+ * Development: `running` and each pass's `_heldBy` are read only DURING a flush (the loop warning names the writer), and
+ * left set they kept the last hooks that ran — and through them their components — alive after removal, in
+ * development only (found 2026-10-10 by tests/core-subscription-sweep's re-render row: one hook left, dev only).
+ */
+const unhold = () => {
+  for (let i = 0; i < queue.length; i++) queue[i]._heldBy = undefined;
+  running = undefined;
 };
 
 /**
@@ -240,6 +245,13 @@ const drain = () => {
  * only a throw reaches it.
  */
 const strandedNone = () => {
+  if (__DEV__) unhold();
+  if (next >= queue.length) {
+    queue = [];
+    next = 0;
+    flushing = false;
+    return;
+  }
   const rest = queue.slice(next);
   queue = rest;
   next = 0;

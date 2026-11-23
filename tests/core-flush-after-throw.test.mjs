@@ -57,6 +57,32 @@ test("an 'error' handler that rethrows strands no hook, flushed or by microtask"
 });
 
 /**
+ * **The failing pass was the LAST one queued**: nothing is stranded, and the flush must still end as one that ran out
+ * does (queue emptied, no longer flushing). Left flushing, every later flush returns at once and nothing runs again,
+ * the worst way this path can fail. A write after it, to an unrelated signal, must run its hook.
+ */
+test('a rethrown error from the last queued pass leaves later flushes running', () => {
+  const body = (handler) => `
+const { signal, effect, flush, wire } = core;
+wire({ on: 'error', fn: ${handler}, priority: 50 });
+const s = signal(0), other = signal(0); let a = 0, c = 0;
+effect(() => { other.value; c++; }, { owner: {} })?.run();
+effect(() => { a++; if (s.value === 1) throw new Error('effect broke'); }, { owner: {} })?.run();
+process.on('uncaughtException', () => {});
+const out = [];
+s.value = 1; let threw = false; try { flush(); } catch { threw = true; }
+out.push(\`\${threw} \${a}/\${c}\`);
+other.value = 1; try { flush(); } catch {}
+out.push(\`\${a}/\${c}\`);
+await new Promise((r) => setTimeout(r, 20));
+out.push(\`settled \${a}/\${c}\`);
+console.log(out.join(' '));`;
+  assert.equal(child(body('() => { throw new Error("handler broke"); }')), 'true 2/1 2/2 settled 2/2');
+  /** CONTROL: a handler that does not rethrow; the flush does not throw, and the later write runs the same. */
+  assert.equal(child(body('() => {}')), 'false 2/1 2/2 settled 2/2');
+});
+
+/**
  * The flush asked for after the throw goes to the scheduler; one that throws then leaves no flush promised, so the next
  * write asks again (a promised flush that never comes is the stall `setRenderScheduler` had, by another door).
  */
