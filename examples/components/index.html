@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vera components</title>
+<!-- Generated from template.html and each package's demo.ts by scripts/build-components-page.mjs: edit those, then run it. -->
+<style>
+/* A proof sheet: each component pulled as a plate, its states side by side on a quiet stage. */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0b0d0c);--ink:light-dark(#0b0b10,#eef2ef);--mute:light-dark(#5a5f66,#9aa39e);
+  --line:light-dark(#e6e8ea,#1f2422);--stage:light-dark(#f6f7f8,#121614);--accent:#00a862;--mist:light-dark(#eafaf2,#0d1f16)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,sans-serif;overflow-x:clip}
+h1,h2{font-weight:600;line-height:1.1;text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,5vw,44px)}h2{font-size:26px}
+.band{padding:clamp(28px,4vw,56px) max(5vw,16px)}
+.top{background:var(--mist);border-bottom:1px solid var(--line)}
+.top p{max-width:68ch;margin:14px 0 0;color:var(--mute)}
+nav{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
+nav a{color:var(--ink)}
+.plate{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:clamp(20px,4vw,48px);max-width:1240px;margin:0 auto;
+  padding-block:clamp(28px,4vw,48px);border-bottom:1px solid var(--line)}
+.plate .ask{margin:12px 0 0;color:var(--mute);font-size:15px}
+.plate .pkg{display:block;margin-top:10px;font-size:13px;color:var(--mute)}
+.stage{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.cell{background:var(--stage);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;min-height:120px}
+.cell .show{flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;font-size:17px}
+.cell .say{font-size:13px;color:var(--mute)}
+.cell h3{font:500 15px/1.3 system-ui,sans-serif;margin:0}
+.reach{margin:14px 0 0;font-size:13px;color:var(--mute)}
+.wide{grid-column:1/-1}
+button.act{font:inherit;font-size:15px;min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+button.act:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+vera-field input,vera-field textarea{font:inherit;font-size:16px;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+vera-field label{font-weight:500}
+vera-field small{display:block;font-size:13px;color:var(--mute)}
+vera-field [data-vera-part=error]{color:#c4321c}
+svg.glyph{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:760px){.plate{grid-template-columns:minmax(0,1fr)}}
+</style>
+<link rel="stylesheet" href="/packages/components/spinner/dist/preupgrade.css">
+<script type="importmap">{
+ "imports": {
+  "@verajs/core": "/packages/core/dist/vera.min.js",
+  "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+  "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js",
+  "@verajs/renderer/slots": "/packages/renderer/dist/vera-renderer-slots.min.js",
+  "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
+  "@vera-components/dialog": "/packages/components/dialog/dist/vera-dialog.min.js",
+  "@vera-components/field": "/packages/components/field/dist/vera-field.min.js",
+  "@vera-components/icon": "/packages/components/icon/dist/vera-icon.min.js",
+  "@vera-components/input": "/packages/components/input/dist/vera-input.min.js",
+  "@vera-components/kbd": "/packages/components/kbd/dist/vera-kbd.min.js",
+  "@vera-components/menu": "/packages/components/menu/dist/vera-menu.min.js",
+  "@vera-components/select": "/packages/components/select/dist/vera-select.min.js",
+  "@vera-components/spinner": "/packages/components/spinner/dist/vera-spinner.min.js",
+  "@vera-components/tabs": "/packages/components/tabs/dist/vera-tabs.min.js",
+  "@vera-hooks/announce": "/packages/hooks/announce/dist/vera-announce.min.js",
+  "@vera-hooks/labeled": "/packages/hooks/labeled/dist/vera-labeled.min.js",
+  "@vera-hooks/roving-focus": "/packages/hooks/roving-focus/dist/vera-roving-focus.min.js",
+  "@vera-hooks/typeahead": "/packages/hooks/typeahead/dist/vera-typeahead.min.js",
+  "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
+  "@vera-hooks/listbox": "/packages/hooks/listbox/dist/vera-listbox.min.js",
+  "@vera-hooks/light-dismiss": "/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js"
+ }
+}</script>
+</head>
+<body>
+<header class="band top">
+  <h1>Vera components</h1>
+  <p>Every component in this repo, running its production bundle through an import map, in the states it ships with. Each plate comes from the package's own <code>src/&lt;name&gt;/demo.ts</code>, so this page is always the current source and build.</p>
+</header>
+
+<main class="band">
+  <section class="plate" id="dialog">
+    <div>
+      <h2>Dialog</h2>
+      <p class="ask">Judge the dialog open: its spacing, the backdrop, the form's buttons, the alert dialog's wording, and the end sheet sliding in. Try Escape, a press outside on the dismissible one, and the form's Save.</p>
+      <span class="pkg">@vera-components/dialog</span>
+    </div>
+    <div class="stage">
+      <div class="cell wide"><h3>Form dialog</h3><div class="show"><vera-dialog><button slot="trigger">Edit profile</button><dialog><h2>Edit profile</h2><form method="dialog"><label>Name <input name="name" autofocus></label><p><button value="cancel" formnovalidate>Cancel</button> <button value="save">Save</button></p></form></dialog></vera-dialog></div><span class="say">A heading names it; the form closes it with a returnValue.</span></div>
+      <div class="cell wide"><h3>Alert dialog</h3><div class="show"><vera-dialog><button slot="trigger">Delete…</button><dialog role="alertdialog"><h2>Delete this file?</h2><p data-vera-part="description">It cannot be restored.</p><form method="dialog"><button value="cancel" autofocus>Cancel</button> <button value="delete">Delete</button></form></dialog></vera-dialog></div><span class="say">role=&quot;alertdialog&quot;: never light-dismissed; autofocus on the least destructive action.</span></div>
+      <div class="cell"><h3>Dismissible sheet</h3><div class="show"><vera-dialog placement="end" dismiss="outside"><button slot="trigger">Filters</button><dialog aria-label="Filters"><p data-vera-part="title">Filters</p><p>Narrow the list.</p></dialog></vera-dialog></div><span class="say">placement=&quot;end&quot; and dismiss=&quot;outside&quot;: docked to the end edge; a press outside closes it.</span></div>
+      <div class="cell"><h3>Open at load</h3><div class="show"><vera-dialog open><dialog><h2>Welcome</h2><form method="dialog"><button autofocus>Start</button></form></dialog></vera-dialog></div><span class="say">The host's open: shown as a modal on connect.</span></div>
+    </div>
+  </section>
+
+  <section class="plate" id="field">
+    <div>
+      <h2>Field</h2>
+      <p class="ask">Label, hint and errors around your own control. An error appears only after you've tried (submit, or leave the field), never on first sight. Try leaving the email empty, then typing a bad address.</p>
+      <span class="pkg">@vera-components/field</span>
+    </div>
+    <div class="stage">
+      <div class="cell wide"><h3>Required email, with a hint and its errors</h3><div class="show"><form novalidate><vera-field><label>Work email</label><input type="email" required autocomplete="email"><small data-vera-part="hint">We'll send the invite here.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small><small data-vera-part="error" data-when="typeMismatch">That isn't an email address.</small></vera-field><button type="submit">Send invite</button></form></div></div>
+      <div class="cell wide"><h3>A character count, in your words</h3><div class="show"><vera-field count-message="{left} characters left" count-message-zero="No characters left" count-message-one="{left} character left" count-message-two="{left} characters left" count-message-few="{left} characters left" count-message-many="{left} characters left" count-message-other="{left} characters left" limit-message="That's the limit"><label>Bio</label><textarea maxlength="80"></textarea><small data-vera-part="count"></small></vera-field></div><span class="say">Spoken from 80% of the limit and at it: {left} in the plural form of the field's language</span></div>
+      <div class="cell"><h3>The control named, not first</h3><div class="show"><vera-field><label>Search</label><button type="button">Clear</button><input data-vera-part="control" type="search"></vera-field></div><span class="say">data-vera-part=&quot;control&quot; picks the control when it is not the first labelable element</span></div>
+      <div class="cell"><h3>The browser's own messages</h3><div class="show"><form novalidate><vera-field native-messages><label>Age</label><input type="number" min="18" required><small data-vera-part="error"></small></vera-field></form></div><span class="say">native-messages keeps the browser's own bubble on a failed submit; an empty error part shows the browser's message</span></div>
+    </div>
+  </section>
+
+  <section class="plate" id="icon">
+    <div>
+      <h2>Icon</h2>
+      <p class="ask">Your own SVG, kept exactly as written, or a sprite reference. Decorative by default; a label makes it meaningful to a screen reader. Size and color follow the text.</p>
+      <span class="pkg">@vera-components/icon</span>
+    </div>
+    <div class="stage">
+      <div class="cell"><h3>Decorative, beside its text</h3><div class="show"><vera-icon><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></vera-icon> Saved</div></div>
+      <div class="cell wide"><h3>Labeled: a meaningful image</h3><div class="show"><span style="font-size:28px"><vera-icon label="Settings"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></vera-icon></span></div></div>
+      <div class="cell wide"><h3>From a sprite (src)</h3><div class="show"><svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="demo-star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol></svg><span style="font-size:24px;color:#00a862"><vera-icon src="#demo-star" label="Favorite"></vera-icon></span></div><span class="say">A same-origin reference, rendered as &lt;svg&gt;&lt;use&gt;</span></div>
+    </div>
+  </section>
+
+  <section class="plate" id="input">
+    <div>
+      <h2>Input</h2>
+      <p class="ask">Unthemed on purpose: only the glyphs and the loading ring are ours; the input's own border is the browser's, and theming is by tokens. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, and Escape on the search.</p>
+      <span class="pkg">@vera-components/input</span>
+    </div>
+    <div class="stage">
+      <div class="cell"><h3>Search, clearable</h3><div class="show"><label>Search <vera-input clearable clear-label="Clear search"><input type="search" name="q" value="vera"></vera-input></label></div><span class="say">Escape clears a search input</span></div>
+      <div class="cell"><h3>With a prefix and a suffix</h3><div class="show"><label>Amount <vera-input><span data-vera-part="prefix">$</span><input name="amount" inputmode="decimal" value="12"><span data-vera-part="suffix">.00</span></vera-input></label></div></div>
+      <div class="cell"><h3>Password, with reveal and a caps-lock hint</h3><div class="show"><label>Password <vera-input reveal reveal-label="Show password" caps-lock-hint caps-lock-message="Caps Lock is on"><input type="password" name="p" value="s3cret"></vera-input></label></div></div>
+      <div class="cell"><h3>Loading</h3><div class="show"><label>Email <vera-input loading><input type="email" name="e" value="a@b.c"></vera-input></label></div><span class="say">aria-busy on the input; nothing announced</span></div>
+      <div class="cell"><h3>The default input</h3><div class="show"><label>Default input <vera-input name="d" type="email" value="hello@example.com" placeholder="rendered by the element" autocomplete="email" clearable></vera-input></label></div><span class="say">No input written: the element renders one from name, type, value, placeholder and autocomplete, read once</span></div>
+      <div class="cell"><h3>Sizes</h3><div class="show"><label>Small <vera-input scale="sm"><input name="s"></vera-input></label> <label>Large <vera-input scale="lg"><input name="l"></vera-input></label></div><span class="say">scale: sm and lg around the page's font size (md)</span></div>
+      <div class="cell"><h3>Disabled by its fieldset</h3><div class="show"><fieldset disabled><legend>Off</legend><label>Disabled <vera-input clearable><input value="can't clear"></vera-input></label></fieldset></div></div>
+    </div>
+  </section>
+
+  <section class="plate" id="kbd">
+    <div>
+      <h2>Kbd</h2>
+      <p class="ask">Do shortcuts read naturally in each platform's spelling? Apple's is ⇧⌘K with no separators, elsewhere Ctrl+Shift+K. Copying a shortcut copies exactly what is shown.</p>
+      <span class="pkg">@vera-components/kbd</span>
+    </div>
+    <div class="stage">
+      <div class="cell"><h3>Apple</h3><div class="show"><vera-kbd keys="Mod+K" platform="apple"></vera-kbd> <vera-kbd keys="Mod+Shift+P" platform="apple"></vera-kbd></div></div>
+      <div class="cell"><h3>Windows</h3><div class="show"><vera-kbd keys="Mod+K" platform="windows"></vera-kbd> <vera-kbd keys="Mod+Shift+P" platform="windows"></vera-kbd></div></div>
+      <div class="cell"><h3>The reader's own platform</h3><div class="show"><vera-kbd keys="Alt+ArrowUp"></vera-kbd> <vera-kbd keys="Escape"></vera-kbd></div></div>
+      <div class="cell wide"><h3>In running text</h3><div class="show"><p style="max-width: 22em">Search with <vera-kbd keys="Mod+K"></vera-kbd>, or press <vera-kbd keys="Shift+?"></vera-kbd> for every shortcut. Close any dialog with <vera-kbd keys="Escape"></vera-kbd> and go back with <vera-kbd keys="Alt+ArrowLeft"></vera-kbd>.</p></div><span class="say">a key never makes its line taller; the trade: the keycap paints about 2px into the next line at normal line height</span></div>
+      <div class="cell"><h3>Punctuation keys</h3><div class="show"><vera-kbd keys="Mod+/"></vera-kbd> <vera-kbd keys="Mod+,"></vera-kbd> <vera-kbd keys="Mod+."></vera-kbd></div><span class="say">each is spoken by name: Slash, Comma, Period</span></div>
+      <div class="cell"><h3>In right-to-left text</h3><div class="show"><p dir="rtl">לחץ <vera-kbd keys="Mod+Shift+K" platform="apple"></vera-kbd> כדי לחפש</p></div><span class="say">the shortcut keeps its left-to-right order; the sentence around it stays right to left</span></div>
+    </div>
+  </section>
+
+  <section class="plate" id="menu">
+    <div>
+      <h2>Menu</h2>
+      <p class="ask">Judge the menu open under its trigger: spacing, the focused item, a shown shortcut, a checked item, a separator, a disabled item. Try the keys (arrows, typing, Escape, Tab) and a right click in the context area.</p>
+      <span class="pkg">@vera-components/menu</span>
+    </div>
+    <div class="stage">
+      <div class="cell wide"><h3>Action menu</h3><div class="show"><vera-menu><button slot="trigger">Actions</button><div slot="menu"><button value="rename">Rename <kbd>F2</kbd></button><button value="copy">Copy <kbd>Ctrl+C</kbd></button><a href="#export">Export…</a><hr><button role="menuitemcheckbox" aria-checked="true" value="wrap">Word wrap</button><div role="group" aria-label="Sort"><button role="menuitemradio" aria-checked="true" value="name">Sort by name</button><button role="menuitemradio" aria-checked="false" value="date">Sort by date</button></div><hr><button value="delete" aria-disabled="true">Delete</button></div></vera-menu></div><span class="say">A shortcut, a link, a separator, a checkbox item, a radio group and an aria-disabled item.</span></div>
+      <div class="cell wide"><h3>Context menu</h3><div class="show"><vera-menu opener="context"><div slot="target" tabindex="0" style="padding:24px;border:1px dashed currentColor">Right click here</div><div slot="menu" aria-label="Area actions"><button value="cut">Cut</button><button value="copy">Copy</button><button value="paste">Paste</button></div></vera-menu></div><span class="say">Right click the area, or focus it and press Shift+F10.</span></div>
+      <div class="cell"><h3>Unstyled</h3><div class="show"><vera-menu data-vera-look="none"><button slot="trigger">Plain</button><div slot="menu"><button>One</button><button>Two</button></div></vera-menu></div><span class="say">data-vera-look=&quot;none&quot;: the placement stays, the look goes.</span></div>
+    </div>
+  </section>
+
+  <section class="plate" id="select">
+    <div>
+      <h2>Select</h2>
+      <p class="ask">Its look will be redone in the design pass, so judge the behavior: open it, move with the arrow keys, type a letter to jump, search, pick several. Does anything feel slower or stranger than a native select?</p>
+      <span class="pkg">@vera-components/select</span>
+    </div>
+    <div class="stage">
+      <div class="cell wide"><h3>Single, required, with groups, an icon and a description</h3><div class="show"><form><vera-select name="flavor" placeholder="Pick a flavor" required required-message="Pick a flavor first" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></form></div></div>
+      <div class="cell wide"><h3>An initial value</h3><div class="show"><vera-select name="flavor" value="chocolate" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div></div>
+      <div class="cell wide"><h3>Several, as chips, clearable</h3><div class="show"><vera-select multi clearable clear-message="Clear all" remove-message="Remove {label}" aria-label="Toppings"><vera-option value="sprinkles" selected><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><rect x="3" y="7" width="10" height="2" fill="currentColor"/></svg> Sprinkles</vera-option><option value="fudge" selected>Fudge</option><option value="nuts">Nuts</option></vera-select></div></div>
+      <div class="cell wide"><h3>Searchable, and creatable</h3><div class="show"><vera-select searchable creatable search-placeholder="Type a flavor" create-message="Add “{label}”" results-message="{count} flavors" empty-message="No flavor by that name" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div></div>
+      <div class="cell"><h3>Remote, loading, with an overflow line</h3><div class="show"><vera-select remote loading debounce="300" loading-message="Finding flavors…" overflow-message="1,250 more flavors" aria-label="Flavor"><option value="vanilla">Vanilla</option></vera-select></div><span class="say">The page owns filtering; edits emit the filter event</span></div>
+      <div class="cell wide"><h3>Disabled</h3><div class="show"><vera-select disabled aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div></div>
+      <div class="cell wide"><h3>In light DOM</h3><div class="show"><vera-select light aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div><span class="say">light: rendered into the page, styled by its scoped sheet</span></div>
+    </div>
+  </section>
+
+  <section class="plate" id="spinner">
+    <div>
+      <h2>Spinner</h2>
+      <p class="ask">Does the ring read as &quot;busy&quot; at a glance, at every size? Is the shown label placed right? A screen reader hears the label once, about 150 ms after the spinner appears, and nothing for a quick load.</p>
+      <span class="pkg">@vera-components/spinner</span>
+    </div>
+    <div class="stage">
+      <div class="cell"><h3>Default</h3><div class="show"><vera-spinner label="Loading"></vera-spinner></div><span class="say">1em, in the text's color</span></div>
+      <div class="cell"><h3>With its label shown</h3><div class="show"><vera-spinner label="Loading results" show-label></vera-spinner></div></div>
+      <div class="cell"><h3>Sized by token</h3><div class="show"><vera-spinner label="Loading" style="--vera-spinner-size:1.5em"></vera-spinner> <vera-spinner label="Loading" style="--vera-spinner-size:2.5em;--vera-spinner-width:.2em"></vera-spinner></div></div>
+      <div class="cell"><h3>Colored by token or by color</h3><div class="show"><vera-spinner label="Saving" style="--vera-spinner-color:#00a862;--vera-spinner-track:#cfeee0"></vera-spinner> <vera-spinner label="Saving" style="color:#c4321c"></vera-spinner></div></div>
+      <div class="cell"><h3>Inside a busy owner</h3><div class="show"><button type="button" aria-busy="true"><vera-spinner></vera-spinner> Saving</button></div><span class="say">The owner speaks; the spinner stays silent</span></div>
+      <div class="cell"><h3>With a done label</h3><div class="show"><vera-spinner label="Uploading" done-label="Uploaded"></vera-spinner></div><span class="say">Said once when the load ends, only if its label was said</span></div>
+      <div class="cell"><h3>Our look dropped</h3><div class="show"><vera-spinner label="Loading" data-vera-look="none"></vera-spinner></div><span class="say">data-vera-look=&quot;none&quot;: nothing of ours is drawn</span></div>
+    </div>
+  </section>
+
+  <section class="plate" id="tabs">
+    <div>
+      <h2>Tabs</h2>
+      <p class="ask">Judge the behavior: click a tab, move with the arrow keys and Home/End, watch the indicator slide, and use find-in-page (Ctrl+F) for &quot;reviews&quot;. Does the indicator keep up with a tab that changes size?</p>
+      <span class="pkg">@vera-components/tabs</span>
+    </div>
+    <div class="stage">
+      <div class="cell wide"><h3>Your own buttons and sections</h3><div class="show"><vera-tabs><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">Before the script runs these are buttons and sections; the inactive panels are hidden</span></div>
+      <div class="cell wide"><h3>A tab chosen by value</h3><div class="show"><vera-tabs value="specs"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div></div>
+      <div class="cell wide"><h3>Manual activation</h3><div class="show"><vera-tabs activation="manual"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">The arrows move focus only; Enter or Space selects</span></div>
+      <div class="cell wide"><h3>Vertical</h3><div class="show"><vera-tabs orientation="vertical"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">Up and Down move; the indicator runs down the side</span></div>
+      <div class="cell wide"><h3>Not findable</h3><div class="show"><vera-tabs findable="false"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">Inactive panels are plain hidden: find-in-page does not reach them</span></div>
+      <div class="cell wide"><h3>Paired by order, one tab disabled</h3><div class="show"><vera-tabs><div slot="tabs"><button type="button">One</button><button type="button" disabled>Two</button><button type="button">Three</button></div><h3>Section</h3><div><p>First</p></div><div><p>Second</p></div><div><p>Third</p></div></vera-tabs></div><span class="say">No keys: the panels pair with the tabs in order, and a heading between them is skipped</span></div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+{
+  const { wire } = await import('@verajs/core');
+  const { renderer } = await import('@verajs/renderer');
+  const { lists } = await import('@verajs/renderer/keyed');
+  const { slots } = await import('@verajs/renderer/slots');
+  const { styles } = await import('@verajs/styles');
+  wire([renderer, lists, slots, styles]);
+  for (const name of ["dialog","field","icon","input","kbd","menu","select","spinner","tabs"]) await import('@vera-components/' + name);
+  /**
+   * A demo's form has nowhere to go: keep the page, let the component do its part. A form whose method is "dialog" is
+   * let through: its submission is what closes its <dialog>, and it goes nowhere.
+   */
+  document.addEventListener('submit', (event) => {
+    if (event.target.method !== 'dialog') event.preventDefault();
+  });
+}
+</script>
+</body>
+</html>

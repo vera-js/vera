@@ -56,6 +56,9 @@ const steps = [
    * prevent.
    */
   ['kitchen fixture', 'node', ['scripts/build-kitchen-fixture.mjs', '--check']],
+  /** The components page is generated from every package's demo.ts and committed, so the browser suite operates it as
+   *  a static page: drift means it shows states or components the source no longer has. */
+  ['components page', 'node', ['scripts/build-components-page.mjs', '--check']],
   /** Same rule, same day it was written: the motion SSR fixture is real renderMotion output the
    *  browser handoff suite paints against, so drift here means the suite hydrates markup no
    *  server emits. Needs the development condition like every fixture script. */

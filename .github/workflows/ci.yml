@@ -89,6 +89,9 @@ jobs:
       # was missing until 2026-08-26 and the fixture had drifted: 35 browser files were asserting
       # against markup no server emitted, green the whole time.
       - run: node scripts/build-kitchen-fixture.mjs --check
+      # The components example page is generated from every package's demo.ts and committed; drift means it shows
+      # states or components the source no longer has.
+      - run: node scripts/build-components-page.mjs --check
       # Same reason again, for motion's SSR emission: the browser handoff suite paints a committed
       # snapshot of real renderMotion output, added the same day the fixture was (the house rule).
       - run: node --conditions development scripts/build-motion-fixture.mjs --check

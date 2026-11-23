@@ -16,6 +16,7 @@
     "dev:cdn": "wireit",
     "dev:ssr": "wireit",
     "dev:select": "wireit",
+    "dev:components": "wireit",
     "dev:slots": "wireit",
     "build": "wireit",
     "preview": "wireit",
@@ -95,6 +96,13 @@
     },
     "dev:select": {
       "command": "node examples/select/serve.js",
+      "dependencies": [
+        "build"
+      ],
+      "service": true
+    },
+    "dev:components": {
+      "command": "node examples/components/serve.js",
       "dependencies": [
         "build"
       ],

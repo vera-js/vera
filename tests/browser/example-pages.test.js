@@ -153,3 +153,24 @@ it('directives showcase: routes render, the hello-world taps, motion clamps, the
   expect(doc.querySelector('main h1').textContent, 'the page survived its own mistake gallery')
     .to.include('Diagnostics');
 });
+
+it('components: every plate\'s component upgrades, and each dialog\'s own form buttons close it (the page lets method="dialog" submits through)', async () => {
+  const { doc, win } = await openPage('/examples/components/index.html');
+
+  /** Dead-page detector: one plate per component, and every one of them defined from its bundle. */
+  const names = [...doc.querySelectorAll('section.plate')].map((plate) => `vera-${plate.id}`);
+  expect(names.length >= 9, `the page has its plates (${names.length})`).to.equal(true);
+  await until(() => names.every((name) => win.customElements.get(name)), `every component defined (${names.filter((n) => !win.customElements.get(n)).join(', ')} missing)`, 5000);
+
+  /** The dialogs a form closes: the open-at-load one first, as a visitor meets it, then each the trigger opens. */
+  const hosts = [...doc.querySelectorAll('vera-dialog')].filter((host) => host.querySelector(':scope > dialog form[method="dialog"] button'));
+  expect(hosts.length >= 3, `CONTROL: the page has dialogs with forms (${hosts.length})`).to.equal(true);
+  for (const host of hosts.sort((a, b) => Number(b.hasAttribute('open')) - Number(a.hasAttribute('open')))) {
+    const dialog = host.querySelector(':scope > dialog');
+    const label = dialog.querySelector('h2')?.textContent ?? 'a dialog';
+    if (!dialog.open) host.querySelector(':scope > [slot="trigger"]').click();
+    await until(() => dialog.open, `${label}: open`, 3000);
+    dialog.querySelector('form[method="dialog"] button').click();
+    await until(() => !dialog.open && !host.hasAttribute('open'), `${label}: its form button closed it, and the host's open went`, 3000);
+  }
+});
