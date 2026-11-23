@@ -152,7 +152,7 @@ const UPGRADED = {};
 const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\t\n\f\r />]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
 /**
  * **A slash an unquoted value takes** (2026-11-23): the tokenizer's unquoted-value state keeps a `/`, so
- * `<path d=M0/>` is the value `M0/` and the element stays OPEN, where `d="M0"/>`, `<br/>` and `<a b/>` self-close.
+ * `<path d=z/>` is the value `z/` and the element stays OPEN, where `d="z"/>`, `<br/>` and `<a b/>` self-close.
  * Read on the tag's attribute text with its quoted values emptied, as `SHAPE` reads quotes. Reading the slash as a
  * close kept `<svg class=a/>`'s content out of foreign depth, so a binding in its `<title>` went unrefused.
  */
