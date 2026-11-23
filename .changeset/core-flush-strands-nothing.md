@@ -10,3 +10,5 @@ Three scheduler and store fixes:
 - `setRenderScheduler` called from inside a flush with a scheduler that runs at once no longer stops rendering for good.
 - `Object.defineProperty` on a store array tells `length`'s readers when it moves `length`, and a shorter `length`
   tells the readers of the indices it drops, as an assignment does.
+- A store key made enumerable or hidden by `Object.defineProperty` tells the readers of the key set
+  (`Object.keys`, `JSON.stringify`), as adding a key does.

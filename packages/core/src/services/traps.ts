@@ -395,7 +395,12 @@ const handler: ProxyHandler<object> = {
       const epoch = nextWake();
       if (!previous || !same(descriptor.value, previous.value) || descriptor.get !== previous.get)
         triggerAt(obj, prop, descriptor.value, previous?.value, epoch);
-      if (!previous) triggerAt(obj, GLOBAL, descriptor.value, undefined, epoch);
+      /**
+       * The key set changes for a new key, and for an existing key made enumerable or hidden (2026-11-23): `Object.keys`
+       * and `JSON.stringify` list only enumerable keys, and readers of them missed a flip of an existing one.
+       */
+      if (!previous || (descriptor.enumerable !== undefined && descriptor.enumerable !== previous.enumerable))
+        triggerAt(obj, GLOBAL, descriptor.value, previous?.value, epoch);
       /**
        * An index defined past the end grows `length`, which no trap of its own reports: told here, in the same wake as
        * the index, as `set` tells it, so a hook that read both runs once (2026-11-23).
