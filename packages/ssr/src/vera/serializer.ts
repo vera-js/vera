@@ -528,7 +528,12 @@ const closeRawSlot = (parts: string[], strings: TemplateStringsArray, from: numb
   const lt = after.indexOf('<');
   if (lt !== -1 && lt < stop) parts[i + 1] = closedRawText(after.slice(0, stop), json) + after.slice(stop);
 };
-const compile = (strings: unknown, depth: number): Plan | null => {
+/**
+ * `track`: note where each open tag starts (`tagBacks`). Only a template that edits an open tag with a raw `<` inside
+ * it needs that, which `valueLtsEscaped` finds; it is compiled once more with `track` set, and every other template
+ * skips the work.
+ */
+const compile = (strings: unknown, depth: number, track: boolean): Plan | null => {
   /**
    * **A template is a tagged template literal's, never data shaped like one.** Template detection is by shape (`strings`),
    * so `JSON.parse('{"strings":["<img src=x onerror=…>"]}')` — a request body, an API field an attacker can make an
@@ -569,11 +574,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * name written again, a spread) finds that tag in the markup so far. By its last `<` it is right wherever no raw `<`
    * follows the tag's own, which values (escaped) and quoted static values (`valueLtsEscaped`) keep true; a `<` in a
    * static NAME or unquoted value broke it: `<b id=a title=x<c id=${v}>` read `<c id=` as the tag, and the earlier
-   * `id` stayed, served first, where the client's `setAttribute` replaces it. So the slot that opens each tag is noted
-   * (with where its `<` sits in its static), and when a raw `<` sits inside any open tag the plan carries `tagBacks`.
+   * `id` stayed, served first, where the client's `setAttribute` replaces it. So, when `track` is set, the slot that
+   * opens each tag is noted with where its `<` sits in its static, and the plan carries `tagBacks`. Noted in every
+   * compile, the note and a search for that `<` cost compile 1.4–2.6% (measured 2026-11-23).
    */
   const opened: number[] = [];
-  let ltInTag = false;
   /** Per child binding (sparse): the foreign-content depth it sits at, which a template rendered there starts from. */
   const depths: Array<number | undefined> = [];
   /** Per child binding (sparse): whether it sits in a text-only element, where a template is refused (see `serializeValue`). */
@@ -716,11 +721,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     const first = inTag && tagState.inValue && tagState.opened;
     /** Offsets are in the author's static; `part` may have lost a leading quote to the binding before it. */
     const shift = strings[i].length - part.length;
-    if (inTag) {
-      const tagAt = tagState.tagAt;
-      if (tagAt !== -1) opened.push(kinds.length, tagAt - shift);
-      if (!ltInTag && strings[i].indexOf('<', tagAt + 1) !== -1) ltInTag = true;
-    }
+    if (track && inTag && tagState.tagAt !== -1) opened.push(kinds.length, tagState.tagAt - shift);
     /**
      * Names in the statics are recorded from the text that is actually **emitted**, which is the
      * part with this binding's own name already trimmed off. Scanning the raw part instead counts
@@ -959,16 +960,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     if (elementPosition) dynamicTag = true;
   }
 
-  /**
-   * Measured from the END of what the slot writes, which every later step keeps: the post-pass below trims a part's
-   * start, and a form value is written in after the `>` before this tag, never after its `<`.
-   */
-  let tagBacks: number[] | undefined;
-  if (ltInTag) {
-    tagBacks = [];
-    for (let i = 0; i < kinds.length; i++) tagBacks.push(-1);
-    for (let k = 0; k < opened.length; k += 2) tagBacks[opened[k]!] = parts[opened[k]!]!.length - opened[k + 1]!;
-  }
+  const tagBacks = track ? tagBacksOf(opened, parts, kinds.length) : undefined;
 
   let last = strings[strings.length - 1];
   if (openQuote !== undefined) {
@@ -1060,9 +1052,10 @@ const compile = (strings: unknown, depth: number): Plan | null => {
    * filed under the author's strings too. Asked here and only of such templates, not in the scan every template gets:
    * there, an `indexOf` per quoted value cost compile 1–3% (measured 2026-11-23).
    */
-  if (edits) {
+  if (edits && !track) {
     const escaped = valueLtsEscaped(strings, depth);
-    if (escaped !== strings) return filed(strings, depth, compile(escaped, depth)!);
+    if (escaped === null) return compile(strings, depth, true);
+    if (escaped !== strings) return filed(strings, depth, compile(escaped, depth, false)!);
   }
   /**
    * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
@@ -1084,6 +1077,18 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   return filed(strings, depth, plan);
 };
 
+/**
+ * `tagBacks` from `compile`'s notes (`opened`: pairs of slot, offset of the tag's `<` in its part). Measured from the
+ * END of what the slot writes, which every later step keeps: the post-pass trims a part's start, and a form value is
+ * written in after the `>` before this tag, never after its `<`.
+ */
+const tagBacksOf = (opened: readonly number[], parts: readonly string[], slots: number): number[] => {
+  const tagBacks: number[] = [];
+  for (let i = 0; i < slots; i++) tagBacks.push(-1);
+  for (let k = 0; k < opened.length; k += 2) tagBacks[opened[k]!] = parts[opened[k]!]!.length - opened[k + 1]!;
+  return tagBacks;
+};
+
 /** A plan, filed under its template's strings at this depth, and returned. */
 const filed = (strings: TemplateStringsArray, depth: number, plan: Plan): Plan => {
   if (depth === 0) plans.set(strings, plan);
@@ -1103,11 +1108,14 @@ const filed = (strings: TemplateStringsArray, depth: number, plan: Plan): Plan =
  * that closed `title`, and `v` was served outside every quote, its `onclick=…` a live attribute in Chromium, Firefox
  * and WebKit. `&#60;` is the same `<` to every parser, so the element is unchanged, and no raw `<` follows a tag's own.
  * Quoted values alone: a `<` in a name has no other spelling, and one in an unquoted value is left as written too; for
- * either, the plan keeps where each tag starts (`tagBacks` in `compile`). The author's own strings when none holds one.
+ * either, the plan keeps where each tag starts (`tagBacks` in `compile`). The author's own strings when none holds one,
+ * and `null` when a raw `<` is left inside an open tag: `compile` then runs again with `track` set.
  */
-const valueLtsEscaped = (strings: TemplateStringsArray, depth: number): TemplateStringsArray => {
+const valueLtsEscaped = (strings: TemplateStringsArray, depth: number): TemplateStringsArray | null => {
   const escaped: string[] = [];
   let found = false;
+  /** A raw `<` left inside an open tag (in a name or an unquoted value): the template is compiled with `track`. */
+  let raw = false;
   let state: ScanStart | ScanResult = freshScan(depth);
   for (let k = 0; k < strings.length; k++) {
     const text = strings[k]!;
@@ -1123,14 +1131,17 @@ const valueLtsEscaped = (strings: TemplateStringsArray, depth: number): Template
     if (k < strings.length - 1 && state.inTag)
       for (let at = text.indexOf('<', state.tagAt + 1); at !== -1; at = text.indexOf('<', at + 1)) {
         const there = scanTag(text.slice(0, at), { ...start, opens: start.opens.slice() });
-        if (!there.inValue || there.quote === '') continue;
+        if (!there.inValue || there.quote === '') {
+          raw = true;
+          continue;
+        }
         written += text.slice(from, at) + '&#60;';
         from = at + 1;
       }
     if (from !== 0) found = true;
     escaped.push(written + text.slice(from));
   }
-  return found ? (Object.assign(escaped, { raw: escaped }) as unknown as TemplateStringsArray) : strings;
+  return found ? (Object.assign(escaped, { raw: escaped }) as unknown as TemplateStringsArray) : raw ? null : strings;
 };
 
 /**
@@ -1162,7 +1173,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
    */
   const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails, tagBacks } =
     (depth === 0 ? plans.get(strings as TemplateStringsArray) : foreignPlans.get(strings as TemplateStringsArray)?.get(depth)) ??
-    compile(strings, depth) ??
+    compile(strings, depth, false) ??
     FORGED;
   /**
    * Not a template — data shaped like one (see `compile`): the text a plain object renders as, the client's very

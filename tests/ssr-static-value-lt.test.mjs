@@ -79,6 +79,8 @@ test('a `<` in a static name or unquoted value: the bound write replaces the ear
     ['a spread key', (v) => html`<b id=a title=x<c ${spread({ id: v })}>t</b>`, (e) => e.getAttribute('title') === 'x<c'],
     ['two tags, the second holding it', (v) => html`<i id=q>${v}</i><b id=a x<c=1 id=${v}>t</b>`, (e) => e.getAttribute('x<c') === '1'],
     ['across two holes', (v) => html`<b id=a x<c=${v} id=${v}>t</b>`, (e) => e.getAttribute('x<c') === 'B'],
+    /** Escaped first (the quoted `<`), then compiled again to keep where its tag starts (the unquoted one). */
+    ['a quoted one and an unquoted one', (v) => html`<b id=a title="p <q" t=x<c id=${v}>t</b>`, (e) => e.getAttribute('title') === 'p <q' && e.getAttribute('t') === 'x<c'],
   ]) {
     const served = serializeTemplate(draw('B'));
     const element = parsed(served.replace(/^<i[^]*?<\/i>/, ''));
