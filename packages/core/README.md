@@ -66,7 +66,7 @@ returns (a setup runs on every connect).
 ## Smaller: `@verajs/lite`
 
 For small sites, `@verajs/lite` gives you `define`, `html` and `signal` with a renderer built in and nothing to wire, in
-<!--size:lite.gzip-->4.22 KB<!--/size:lite.gzip--> gzipped. A component written for it runs on `@verajs/core` unchanged:
+<!--size:lite.gzip-->4.21 KB<!--/size:lite.gzip--> gzipped. A component written for it runs on `@verajs/core` unchanged:
 change the import and `wire([renderer])`. What it has, what only core has, and what serving it from a server costs a
 visitor are in its own README (`packages/lite/README.md`).
 
