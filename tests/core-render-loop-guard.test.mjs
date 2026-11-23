@@ -289,5 +289,23 @@ const OVER = 60;
   check('two sub-limit bursts do not accumulate', warnings.length === 0, warnings.join(' | '));
 }
 
+/* ── a module's effect (owned by a plain object) is named without a tag (2026-11-23: it printed "on <undefined>") ── */
+{
+  let ran = 0;
+  const warnings = await listen(async () => {
+    const state = core.createStore({ n: 0 });
+    const loop = core.effect(() => { ran++; state.n = state.n + 1; }, { owner: {} });
+    loop.run();
+    await frames(OVER);
+    loop.stop();
+  });
+  check('the plain-owner loop actually ran', ran > OVER - 5, `${ran} runs in ${OVER} frames`);
+  if (isProduction) check('production says nothing (plain owner)', warnings.length === 0, warnings.join(' | '));
+  else {
+    check('a plain-owner loop is named once', warnings.length === 1, `${warnings.length}: ${warnings.join(' | ')}`);
+    check('as an effect, with no tag', warnings[0]?.includes('an effect') && !warnings[0]?.includes(' on <'), warnings[0]);
+  }
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

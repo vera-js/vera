@@ -323,8 +323,11 @@ const loopWarning = (pass: HookRecord) => {
   const element = pass._owner;
   if (pass._heldFrames < LIMIT || !element || exempt.has(element)) return;
   const writer = pass._heldBy ?? pass;
-  /** Once per element: each looping component is its own mistake. */
-  warnOnce('core', `${LABELS[writer._priority] ?? 'a hook'} on <${element.localName}>`, 'render-loop', __DEV__ && (() => PROSE['render-loop'](String(LIMIT))), element);
+  /**
+   * Once per element: each looping component is its own mistake. A hook owned by a plain object (a module's `effect`) has
+   * no tag to name, as the hook's own labels say: it printed "on <undefined>".
+   */
+  warnOnce('core', `${LABELS[writer._priority] ?? 'a hook'}${element.localName ? ` on <${element.localName}>` : ''}`, 'render-loop', __DEV__ && (() => PROSE['render-loop'](String(LIMIT))), element);
 };
 
 /**
