@@ -426,6 +426,19 @@ const renderInstanceAsync = async (
  */
 const tagged = (value: unknown, tag: string): boolean => Object.prototype.toString.call(value) === `[object ${tag}]`;
 const isUrl = (value: unknown): value is string | URL => typeof value === 'string' || tagged(value, 'URL');
+/**
+ * A `Set` by its brand, which holds across realms: one only tagged `Set` passed the tag and then threw the internal
+ * `seen?.has is not a function` this table exists to prevent. A URL keeps the tag check: jsdom's `URL` is a class of
+ * its own, so Node's `href` getter refuses it, and a fake one read through `String()` is no more than a string.
+ */
+const isSet = (value: unknown): boolean => {
+  try {
+    Set.prototype.has.call(value, undefined);
+    return true;
+  } catch {
+    return false;
+  }
+};
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expected: string }> = [
@@ -446,7 +459,7 @@ const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expecte
     expected: 'an object of properties to assign',
   },
   { name: 'children', valid: (v) => typeof v === 'string', expected: 'a markup string' },
-  { name: 'seen', valid: (v) => v === undefined || tagged(v, 'Set'), expected: 'a Set' },
+  { name: 'seen', valid: (v) => v === undefined || isSet(v), expected: 'a Set' },
   /**
    * `base` is a directory URL, absolute (2026-11-23): its message offered "a path string", but a path such as
    * `'/srv/components/'` has no URL to resolve against, so the bound threw `Invalid URL` from inside the check. A `file:`

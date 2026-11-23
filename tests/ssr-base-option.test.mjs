@@ -45,5 +45,6 @@ test('a URL and a Set from another realm are taken as the options they are', asy
   assert.ok(html.length > 0);
   assert.ok(seen.size > 0, 'the page wrote into the Set it was given');
   await assert.rejects(() => renderToString(page, { tag: 'content-page', seen: {} }), /\(ssr-option\)/);
+  await assert.rejects(() => renderToString(page, { tag: 'content-page', seen: { [Symbol.toStringTag]: 'Set' } }), /\(ssr-option\)/);
   await assert.rejects(() => renderToString(page, { tag: 'content-page', base: { href: components.href } }), /\(ssr-option\)/);
 });
