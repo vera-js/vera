@@ -39,6 +39,9 @@ ArrowUp the last; a pointer focuses the menu itself, so no item shows a focus ri
 The arrows, Home and End move one tab stop, and typing jumps to the next item starting with the letters. Tab closes
 the menu and moves on from the trigger; Escape closes it and returns focus to the trigger.
 
+**Open state is the platform's.** A menu's being open is a moment, not app state, so the host reflects nothing: style an
+open menu with `vera-menu:has(> [slot="menu"]:popover-open)` and listen to the container's `toggle` event.
+
 **Disabled items.** A natively `disabled` item is skipped. An `aria-disabled="true"` item stays reachable, so a reader
 hears that it exists, and does nothing: prefer it for a command whose absence needs explaining.
 
