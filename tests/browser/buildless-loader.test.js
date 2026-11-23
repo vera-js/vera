@@ -67,6 +67,41 @@ it('a repeat visit compiles nothing and never loads the compiler', async () => {
   again.frame.remove();
 });
 
+/**
+ * **The opt-out**: output another script wrote into storage, under the right key and fingerprint, runs on a page
+ * without the meta (the control: the cache is writable by anyone on the origin), and never on a page with it, which
+ * also keeps nothing new.
+ */
+it('a page serving the cache-off meta never runs stored output and keeps nothing', async () => {
+  localStorage.clear();
+  const app = `<script type="text/vera-jsx" src="${FIXTURES}/app/main.jsx"></script>`;
+  const first = await page(app);
+  expect(first.kind, first.text).to.equal('app');
+  first.frame.remove();
+  const key = Object.keys(localStorage).find((k) => k.endsWith('/app/main.jsx'));
+  expect(key, 'CONTROL: the cold visit kept main.jsx').to.be.a('string');
+  const kept = JSON.parse(localStorage.getItem(key));
+  localStorage.setItem(key, JSON.stringify({ fp: kept.fp, sites: [], js: "parent.postMessage({ kind: 'written' }, '*');" }));
+  const plain = await page(app);
+  expect(plain.kind, 'CONTROL: without the meta, the written output runs').to.equal('written');
+  plain.frame.remove();
+  /** The written entry is still in storage here: with the meta it is never READ, not only never written. */
+  expect(localStorage.getItem(key), 'CONTROL: the written entry is still stored').to.include('written');
+  const off = await page(`<meta name="vera-jsx-cache" content="off">${app}`);
+  expect(off.kind, `the stored entry was read: ${off.text}`).to.equal('app');
+  expect(compilerFetched(off.frame), 'it compiled').to.equal(true);
+  off.frame.remove();
+  /** Any letter case turns it off: a typo in an opt-out fails toward off. The written entry is still stored here. */
+  const upper = await page(`<meta name="Vera-JSX-Cache" content="OFF">${app}`);
+  expect(upper.kind, `content="OFF" read the stored entry: ${upper.text}`).to.equal('app');
+  upper.frame.remove();
+  localStorage.clear();
+  const none = await page(`<meta name="vera-jsx-cache" content="off">${app}`);
+  expect(none.kind, none.text).to.equal('app');
+  expect(Object.keys(localStorage).filter((k) => k.startsWith('vera-jsx@')), 'nothing kept').to.deep.equal([]);
+  none.frame.remove();
+});
+
 it('a circular import is named with its loop — even when both sides load in parallel', async () => {
   const result = await page(`<script type="text/vera-jsx" src="${FIXTURES}/cycle/entry.jsx"></script>`);
   expect(result.kind).to.equal('error');

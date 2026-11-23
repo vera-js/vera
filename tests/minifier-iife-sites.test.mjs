@@ -74,7 +74,7 @@ const PINS = {
   'packages/hot/dist/vera-hot-vite.min.js': 0,
   'packages/hot/dist/vera-hot.min.js': 2,
   'packages/inserts/dist/vera-inserts.min.js': 0,
-  'packages/jsx/dist/vera-jsx-standalone.min.js': 7,
+  'packages/jsx/dist/vera-jsx-standalone.min.js': 6,
   'packages/jsx/dist/vera-jsx.min.js': 3,
   'packages/motion/dist/vera-motion-client.min.js': 5,
   'packages/motion/dist/vera-motion-internal.min.js': 34,

@@ -1785,7 +1785,9 @@ is probably a mistake (a controlled `value` with nothing keeping it in step).
 runs the same zero-dependency transform the Vite plugin uses, and imports the result as a module
 blob. Package names resolve through the page's import map, except `@verajs/renderer/<entry>`, which
 is loaded from beside the mapped renderer; relative imports, `import()` in any form and
-`import.meta` resolve against the file's real address.
+`import.meta` resolve against the file's real address. Compiled output is kept in `localStorage` and
+rerun on later visits; a page that should keep nothing (any script on the origin can write that
+storage) serves `<meta name="vera-jsx-cache" content="off">` and compiles on every visit.
 
 **Rules that trip up generators, in order of how often they bite:**
 

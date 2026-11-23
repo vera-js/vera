@@ -37,7 +37,9 @@
  * that does not change when the file does (an npm tarball stamps every file 1985-10-26) replayed old
  * import positions into new text. A plain JS file keeps only where its imports are, so vendored
  * libraries cannot fill the storage. The compiler itself (`vera-jsx.min.js`, beside this file) is
- * imported only when something must be compiled.
+ * imported only when something must be compiled. A page that serves
+ * `<meta name="vera-jsx-cache" content="off">` keeps nothing and compiles on every visit: any script on the origin
+ * can write `localStorage`, so a script that ran once could otherwise leave code that later visits run.
  *
  * **Not supported: circular imports.** A blob URL exists only once its content does, so two files
  * cannot name each other; the cycle is reported with its chain. Use the Vite plugin for those.
@@ -238,8 +240,16 @@ const compile = async (url: string, source: string): Promise<Compiled> => {
   const js = isJsx(url) ? transformJsx(source, url, __DEV__ ? { onWarning: (message) => console.warn(`[vera] jsx: ${message}`) } : {}) : source;
   return { js, sites: importSites(js) };
 };
-/** A file's text, compiled — from the cache when it was compiled from exactly this text. */
+/**
+ * A file's text, compiled — from the cache when it was compiled from exactly this text, unless the page serves
+ * `<meta name="vera-jsx-cache" content="off">`. The cache is `localStorage`, which any script on the origin can
+ * write, and the fingerprint is not a secret: a script that ran once could leave compiled output that every later
+ * visit runs. With the meta, nothing is read from or written to storage. It is read per file from the served page:
+ * no module state, and nothing a stored value can turn back on. Matched in any letter case (`OFF` too): a selector's
+ * value is case-sensitive for these attributes, and a typo in an opt-out must fail toward off.
+ */
 const compiledFor = async (url: string, source: string): Promise<Compiled> => {
+  if (document.querySelector('meta[name="vera-jsx-cache" i][content="off" i]') !== null) return compile(url, source);
   const fp = fingerprint(source);
   const kept = recall(url, fp);
   if (kept !== null) return { js: kept.js ?? source, sites: kept.sites };
