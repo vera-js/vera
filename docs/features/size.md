@@ -2,7 +2,7 @@
 
 ## The claim
 
-**A working VeraJS app is about <!--size:app.kb-->12.8 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->13 153 B<!--/size:app.bytes-->) — <!--size:app.rank-->7th<!--/size:app.rank--> of
+**A working VeraJS app is about <!--size:app.kb-->12.8 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->13 145 B<!--/size:app.bytes-->) — <!--size:app.rank-->7th<!--/size:app.rank--> of
 <!--size:app.count-->10<!--/size:app.count--> frameworks measured: above Lit and Preact + signals, level with petite-vue, and about 8x smaller than React.**
 
 ## The evidence
@@ -18,8 +18,8 @@ tree-shaken, gzipped:
 | Lit | 5 871 B | 4.8x |
 | Preact + signals | 6 031 B | 4.9x |
 | petite-vue | 7 258 B | 6.0x |
-| **VeraJS + lit-html** | **10 012 B** | 8.2x |
-| **VeraJS + own renderer** | **13 153 B** | 10.8x |
+| **VeraJS + lit-html** | **10 013 B** | 8.2x |
+| **VeraJS + own renderer** | **13 145 B** | 10.8x |
 | Alpine.js | 19 438 B | 15.9x |
 | Vue | 25 259 B | 20.7x |
 | React | 60 356 B | 49.5x |
@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->14 775 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->13 153 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->14 775 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->13 145 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -45,10 +45,10 @@ the thing reconciliation exists for:
 
 | | gzipped |
 | --- | ---: |
-| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->13 743 B<!--/size:list.bytes-->** |
+| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->13 744 B<!--/size:list.bytes-->** |
 | Lit + `directives/repeat` | <!--size:list.lit.bytes-->6 826 B<!--/size:list.lit.bytes--> |
 
-Lit minus VeraJS: <!--size:list.vs-lit.bytes-->-6 917 B<!--/size:list.vs-lit.bytes--> (negative means VeraJS is the larger). Both numbers are real and both are
+Lit minus VeraJS: <!--size:list.vs-lit.bytes-->-6 918 B<!--/size:list.vs-lit.bytes--> (negative means VeraJS is the larger). Both numbers are real and both are
 published: which one is representative depends entirely on whether the app renders a list.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -65,8 +65,8 @@ drops it for a component that never creates a store — a marketing page, a serv
 anything progressively enhanced rather than driven by state. Measured the same way, tree-shaken:
 
 **<!--size:app.static.kb-->12.8 KB<!--/size:app.static.kb--> gzipped
-(<!--size:app.static.bytes-->13 157 B<!--/size:app.static.bytes-->) —
-Lit minus VeraJS: <!--size:app.static.underlit-->-7 286 B<!--/size:app.static.underlit--> (negative means VeraJS is the larger).**
+(<!--size:app.static.bytes-->13 158 B<!--/size:app.static.bytes-->) —
+Lit minus VeraJS: <!--size:app.static.underlit-->-7 287 B<!--/size:app.static.underlit--> (negative means VeraJS is the larger).**
 
 Two things this is not. It is **not the same app** as the rows in the table above — it renders once
 and updates nothing, where every one of those renders reactive state, so it is a page against their
@@ -90,14 +90,14 @@ claim to be smallest. Both are fair trades to explain: Van.js has no keyed recon
 list change rebuilds the list; Solid needs its compiler.
 
 **The Solid comparison, stated precisely:** Solid is <!--size:app.solid.bytes-->4 446 B<!--/size:app.solid.bytes--> and requires its compiler;
-VeraJS + own renderer is <!--size:app.bytes-->13 153 B<!--/size:app.bytes--> and requires nothing. That is the price of needing no
+VeraJS + own renderer is <!--size:app.bytes-->13 145 B<!--/size:app.bytes--> and requires nothing. That is the price of needing no
 toolchain — say it exactly that way, because a reader who checks will find the numbers.
 
 **VeraJS is above Lit — say it precisely.** VeraJS + own renderer
-(<!--size:app.bytes-->13 153 B<!--/size:app.bytes-->) is above Lit
+(<!--size:app.bytes-->13 145 B<!--/size:app.bytes-->) is above Lit
 (<!--size:app.lit.bytes-->5 871 B<!--/size:app.lit.bytes-->) and Preact + signals
 (<!--size:app.preact-signals.bytes-->6 031 B<!--/size:app.preact-signals.bytes-->); the lit-html pairing
-(<!--size:app.verajs-lit-html.bytes-->10 012 B<!--/size:app.verajs-lit-html.bytes-->) is a different trade, not a smaller VeraJS — read it in the table. This paragraph said "level with Lit" long after
+(<!--size:app.verajs-lit-html.bytes-->10 013 B<!--/size:app.verajs-lit-html.bytes-->) is a different trade, not a smaller VeraJS — read it in the table. This paragraph said "level with Lit" long after
 the figures stopped supporting it, which is exactly the drift quoting the measured number exists to
 prevent.
 
@@ -148,7 +148,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer/hydrate-slots` | 1 675 B | hydrating light-DOM slots — the server's light-slot format, read only where both are used (`wire([renderer, hydration, slots, hydrateSlots])`) |
 | `@verajs/inserts` | 363 B | the extension point |
 | `@verajs/directives/core` | 6 317 B | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | 12 308 B | the engine with its own store, for a page running no vera |
+| `@verajs/directives/standalone` | 12 309 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 361 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | 3 942 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 3 202 B | the query pack — route, query, list |

@@ -54,7 +54,7 @@ Being wrong once in public costs more than every correct claim gains.
 - **Not "smallest".** <!--size:app.smaller.count-->5<!--/size:app.smaller.count--> of the measured tools are smaller:
   <!--size:app.smaller.names-->Van.js, Solid, Lit, Preact + signals and petite-vue<!--/size:app.smaller.names--> (Solid if you
   accept its compiler). VeraJS is **<!--size:app.over.lit.kb-->7.1 KB<!--/size:app.over.lit.kb--> above Lit** and
-  <!--size:app.over.preact.kb-->7.0 KB<!--/size:app.over.preact.kb--> above Preact + signals, and about
+  <!--size:app.over.preact.kb-->6.9 KB<!--/size:app.over.preact.kb--> above Preact + signals, and about
   <!--size:app.react.ratio-->4.6<!--/size:app.react.ratio-->x under React. Say *that*, name the smaller ones yourself, and
   quote the measured figure rather than a remembered one; this claim has been wrong in both directions, which is why
   every figure in this sentence is now generated from the measured table.
