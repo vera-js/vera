@@ -1227,3 +1227,13 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   a bound script URL (`src`, `.src`; an SVG script's `href`, `xlink:href`) is refused by every renderer and the server
   (`script-source`): in WebKit a bound SVG script `href` runs the code it names on the client, and a page the server
   rendered runs any script's `src` on load.
+
+(2026-11-23)
+- **A `<base href>` chooses where every later script loads from, relative and path-absolute alike.** Two origins on
+  localhost: a page whose `<head>` holds `<base href="http://127.0.0.1:8181/">` before `<script type="module" src="rel.js">`
+  and `<script type="module" src="/assets/abs.js">` loaded BOTH from the base's origin in Chromium 159, Firefox 159 and
+  WebKit 27.2 (Playwright 1.65, headed): as `@verajs/ssr` served a bound base, as a static base (the positive control),
+  and on the client when `@verajs/renderer` wrote the base into `<head>` and scripts were added after it; a base written
+  AFTER the scripts left both on the page's own origin (the negative control). Consequence: a bound `href` on a `<base>`
+  is refused by every renderer and the server (`base-href`), as a script's own URL is (`script-source`); a path-only
+  allowance was rejected because the URL parser reads `/\host` and a tab-split `//host` as another origin.

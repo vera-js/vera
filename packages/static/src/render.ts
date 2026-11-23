@@ -218,14 +218,16 @@ const judge = (parent: Node, strict: boolean): number => {
         if (strict) refuse();
         /**
          * A value in an event-handler or `srcdoc` attribute would run as code or markup, and one in a `<script>`'s URL
-         * (`src`; SVG's `href`) would choose the code that runs: the attribute is not written, as `@verajs/core` and
+         * (`src`; SVG's `href`), or a `<base>`'s `href`, would choose the code that runs: the attribute is not written, as `@verajs/core` and
          * `@verajs/lite` leave it out (development names it); the rest of the template renders.
          */
-        const source = name === 'script' && URL_SINK.exec(attribute.name)?.[1] !== undefined;
+        const source = (name === 'script' || name === 'base') && URL_SINK.exec(attribute.name)?.[1] !== undefined;
         if (source || INLINE_HANDLER.test(attribute.name) || attribute.name === 'srcdoc') {
           /** Core's codes and words (one refusal, one name across the tiers); the alternative is each emitter's own. */
-          if (__DEV__ && source)
+          if (__DEV__ && source && name === 'script')
             console.warn(diagnostic('static', '<script>', 'script-source', __DEV__ && SHARED.scriptSource(attribute.name)));
+          else if (__DEV__ && source)
+            console.warn(diagnostic('static', '<base>', 'base-href', __DEV__ && SHARED.baseHref(attribute.name)));
           else if (__DEV__ && attribute.name === 'srcdoc')
             console.warn(diagnostic('static', `<${name}>`, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute('`.srcdoc=${…}` in `@verajs/lite` or `@verajs/core`')));
           else if (__DEV__)

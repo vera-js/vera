@@ -509,14 +509,17 @@ class Template {
               diagnostic('renderer', `<${local}>`, 'handler-attribute',
                 __DEV__ && SHARED.handlerAttribute(real, `\`@${real.slice(2).toLowerCase()}=\${…}\` (or \`on${real[2].toUpperCase()}${real.slice(3)}=\${…}\`)`))
             );
-        } else if (sink !== null && sink[1] !== undefined && kind !== EVENT && kind !== BOOLEAN && local === 'script') {
+        } else if (sink !== null && sink[1] !== undefined && kind !== EVENT && kind !== BOOLEAN && (local === 'script' || local === 'base')) {
           /**
            * A `<script>`'s URL (`src`; SVG's `href`, `xlink:href`) chooses the code it runs, so a bound one is code arriving
            * as data — refused, as spread and the server refuse it: the server serves the tag and it runs on load, and an
-           * SVG script from a template runs in WebKit. A URL written in the template is the author's own.
+           * SVG script from a template runs in WebKit. A `<base>`'s `href` chooses it for every script after it: their
+           * relative and path-absolute URLs resolve against it (measured in Chromium, Firefox and WebKit). A URL written in
+           * the template is the author's own.
            */
           kind = REFUSED;
-          if (__DEV__) console.warn(diagnostic('renderer', '<script>', 'script-source', __DEV__ && SHARED.scriptSource(written)));
+          if (__DEV__ && local === 'script') console.warn(diagnostic('renderer', '<script>', 'script-source', __DEV__ && SHARED.scriptSource(written)));
+          else if (__DEV__) console.warn(diagnostic('renderer', '<base>', 'base-href', __DEV__ && SHARED.baseHref(written)));
         } else if ((kind === PROPERTY || kind === LIVE) && local === 'script') {
           /**
            * A `<script>` takes no property binding, a JSON data block's included (Brian, 2026-11-22): its properties

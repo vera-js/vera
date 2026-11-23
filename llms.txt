@@ -431,8 +431,8 @@ document.body.append(document.createElement('lite-counter'));
 - **The same refusals as `@verajs/core`, said the same way in development:** a `javascript:` URL in a URL-bearing
   attribute or property (the attribute removed), a bound inline-handler attribute (`onclick=${…}`: bind `@click=${…}` or
   `onClick=${…}`), a bound `srcdoc` attribute (trusted markup goes in through `.srcdoc=${trusted}`), `.__proto__`, and a
-  bound URL on a `<script>` (`src`, `.src`; SVG's `href`: `script-source`) or any `.`/`!` binding on a script
-  (`script-property`: bind its attribute, `?async=${…}`, `type=${…}`).
+  bound URL on a `<script>` (`src`, `.src`; SVG's `href`: `script-source`), a bound `href` on a `<base>` (`base-href`),
+  or any `.`/`!` binding on a script (`script-property`: bind its attribute, `?async=${…}`, `type=${…}`).
 - **Moving up:** the same component source runs on `@verajs/core`; change the import and `wire([renderer])`.
 - `@verajs/ssr` renders lite components; lite does not hydrate (a component's first client render replaces what the
   server sent: the page looks the same, but input typed, boxes ticked, options chosen, `<details>` opened or containers
@@ -849,7 +849,7 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->6.29 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->6.30 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts (lit-html templates also work,
 being structurally identical).
 
@@ -901,7 +901,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   only a string is checked. A bound `srcdoc` attribute is refused too — use
   `.srcdoc=${trusted}`. A bound URL on a `<script>` (`src`, `.src`; SVG's `href`, `xlink:href`) is refused outright
   (`script-source`): it chooses the code the script runs, so write the URL in the template or load the module with
-  `import()`. `@verajs/ssr` refuses the same values, so server and client agree. A `<script>` takes no property
+  `import()`. A bound `href` on a `<base>` is refused the same way (`base-href`): every relative and path-absolute URL
+  after it resolves against it, `<script src="/assets/app.js">` included; write the base in the template, or give the
+  router its prefix with its `base` option (`router({ base: '/app' })`). `@verajs/ssr` refuses the same values, so server and client agree. A `<script>` takes no property
   binding (`.`, `!` or a spread key; `script-property`), a JSON data block's included — its properties include its code
   (`.textContent`, `.text`…): the binding is ignored and the server never serves it. Bind the attribute instead
   (`?async=${…}`, `type=${…}`, `nonce=${…}`).

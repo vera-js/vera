@@ -85,6 +85,8 @@ export const sayRefused = (element: Element, bound: string) => {
   const where = `<${element.localName}>`;
   if (element.localName === 'script' && urlCheck(bound.replace(/^[.!]/, '')) === SCRIPT_URL)
     console.warn(diagnostic('lite', where, 'script-source', __DEV__ && SHARED.scriptSource(bound)));
+  else if (element.localName === 'base' && urlCheck(bound.replace(/^[.!]/, '')) === SCRIPT_URL)
+    console.warn(diagnostic('lite', where, 'base-href', __DEV__ && SHARED.baseHref(bound)));
   else if (element.localName === 'script' && /^[.!]/.test(bound))
     console.warn(diagnostic('lite', where, 'script-property', __DEV__ && SHARED.scriptProperty(bound)));
   else if (/^[.!]__proto__$/.test(bound)) console.warn(diagnostic('lite', where, 'proto-binding', __DEV__ && SHARED.protoBinding(bound)));

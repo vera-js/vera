@@ -861,7 +861,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
            * chooses the code that runs on load). A URL sink refuses `javascript:` (2), and an animation's value refuses
            * it in any `;`-separated item (3) — as the client does. Above 1: the joined value is checked.
            */
-          refuse: inert || lower === 'srcdoc' || INLINE_HANDLER.test(lower) || (owner === 'script' && sink !== null && sink[1] !== undefined) ? 1 : sink === null ? 0 : sink[1] ? 2 : 3,
+          refuse: inert || lower === 'srcdoc' || INLINE_HANDLER.test(lower) || ((owner === 'script' || owner === 'base') && sink !== null && sink[1] !== undefined) ? 1 : sink === null ? 0 : sink[1] ? 2 : 3,
           /** An earlier write of this name in the tag: the client's `setAttribute` replaces it, so it is removed. */
           strip: dynamicTag || written.has(lower),
           /** The WHOLE value is this one binding — the only shape where a nullish value removes the attribute. */
@@ -1861,8 +1861,11 @@ const foldSpread = (
      * hostile — and a server that logs a line per hostile key hands an attacker the log file.
      */
     if (UNSAFE_ATTRIBUTE_NAME.test(name)) continue;
-    /** A `<script>`'s URL chooses the code it runs: never served from a spread, as the written binding is not. */
-    if (owner === 'script' && URL_SINK.exec(name)?.[1] !== undefined) continue;
+    /**
+     * A `<script>`'s URL chooses the code it runs, and a `<base>`'s chooses where every later script loads from: never
+     * served from a spread, as the written binding is not.
+     */
+    if ((owner === 'script' || owner === 'base') && URL_SINK.exec(name)?.[1] !== undefined) continue;
 
     /** Quoted, single-quoted, unquoted, or valueless — whatever the template author wrote. */
     tag = stripAttribute(tag, name);

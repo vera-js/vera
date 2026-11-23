@@ -120,6 +120,15 @@ export const scriptSource: Prose = (written) => [
   'Write the URL into the template (it is then the author\'s own), or load the module with `import()`.',
 ];
 /**
+ * Every emitter and the server: a bound URL on a `<base>` (`href`). Every relative and path-absolute URL after it
+ * resolves against it, a module script's `src="/assets/app.js"` included, so a value there chooses where the page's code
+ * comes from (measured in Chromium, Firefox and WebKit, served and client-rendered). `written` is the binding as written.
+ */
+export const baseHref: Prose = (written) => [
+  `binds \`${written}\` on a <base>, which every later relative and path-absolute URL on the page resolves against, its scripts' included — refused.`,
+  'Write the base into the template (it is then the author\'s own), or give the router its prefix: `router({ base: \'/app\' })`.',
+];
+/**
  * Every emitter and the server: a `.prop`/`!live` binding on a `<script>`, JSON data block included (Brian,
  * 2026-11-22): its properties include its code (`.textContent`, `.text`…), and each has an attribute form. `written` is
  * the binding as written.

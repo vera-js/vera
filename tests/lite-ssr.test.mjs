@@ -46,6 +46,15 @@ test('lite: every hole kind on the server — a partial attribute, a list, the t
   assert.doesNotMatch(markup, /undefined/);
 });
 
+/**
+ * A refusal lite throws while a component renders on the server arrives as the server's `ssr-render-threw`, naming the
+ * component, with lite's coded error as its cause (as a frame's throw always did): the code is read from the cause.
+ */
+const refusedAs = (error, tag, code, label) => {
+  assert.match(String(error?.message), new RegExp(`<${tag}> threw while rendering.*\\(ssr-render-threw\\)$`), `${label}: named (${error?.message})`);
+  assert.match(String(error?.cause?.message), new RegExp(`(?:\\(|/e/)${code}\\)?$`), `${label}: the cause carries the code`);
+};
+
 test('lite: on the server a child left in raw text is refused, coded; its value never reaches CSS', async () => {
   let markup = '';
   let error;
@@ -54,7 +63,7 @@ test('lite: on the server a child left in raw text is refused, coded; its value 
   } catch (e) {
     error = e;
   }
-  assert.match(String(error?.message), /(?:\(|\/e\/)unfinished-tag\)?$/, 'refused, coded');
+  refusedAs(error, 'ssr-lite-open', 'unfinished-tag', 'refused, coded');
   assert.doesNotMatch(markup, /color:red/, 'the value never reached the <style>');
 });
 
@@ -148,7 +157,7 @@ test('svg/mathml: an HTML element written in svg content is refused on the serve
   for (const [i, name] of Object.keys(SOURCES).entries()) {
     if (!BREAKOUT.has(name)) continue;
     const { error } = await serve(`ssr-ns-${i}`);
-    assert.match(String(error?.message), /(?:\(|\/e\/)tier-hole-position\)?$/, `${name}: refused, coded`);
+    refusedAs(error, `ssr-ns-${i}`, 'tier-hole-position', `${name}: refused, coded`);
   }
 });
 
@@ -184,6 +193,6 @@ for (const side of ['lite', 'core'])
       for (const name of ['svg-script', 'math-script']) {
         const { html, error } = await serve(`ssr-${side}-${name}`);
         assert.ok(error !== undefined, `${name}: refused (${html})`);
-        assert.match(String(error.message), /tier-hole-position\)?$/, `${name}: refused, coded`);
+        refusedAs(error, `ssr-${side}-${name}`, 'tier-hole-position', `${name}: refused, coded`);
       }
   });

@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->6.29 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->6.30 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -1325,7 +1325,10 @@ checked. A bound `srcdoc`
 `.srcdoc=${trusted}` is the deliberate spelling, exactly as `.innerHTML` is. A bound URL on a `<script>` (`src` or
 `.src`; an SVG script's `href` or `xlink:href`) is refused outright (`script-source`), whatever it holds: it chooses the
 code the script runs, and a page `@verajs/ssr` served runs it on load. Write the URL into the template, where it is
-yours, or load the module with `import()`. There is no opt-out for URLs. `@verajs/ssr` applies the same rule, so a server never serves a link the client refuses.
+yours, or load the module with `import()`. A bound `href` on a `<base>` is refused the same way (`base-href`): every
+relative and path-absolute URL after it resolves against it, a module script's `src="/assets/app.js"` included, so it
+chooses where the page's code comes from. Write the base into the template, or give the router its prefix with its `base`
+option (`router({ base: '/app' })`). There is no opt-out for URLs. `@verajs/ssr` applies the same rule, so a server never serves a link the client refuses.
 Development builds name each refusal.
 
 **Security: a value enters a `<script>` only as a JSON data block.** A value in a script's text is code: on a page

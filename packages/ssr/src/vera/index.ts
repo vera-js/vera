@@ -38,6 +38,7 @@ import { decode as decodeEntities } from './parse.js';
 import { ATTRIBUTE, renderComponentTags } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
+import { currentRenderingTag } from './stylesheets.js';
 import type { ElementShim, ShadowRootShim } from './nodes.js';
 import { INLINE_HANDLER, thrownMessage } from './escaping.js';
 import { PROSE } from './diagnostics.js';
@@ -220,7 +221,14 @@ const buildInstance = (tag: string, attrString: string, enclosing: ShadowRootShi
     : undefined;
   const marker = attributes?.find(([name]) => name === INSTANCE_ATTRIBUTE)?.[1];
   const pending = marker === undefined ? undefined : pendingInstances.get(marker);
+  /**
+   * This tag is the one rendering while it is constructed, so a constructor that throws is named by it, not by the
+   * component whose markup holds it (`renderThrew`). Restored at once: no try/catch on a per-instance path, and a throw
+   * leaves this tag current for the render's catch to read.
+   */
+  const previousTag = setRenderingTag(tag);
   const element = (pending?.localName === tag ? pending : new (registry.get(tag)!)()) as ComponentInstance;
+  setRenderingTag(previousTag);
   /**
    * Unregistered HERE, and only when picked up: a marker is an attribute, so a copy of it can sit on
    * another tag, and unregistering whatever marker an element carries let that copy rob the instance
@@ -357,7 +365,13 @@ const renderInstanceAsync = async (
   children: string | undefined
 ): Promise<Assembled> => {
   const previousTag = prepareInstance(element, tag, props, children);
-  const cut = await bounded(element.connectedCallback?.());
+  let cut;
+  /** Named HERE, where the tag is known: a sibling's preparation may run while this callback awaits (see `renderThrew`). */
+  try {
+    cut = await bounded(element.connectedCallback?.());
+  } catch (error) {
+    throw isOwn(error) ? error : renderThrew(tag, '', error);
+  }
   if ((await flushFramesAsync(failed(tag))) || cut) timedOut.add(tag);
   const pieces = finishInstance(element, tag, previousTag);
   return assemble(pieces, await scanAsync(pieces.shadow, depth, pieces.root), await scanAsync(pieces.light, depth, element._enclosing ?? null));
@@ -548,10 +562,18 @@ const renderModule = async (
   serverTurnOf?.(1);
   try {
     const element = buildInstance(tag, attrString, null);
-    const { open, inner } = isAsync
-      ? await renderInstanceAsync(element, tag, 0, props, children)
-      : renderInstance(element, tag, 0, props, children);
-    return finishPage(`${open}${inner}</${tag}>`, tag, seen);
+    let rendered: Assembled;
+    try {
+      rendered = isAsync ? await renderInstanceAsync(element, tag, 0, props, children) : renderInstance(element, tag, 0, props, children);
+    } catch (error) {
+      /**
+       * A component's `connectedCallback` that throws is named, as a frame's throw is (`finishPage`): the README promises
+       * it, and a bare error from a page of components said nothing about which one. In the synchronous chain the tag
+       * being rendered when it threw is the thrower's, a nested one's included; the async chain names its own above.
+       */
+      throw isOwn(error) ? error : renderThrew(currentRenderingTag() || tag, failures.length > 0 ? ` (and ${failures.length} more)` : '', error);
+    }
+    return finishPage(`${rendered.open}${rendered.inner}</${tag}>`, tag, seen);
   } finally {
     /**
      * Said in every build: a render that ran out of time served a different page than the one its code describes. It
@@ -575,6 +597,16 @@ const renderModule = async (
 };
 
 /**
+ * **A render's failure, one form**: the component that threw, how many others did, and its own error — quoted when it is
+ * not ours, whose text is code-shaped — as the cause, the identical object.
+ */
+const renderThrew = (tag: string, others: string, error: unknown): Error =>
+  own(new Error(
+    ssrMisuse('ssr-render-threw', PROSE['ssr-render-threw']!(tag, others, isOwn(error) ? (error as Error).message : quoted(String((error as { message?: unknown } | null | undefined)?.message ?? error)))),
+    { cause: error }
+  ));
+
+/**
  * The page: a marker nothing consumed (inside a template, a raw-text element) must not ship; the
  * collected failures throw, naming every component; the styles this render is responsible for come back
  * escaped — the caller places them into a `<style>`, which makes that their render boundary — with each
@@ -585,10 +617,7 @@ const finishPage = (rendered: string, tag: string, seen: Set<string> | undefined
   if (failures.length) {
     const [first] = failures;
     const others = failures.length > 1 ? ` (and ${failures.length - 1} more)` : '';
-    throw own(new Error(
-      ssrMisuse('ssr-render-threw', PROSE['ssr-render-threw']!(first.tag ?? tag, others, isOwn(first.error) ? (first.error as Error).message : quoted(String((first.error as { message?: unknown } | null | undefined)?.message ?? first.error)))),
-      { cause: first.error }
-    ));
+    throw renderThrew(first.tag ?? tag, others, first.error);
   }
   const css: string[] = [];
   for (const done of renderedTags) {

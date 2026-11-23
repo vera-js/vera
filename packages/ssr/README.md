@@ -70,7 +70,7 @@ already awaits. A render that throws does not stop the queue.
 | Option | |
 | --- | --- |
 | `tag` | which element to render when the module defines several. Otherwise the module's exported class is matched against the registry — so **export the class**, or pass `tag` |
-| `attributes` | the entry tag's attributes. **An object** — values escaped, names checked. A string is written through untouched (a sink: see [Security](#security)) |
+| `attributes` | the entry tag's attributes. **An object** — values escaped, names checked. A string is served as attribute text, every attribute in it included (a sink: see [Security](#security)) |
 | `props` | properties assigned to the instance before `connectedCallback`, by identity. A `__proto__` key is skipped, and a read-only property is refused by name |
 | `children` | markup placed inside the entry tag, where a client parser would have put it — what a `<slot>` renders. **Raw markup** |
 | `location` | this request's URL — a path or a full URL — applied for the render and restored after |
@@ -252,9 +252,10 @@ browser's tokenizer reads one**: a tag's name is the whole run up to whitespace,
 unknown element, never a `<script>`), a `<` before anything but a letter is text, `<!x>` and `<?x>` are comments,
 and a quote or `=` inside a name is part of the name.
 
-**Two options are raw markup, on purpose: `children`, and the string form of `attributes`.** Both are
-written through untouched — that is what they are for — so neither may carry anything from a request
-unsanitized. Everything else is checked:
+**Two options are raw markup, on purpose: `children`, and the string form of `attributes`.** `children` is
+written through untouched; the `attributes` string is read as the tag's attribute text, so it cannot close the tag
+(`"><img>` stays inside it) but every attribute in it is served, an `onclick` included. That is what they are for, so
+neither may carry anything from a request unsanitized. Everything else is checked:
 
 - **The object form of `attributes` cannot leave the tag or add a second attribute.** A name carrying
   whitespace, a quote, `/`, `=` or `>` is refused — the set `setAttribute` refuses in a browser — and
@@ -271,7 +272,8 @@ unsanitized. Everything else is checked:
   `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, on or inside a `<select>`, and for any `.textContent`, it is
   escaped text. A `<script>` — a JSON data block's too, HTML or SVG — takes no property binding (`.` or `!`): none is
   served, as the client writes none, and the server says so once, in every build (`script-property`; a `.src` is the
-  client's `script-source`). A script's content is code, so a value enters a script only as a JSON data block's text
+  client's `script-source`; a bound `<base href>` is never served either, the client's `base-href`, since every later
+  relative and path-absolute script URL resolves against it). A script's content is code, so a value enters a script only as a JSON data block's text
   hole. `.innerText`, `.outerHTML` and `.outerText` stay client-only — the server serves the element's template
   content.
 - **Data shaped like a template is text.** A value renders as markup only when its strings came from a tagged
@@ -344,8 +346,10 @@ unsanitized. Everything else is checked:
   is the page's.
 - **A tag's CSS is established once per process**: whichever render reaches it first sets it. That is
   what stops a per-class sheet being emitted once per instance; the consequence is that CSS varying
-  per request is dropped, with a warning — once, naming the component. Put what varies in
-  custom properties (see the `@verajs/styles` README).
+  per request is dropped. A sheet a component adopts on the document itself warns when its text varies
+  (`ssr-styles-vary`), once, naming the component; styles given through `@verajs/styles` are per class, on
+  the client and the server alike, so the first CSS a class hoists is the one kept and a later one is
+  dropped without a warning. Put what varies in custom properties (see the `@verajs/styles` README).
 
 ## The server DOM
 

@@ -121,8 +121,9 @@ class Binding {
      * is known (`resolve` has none; the server half's caller has it). The tag is asked first: every other element pays one
      * comparison.
      */
-    if (local === 'script' && (resolved === ATTR || resolved === PROPERTY || resolved === LIVE)) {
-      const why = URL_SINK.exec(name as string)?.[1] !== undefined ? 6 : resolved !== ATTR ? 7 : 0;
+    if ((local === 'script' || local === 'base') && (resolved === ATTR || resolved === PROPERTY || resolved === LIVE)) {
+      /** A `<base>`'s URL chooses where every later script loads from, as a script's own does (the template's rule). */
+      const why = URL_SINK.exec(name as string)?.[1] !== undefined ? (__DEV__ && local === 'base' ? 8 : 6) : resolved !== ATTR && local === 'script' ? 7 : 0;
       if (why !== 0) {
         resolved = REFUSED;
         name = why;
@@ -153,6 +154,7 @@ class Binding {
         else if (why === 4) console.warn(diagnostic('spread', at, 'srcdoc-attribute', __DEV__ && SHARED.srcdocAttribute("'.srcdoc': trusted")));
         else if (why === 6) console.warn(diagnostic('spread', at, 'script-source', __DEV__ && SHARED.scriptSource(written)));
         else if (why === 7) console.warn(diagnostic('spread', at, 'script-property', __DEV__ && SHARED.scriptProperty(written)));
+        else if (why === 8) console.warn(diagnostic('spread', at, 'base-href', __DEV__ && SHARED.baseHref(written)));
         else
           console.warn(
             diagnostic('spread', at, 'handler-attribute',

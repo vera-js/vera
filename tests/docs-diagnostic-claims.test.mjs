@@ -78,9 +78,9 @@ const CLAIMS = new Map([
   ['packages/core/README.md#e10620ebc8', 'define-method-ignored'], // methods: connectedCallback and constructor are core's own — development says so
   ['packages/core/README.md#4074c25222', 'define-shadows'], // methods: a platform name replaces it — development says that too
   ['packages/lite/README.md#c765eb013f', 'tier-needs-core'],
-  ['packages/static/README.md#fd5146373b', 'script-url'], // the item-by-item URL bullet's "Development says so in core's words (`script-url`)" — tests/tier-parity-fixes.test.mjs; the removal itself: tests/static.test.mjs' item-by-item URL row
+  ['packages/static/README.md#2884403663', 'script-url'], // the item-by-item URL bullet's "Development says so in core's words (`script-url`)" — tests/tier-parity-fixes.test.mjs; the removal itself: tests/static.test.mjs' item-by-item URL row
   ['packages/renderer/README.md#f6390335c5', 'script-property'], // a <script> takes no property binding, "development names it" — tests/script-property-binding.test.mjs
-  ['packages/ssr/README.md#a6cda43b66', 'script-property'], // the server serves no property on a script and "says so once, in every build" — tests/script-property-binding.test.mjs
+  ['packages/ssr/README.md#da3689a88b', 'script-property'], // the server serves no property on a script and "says so once, in every build" — tests/script-property-binding.test.mjs
   ['packages/static/README.md#efe2267f00', 'pinned by tests/tier-parity-fixes.test.mjs: static says boolean-child and attribute-value where core says them, a control says nothing, production silent'], // **Development says core's warnings in core's words**
   ['packages/static/README.md#799991a53e', "pinned by tests/tier-parity-fixes.test.mjs: static's warnings are said once per site and value, never twice for one value"], // Each is said once — …
   ['llms.txt#329425cf39', 'pinned by tests/tier-parity-fixes.test.mjs: static says boolean-child and attribute-value where core says them, production silent'], // static's iframe/noscript sentence, run on by the sentence splitter into "**Development says core's warnings in core's words**, once each"
@@ -247,7 +247,7 @@ const CLAIMS = new Map([
   ['llms.txt#f060ec4971', 'ssr-timeout'], // | `timeout` | … When it runs out the render serves what it has and warns (`ssr-timeout`)
   ['packages/ssr/README.md#b7dd238da1', 'not a promise: says it prints no warning'], // That serves the component's state from before the wait, which is exactly what the browser 
   ['packages/ssr/README.md#1e3a0a07fa', "not a promise: the instance marker's behavior, no message"], // **It only ever produces the component it was written for**: a copy of it on another tag is
-  ['packages/ssr/README.md#777bd846a5', 'ssr-styles-vary'], // That is what stops a per-class sheet being emitted once per instance; the consequence is t
+  ['packages/ssr/README.md#a9129bfab9', 'ssr-styles-vary'], // A sheet a component adopts on the document itself warns when its text varies; @verajs/styles is per class, the first CSS kept; the consequence is t
   ['packages/core/README.md#06311ae242', 'pinned by tests/computed.test.mjs: error routing through the \'error\' chain, not a message'], // (moved from the store README, 2026-10-22) An evaluation that throws is reported through the `'error'` insert rather than escaping, e
   ['llms.txt#32ada3c499', 'pinned by tests/core-store-refused-same.test.mjs: a same value onto a locked key is no change; same-onto-locked in development'], // createStore's row: D14b
   ['packages/core/README.md#2837d89c1e', 'pinned by tests/core-store-refused-same.test.mjs: no throw, reported once per key in development, a change still throws'], // the same-value-onto-locked paragraph
