@@ -1261,6 +1261,8 @@ const slotBehavior = {
       if (owner !== undefined && owner.recs.length === 0) release(owner);
     }
     if (root === null || root.nodeType !== 1) return undefined;
+    if (__DEV__ && ((root as Element).constructor as { ownsChildren?: unknown }).ownsChildren === true && !HOSTS.has(root as Element))
+      warnOnce('slots', `<${(root as Element).localName}>`, 'owns-children-slot', __DEV__ && (() => PROSE['owns-children-slot'](`<${(root as Element).localName}>`)));
     if (__DEV__) {
       const inert = [...slot.attributes].map((attribute) => attribute.name).filter((name) => name !== 'name');
       if (inert.length > 0)
@@ -1436,6 +1438,15 @@ const captureAtInit = (element: Element, options: object | undefined) => {
   /** Nothing to hide and nothing expected (the cheap tests first — they settle every plain component). */
   if (element.firstChild === null && !eager) return;
   /**
+   * **A class that owns its children** (`static ownsChildren = true`, or `define({ ownsChildren: true })`): it renders
+   * no `<slot>` and reads its authored children itself (tabs wiring its own buttons and panels, an author trigger wired in
+   * place). Never captured, here or at a render's end, so they stay where they were written on a page that wires slots
+   * for other components. A static, not an `init` option: core never checks a static, so a component declares it
+   * whether or not the page wires slots, and the render's end reads it from the element with nothing remembered. A
+   * different fact from `observeSlots`, which is when a host that slots does handle is observed.
+   */
+  if ((element.constructor as { ownsChildren?: unknown }).ownsChildren === true) return;
+  /**
    * A SHADOW host distributes natively: core attaches its root before this insert runs and keeps it under the
    * unmangled `_root` (a closed root is null through `shadowRoot`), quoted so this bundle's mangling leaves it alone.
    */
@@ -1499,7 +1510,7 @@ export const slotDiscovery = [
        * held before its first render's range is its light content — Brian's ruling 4, custom elements by their name.
        */
       let own = HOSTS.get(container as Element);
-      if (container.nodeType === 1 && (own?.late ?? container.firstChild !== start) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName)) {
+      if (container.nodeType === 1 && (own?.late ?? container.firstChild !== start) && (container as Element).shadowRoot === null && isCustomElementName((container as Element).localName) && ((container as Element).constructor as { ownsChildren?: unknown }).ownsChildren !== true) {
         capture(container as Element, start);
         own = HOSTS.get(container as Element);
       }

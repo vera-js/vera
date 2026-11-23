@@ -62,6 +62,9 @@ registry, a tag the user picks): `customElements.define('my-tag', define({ tag: 
 `formAssociated: true` makes a form-associated element: its form callbacks (`formResetCallback`, `formDisabledCallback`,
 `formStateRestoreCallback`) go in `methods`, and `attachInternals()` may be called once per element, so keep what it
 returns (a setup runs on every connect).
+`ownsChildren: true` marks a light component that renders no `<slot>` and reads its authored children itself: it sets
+`static ownsChildren` on the class, so `@verajs/renderer/slots`, where a page wires it, leaves those children where they
+were written.
 
 ## Smaller: `@verajs/lite`
 

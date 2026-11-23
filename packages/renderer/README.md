@@ -910,6 +910,12 @@ return () => html`<header>
   starts at the first `<slot>` or light child and is fully correct for everything a template renders. A value it does
   not have reads as `'lazy'` — the built-in default, even where the app's is `'eager'`, as `foreignNodes` does — and
   development says so.
+- **A component that renders no `<slot>` and reads its own children opts out**, on its class:
+  `static ownsChildren = true`, or `define({ tag, ownsChildren: true }, setup)` (tabs wiring its own buttons and panels, a
+  trigger the author wrote and the component wires in place). On a page that wires slots for other components, its children then stay where they were written; without
+  it they wait in the hidden element, since no slot of its takes them. A static rather than an `init` option, so the
+  component says it whether or not the page wires slots. One that declares it and renders a `<slot>` anyway gets that
+  slot's fallback only, and development says so once.
 - **A component you remove by hand and put back follows the hand-edit rule.** What its outer template then writes into
   it is distributed by the component's own observer, a microtask later, not by the end of that template's render; the
   slots API reads it at once (it flushes), and a direct DOM read in the same task can still see the old content.

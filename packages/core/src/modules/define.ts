@@ -35,9 +35,10 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
   let attributes: readonly string[] | undefined;
   let register: boolean | undefined;
   let formAssociated: boolean | undefined;
+  let ownsChildren: boolean | undefined;
   /** One test, and the tag (and `methods`, `props`, `attributes`) read back out (the smaller form: −1 `typeof`). */
   if (typeof target !== 'string')
-    ({ tag, methods, props, attributes, register, formAssociated, ...(options as object) } = (target ?? {}) as DefineOptions & {
+    ({ tag, methods, props, attributes, register, formAssociated, ownsChildren, ...(options as object) } = (target ?? {}) as DefineOptions & {
       methods?: M;
       props?: Record<string, unknown>;
       attributes?: readonly string[];
@@ -197,6 +198,13 @@ export const define = <M extends Methods = Record<never, never>, P extends objec
    * and no static, so a non-form element's creation does no form work.
    */
   if (formAssociated) (Class as unknown as { formAssociated: boolean }).formAssociated = true;
+  /**
+   * **`ownsChildren: true`**: the class declares that it renders no `<slot>` and its authored children are its own, so
+   * light slots, where a page wires it, never captures them. A static, set before the class is registered (an element
+   * already in the page upgrades inside `customElements.define`), and taken out of the options here rather than passed
+   * to `init`, whose development check would call it unknown on a page that does not wire slots.
+   */
+  if (ownsChildren) (Class as unknown as { ownsChildren: boolean }).ownsChildren = true;
   /** `register: false`: the built class itself, for the caller to register (which class `new` then constructs is theirs). */
   if (register === false) return Class as unknown as DefinedClass<WithAttributes<P, A> & M>;
   customElements.define(tag, Class);

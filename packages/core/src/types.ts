@@ -251,6 +251,11 @@ export type DefineOptions = Omit<InitOptions, 'host'> & {
    * Its form callbacks go in `methods`; `attachInternals()` may be called once per element, so keep what it returns.
    */
   formAssociated?: boolean;
+  /**
+   * `true`: the component renders no `<slot>` and its authored children are its own (`static ownsChildren`), so light
+   * slots, where a page wires it, never captures them: tabs wiring its own buttons and panels keeps them where they were written.
+   */
+  ownsChildren?: boolean;
 };
 /** The class `define` returns: its instances are components carrying the methods. */
 export type DefinedClass<M> = { new (): ComponentElement & M; prototype: ComponentElement & M };

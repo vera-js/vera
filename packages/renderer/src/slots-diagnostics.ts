@@ -2,6 +2,10 @@
 import type { Prose } from '@verajs/shared-utils';
 
 export const PROSE: Record<string, Prose> = {
+  'owns-children-slot': (host) => [
+    `${host} declares \`ownsChildren\` (it renders no \`<slot>\` and its authored children are its own), yet it rendered a \`<slot>\`: slots left its children where they were, so that slot shows only its fallback.`,
+    'Remove `ownsChildren` to have its children distributed, or render no `<slot>`.',
+  ],
   'slot-attributes': (slot, attributes) => [
     `${slot} carries ${attributes}, which does nothing in a light-DOM component: the slot element steps out of the page while it has content.`,
     'Events, `name` and `&ref` all work here.',

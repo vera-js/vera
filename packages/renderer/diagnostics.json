@@ -256,6 +256,14 @@
       "fix": "Set `observeSlots: 'eager'` to observe it from its first render, or leave it out."
     },
     {
+      "code": "owns-children-slot",
+      "params": [
+        "host"
+      ],
+      "message": "{host} declares `ownsChildren` (it renders no `<slot>` and its authored children are its own), yet it rendered a `<slot>`: slots left its children where they were, so that slot shows only its fallback.",
+      "fix": "Remove `ownsChildren` to have its children distributed, or render no `<slot>`."
+    },
+    {
       "code": "slot-attributes",
       "params": [
         "slot",

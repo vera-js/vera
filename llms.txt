@@ -580,6 +580,9 @@ removed by hand is followed except through `parentNode.removeChild` on a FILLED 
 child appended by hand to a component with neither a slot nor light content shows until a slot renders — only a
 component that needs slotting is observed, from its first `<slot>`; `init({ host: this, observeSlots: 'eager' }, setup)`
 observes it from its first render (default `'lazy'`), and `slots({ observeSlots: 'eager' })` makes that the app's default.
+A light component that renders no `<slot>` and reads its own children (tabs wiring its own buttons and panels) declares
+`static ownsChildren = true`, or `define({ tag, ownsChildren: true }, setup)`: slots never captures its children, so
+they stay where they were written for it to read.
 
 **`slotted(host, name?)`** is the accessor a component uses to read what its user gave it — native
 assignment in a shadow root, the capture map in light DOM, so component code does not branch on
