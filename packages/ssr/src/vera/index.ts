@@ -417,10 +417,6 @@ const renderInstanceAsync = async (
 /* ── the entry points ────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The options, checked by one table: a wrong one otherwise surfaced as an internal
- * (`markup.includes is not a function`, `Cannot find package 'undefined'`) naming nothing the caller did.
- */
-/**
  * A `URL` or a `Set` from any realm, by its tag: `instanceof` asks about THIS realm's class, so jsdom's window's `URL`
  * or a `vm` context's `Set` was refused as the wrong kind of option. A URL object is read through `String()`, its `href`.
  */
@@ -441,6 +437,10 @@ const isSet = (value: unknown): boolean => {
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+/**
+ * The options, checked by one table: a wrong one otherwise surfaced as an internal
+ * (`markup.includes is not a function`, `Cannot find package 'undefined'`) naming nothing the caller did.
+ */
 const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expected: string }> = [
   { name: 'url', valid: isUrl, expected: 'a module URL — a URL or a string' },
   {
