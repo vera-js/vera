@@ -47,6 +47,9 @@ const contents =
   `export const SERVER_HTML = ${JSON.stringify(await fixture('hello-ssr.js'))};\n` +
   `export const BINDINGS_HTML = ${JSON.stringify(await fixture('bindings-ssr.js'))};\n` +
   `export const SHADOW_OPTIONS_HTML = ${JSON.stringify(await fixture('shadow-options-ssr.js'))};\n` +
+  /** A root opened with `slotAssignment: 'manual'`, and one that slots by name: the browser decides what each parses to. */
+  `export const MANUAL_SLOTS_HTML = ${JSON.stringify(await fixture('manual-slots-ssr.js', { tag: 'manual-slots-ssr' }))};\n` +
+  `export const NAMED_SLOTS_HTML = ${JSON.stringify(await fixture('manual-slots-ssr.js', { tag: 'named-slots-ssr' }))};\n` +
   /**
    * An SVG-only ROOT handed across a component boundary — what `@verajs/jsx` emits for an icon in a
    * wrapper. The server writes strings and the BROWSER's parser assigns the namespace, so this is

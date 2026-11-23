@@ -152,3 +152,40 @@ it('a client-created root and a server-rendered one agree on their options', asy
   client.remove();
   host.remove();
 });
+
+/**
+ * **A root opened with `slotAssignment: 'manual'` arrives as one** (2026-11-23). `attachShadow` hands back a declarative
+ * root as it was parsed and ignores the options it is given, so only the served markup can make the root manual: served
+ * without `shadowrootslotassignment="manual"`, the root slotted by name and `slot.assign()` did nothing. The server's
+ * real markup, parsed by this engine; the named root is the control, and the shape the manual one was served as before.
+ */
+const { MANUAL_SLOTS_HTML, NAMED_SLOTS_HTML } = await import('./fixtures/hello-ssr.html.js');
+/** Parses the served markup, gives the host two children, attaches as a component does and assigns the second. */
+const assignSecond = (markup, tag) => {
+  const holder = document.createElement('div');
+  holder.setHTMLUnsafe(markup);
+  document.body.appendChild(holder);
+  const host = holder.querySelector(tag);
+  host.append(document.createElement('i'), document.createElement('b'));
+  const served = host.shadowRoot;
+  const root = host.attachShadow({ mode: 'open', slotAssignment: 'manual' });
+  /** Reusing a declarative root empties it (DOM: attach a shadow root), so the component writes its slot again. */
+  root.innerHTML = '<slot></slot>';
+  const slot = root.querySelector('slot');
+  slot.assign(host.lastElementChild);
+  const read = { reused: served !== null && root === served, assignment: root.slotAssignment, slotted: slot.assignedNodes().map((node) => node.localName) };
+  holder.remove();
+  return read;
+};
+
+it("a manual root is served as one: the client's assign() decides what is slotted", () => {
+  const manual = assignSecond(MANUAL_SLOTS_HTML, 'manual-slots-ssr');
+  expect(manual.reused, 'CONTROL: attachShadow handed back the served root').to.equal(true);
+  expect(manual.assignment).to.equal('manual');
+  expect(manual.slotted.join()).to.equal('b', 'only the assigned child is slotted');
+  /** CONTROL: a root served without the attribute slots by name, whatever attachShadow is asked for. */
+  const named = assignSecond(NAMED_SLOTS_HTML, 'named-slots-ssr');
+  expect(named.reused).to.equal(true);
+  expect(named.assignment).to.equal('named');
+  expect(named.slotted.join()).to.equal('i,b', 'assign() did nothing: every child is slotted by name');
+});
