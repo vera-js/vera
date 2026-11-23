@@ -247,6 +247,11 @@ export const parseFragment = (
   space: Space = 'html'
 ): Array<ElementShim | TextShim | CommentShim | string> | null => {
   if (typeof markup !== 'string' || markup === '') return null;
+  /**
+   * Whether a NUL is anywhere in the markup, asked once: `tokenNul` runs on a name or a value only then. Asked per name
+   * and value, the check cost a 50 KB article's parse 2.5% cold and 4.4% at steady state (Node 24's V8, 2026-11-23).
+   */
+  const nul = markup.includes('\0');
   /** Foreign content: `/>` closes, names are case-adjusted, nothing is raw text, nothing closes implicitly. */
   const foreign = space === 'svg' || space === 'math';
   const namespace = space === 'svg' ? SVG_NS : space === 'math' ? MATHML_NS : undefined;
@@ -312,7 +317,7 @@ export const parseFragment = (
        */
       let stop = next + 2;
       for (let c = markup.charCodeAt(stop); stop < end && c !== 32 && c !== 9 && c !== 10 && c !== 12 && c !== 13 && c !== 47; c = markup.charCodeAt(++stop));
-      const name = asciiLower(tokenNul(markup.slice(next + 2, stop)));
+      const name = asciiLower(nul ? tokenNul(markup.slice(next + 2, stop)) : markup.slice(next + 2, stop));
       if (!name) return null;
       flushText();
       /**
@@ -355,7 +360,7 @@ export const parseFragment = (
       index = next + 1;
       continue;
     }
-    const name = asciiLower(tokenNul(markup.slice(next + 1, after)));
+    const name = asciiLower(nul ? tokenNul(markup.slice(next + 1, after)) : markup.slice(next + 1, after));
     if (REFUSED.has(name)) return null;
     /** A start tag that leaves foreign content, or a MathML element inside a MathML text integration point: declined. */
     if (foreign ? BREAKOUT.has(name) || name === 'font' : space === 'math-text' && (name === 'mglyph' || name === 'malignmark')) return null;
@@ -382,8 +387,8 @@ export const parseFragment = (
       const attribute = ATTRIBUTE.exec(markup.slice(cursor));
       if (!attribute || cursor >= markup.length) return null;
       const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
-      const lower = asciiLower(tokenNul(attribute[1]));
-      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(tokenNul(normalized(value)))]);
+      const lower = asciiLower(nul ? tokenNul(attribute[1]) : attribute[1]);
+      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(nul ? tokenNul(normalized(value)) : normalized(value))]);
       cursor += attribute[0].length;
     }
     const selfClosing = markup.startsWith('/>', cursor);
