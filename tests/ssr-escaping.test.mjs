@@ -146,14 +146,13 @@ test('a stylesheet keeps the characters CSS needs', async () => {
  * the tag it describes, which is what its documentation claimed, and could add as many attributes
  * *inside* that tag as it liked, which is the same hole one level down.
  *
- * The refused set is the HTML attribute-name production, which is also what the browser engines
- * reject in `setAttribute` (`tests/browser/spread-names.test.js` records their exact rule). Refusing
- * the same set means the server refuses what the client would refuse, rather than the two halves
- * disagreeing about a name.
+ * The refused set is a spread key's (`UNSAFE_ATTRIBUTE_NAME`): a name here is data written into the served tag, as a
+ * spread's key is. It is stricter than the engines' `setAttribute`, which takes a quote, `<` and most controls
+ * (`tests/browser/spread-names.test.js` records their exact rule); this option's message once said otherwise.
  */
 test('the object form of `attributes` cannot invent a second attribute', async () => {
   const url = new URL('./fixtures/ssr/xss-ssr.js', import.meta.url);
-  for (const name of ['a x', 'a=1 onload', 'a>x', 'a"x', "a'x", 'a/x', '><script>alert(1)</script>', '']) {
+  for (const name of ['a x', 'a=1 onload', 'a>x', 'a"x', "a'x", 'a/x', '><script>alert(1)</script>', '', 'a<x', 'a`x', 'a\vx', 'a\u0001x']) {
     await assert.rejects(
       () => renderToString(url, { attributes: { [name]: 'v' } }),
       (error) => error instanceof TypeError && error.message.includes('as a name'),

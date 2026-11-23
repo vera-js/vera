@@ -263,8 +263,8 @@ written through untouched; the `attributes` string is read as the tag's attribut
 neither may carry anything from a request unsanitized. Everything else is checked:
 
 - **The object form of `attributes` cannot leave the tag or add a second attribute.** A name carrying
-  whitespace, a quote, `/`, `=` or `>` is refused — the set `setAttribute` refuses in a browser — and
-  every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
+  whitespace, a quote, a backtick, `<`, `/`, `=`, `>` or a control character is refused — the rule a spread's keys
+  follow, client and server, stricter than `setAttribute` (which takes a quote or `<`) — and every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
   An `on…` name (`onclick`, `onClick`) is refused too (`ssr-attribute-handler`): its value would run as code, and
   a value bound into one in a template is dropped for the same reason. Write the handler in the component.
 - **`.innerHTML` and `.textContent` render on the server**, so trusted markup bound the sanctioned way

@@ -22,7 +22,7 @@
       "params": [
         "name"
       ],
-      "message": "`attributes` cannot use {name} as a name — an attribute name may not contain whitespace, a quote, \"/\", \"=\" or \">\"; setAttribute refuses it in the browser too.",
+      "message": "`attributes` cannot use {name} as a name — a name written into the served tag may not be empty or hold whitespace, a quote, a backtick, \"<\", \"/\", \"=\", \">\" or a control character: the rule a spread's keys follow, on the client and the server.",
       "fix": "Give it a valid attribute name."
     },
     {

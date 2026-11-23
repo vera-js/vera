@@ -67,7 +67,7 @@ export const PROSE: Record<string, Prose> = {
     'Use renderToStringAsync, or load data first and pass it as attributes.',
   ],
   'ssr-attribute-name': (name) => [
-    `\`attributes\` cannot use ${name} as a name — an attribute name may not contain whitespace, a quote, "/", "=" or ">"; setAttribute refuses it in the browser too.`,
+    `\`attributes\` cannot use ${name} as a name — a name written into the served tag may not be empty or hold whitespace, a quote, a backtick, "<", "/", "=", ">" or a control character: the rule a spread's keys follow, on the client and the server.`,
     'Give it a valid attribute name.',
   ],
   'ssr-attribute-handler': (name) => [

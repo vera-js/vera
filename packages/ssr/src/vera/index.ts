@@ -33,7 +33,7 @@ import {
   INSTANCE_ATTRIBUTE,
   LOCATION_PARTS,
 } from './shim.js';
-import { serializeTemplate, serializeValue } from './serializer.js';
+import { UNSAFE_ATTRIBUTE_NAME, serializeTemplate, serializeValue } from './serializer.js';
 import { decode as decodeEntities, heldAt } from './parse.js';
 import { ATTRIBUTE, ATTRIBUTE_TIGHT, renderComponentTags, spacedEquals } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
@@ -484,17 +484,18 @@ const OPTION_NAMES = new Set<string>(CHECKS.map((check) => check.name).filter((n
 const OPTION_LIST = [...OPTION_NAMES].join(', ');
 
 /**
- * An attribute NAME that could not come out of one entry: the characters the engines' `setAttribute`
- * refuses, so an object entry can never write a second attribute (`{ 'a=1 onload': v }`) or leave the tag.
+ * An attribute NAME is checked by the rule a spread's keys follow (`UNSAFE_ATTRIBUTE_NAME`), because it is the same
+ * thing: data written into the served tag. So an object entry can never write a second attribute
+ * (`{ 'a=1 onload': v }`) or leave the tag. It was the set the engines' `setAttribute` refuses, which takes a quote,
+ * `<` and every control but the parser's whitespace (2026-11-23), and its message said `setAttribute` refuses quotes.
  */
-const BAD_ATTRIBUTE_NAME = /[\0\t\n\f\r "'>/=]/;
 const attributeMarkup = (attributes: string | Record<string, unknown>): string =>
   typeof attributes === 'string'
     ? attributes
     : Object.entries(attributes)
         .filter(([, value]) => value != null && value !== false)
         .map(([name, value]) => {
-          if (name === '' || BAD_ATTRIBUTE_NAME.test(name))
+          if (UNSAFE_ATTRIBUTE_NAME.test(name))
             throw own(new TypeError(ssrMisuse('ssr-attribute-name', PROSE['ssr-attribute-name']!(quoted(name)))));
           /** A runtime value never becomes a handler: the one rule a template binding's `on…` name is refused by. */
           if (INLINE_HANDLER.test(name))
