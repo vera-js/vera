@@ -122,20 +122,6 @@ const toStore = (value: unknown) => {
   const known = cached(value);
   return known !== undefined ? (known ?? value) : nested(NO_SLOT, '', value);
 };
-/**
- * **The indices `[lo, hi)` of an array, sent through one operation**, through whichever is SHORTER: the range, or the keys
- * anyone subscribed to. A list rendered through a raw walk subscribes no index at all (`ITEMS` instead), so a splice on
- * 1000 rows checks a handful of keys, not 1000. For a truncating `length`; `atomic` keeps its own copy (see there).
- */
-const span = (keys: Map<unknown, unknown>, send: (key: unknown) => void, lo: number, hi: number) => {
-  if (keys.size < hi - lo) {
-    for (const key of keys.keys())
-      if (typeof key === 'string') {
-        const index = +key;
-        if (index >= lo && index < hi) send(key);
-      }
-  } else for (let i = lo; i < hi; i++) send(String(i));
-};
 const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => unknown, proxy: unknown) =>
   function (this: unknown, ...args: unknown[]) {
     /** Borrowed onto something else (`state.rows.push.call(other, x)`): that is not this store's write. */
@@ -174,8 +160,9 @@ const atomic = (obj: unknown[], name: string, method: (...args: unknown[]) => un
          * The change is the operation's (the shape channel, the array: "the contents changed, re-read"), not `length`:
          * `sort`, `reverse`, `fill` and a same-count `splice` keep it, and `1000 → 1000` would read as nothing happened.
          * The touched indices, through whichever is SHORTER: the range, or the keys anyone subscribed to. WRITTEN HERE, not
-         * through `span` (a second address, deliberately): calling the shared walk with this sender cost a splice +66%
-         * on JSC and +13% on SpiderMonkey (instructions), the sender no longer inlined; `span` serves the cold truncation.
+         * through a shared walk (a second address, deliberately: `resized` has the other, for a single write's truncation):
+         * calling a shared walk with this sender cost a splice +66% on JSC and +13% on SpiderMonkey (instructions), the
+         * sender no longer inlined.
          */
         if (keys.size < hi - lo) {
           for (const key of keys.keys())
@@ -344,7 +331,10 @@ const handler: ProxyHandler<object> = {
      * this trap — so `push` and `unshift` notified nothing that read `length`. Captured before the write. A symbol key
      * (a library's tag on an array) is never an index — and `+symbol` throws.
      */
-    const grew = Array.isArray(obj) && typeof prop === 'string' && +prop >= obj.length;
+    const array = Array.isArray(obj);
+    const grew = array && typeof prop === 'string' && +prop >= obj.length;
+    /** An array's `length` before the write: a truncating `length = n` drops the indices past `n` (`resized`). */
+    const length = array ? obj.length : 0;
     writingObj = obj;
     writingProp = prop;
     let written;
@@ -366,14 +356,16 @@ const handler: ProxyHandler<object> = {
     if (!written) throw refusedWrite(obj, prop, 'changed');
     if (written) {
       /**
-       * One write, one wake number across the channels it changes (`trigger`): a hook that read two of them runs once. An
-       * own key overwritten changes one channel and keeps the plain call.
+       * One write, one wake number across the channels it changes (`trigger`): a hook that read two of them runs once. A
+       * record's own key overwritten changes one channel and keeps the plain call; an array's write also changes its
+       * contents (`resized`).
        */
-      if (added || grew) {
+      if (added || array) {
         const epoch = nextWake();
         triggerAt(obj, prop, value, prevValue, epoch);
         if (added) triggerAt(obj, GLOBAL, value, prevValue, epoch);
         if (grew) triggerAt(obj, 'length', (obj as unknown[]).length, +(prop as string), epoch);
+        if (array) resized(obj as unknown[], length, epoch);
       } else trigger(obj, prop, value, prevValue);
     }
     return written;
@@ -388,8 +380,8 @@ const handler: ProxyHandler<object> = {
     /** An accessor or a read-only property may make it no longer a data record (`dataRecord`). */
     if (descriptor.get !== undefined || descriptor.set !== undefined || descriptor.writable === false) unclassify(obj);
     const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
-    /** An array's `length` before an index is defined past it (-1 for anything else): see below. */
-    const length = Array.isArray(obj) && prop !== 'length' ? obj.length : -1;
+    /** An array's `length` before the define (-1 for anything else): an index defined past it grows it, a shorter `length` drops indices. */
+    const length = Array.isArray(obj) ? obj.length : -1;
     const defined = Reflect.defineProperty(obj, prop, descriptor);
     if (defined) {
       const epoch = nextWake();
@@ -405,7 +397,10 @@ const handler: ProxyHandler<object> = {
        * An index defined past the end grows `length`, which no trap of its own reports: told here, in the same wake as
        * the index, as `set` tells it, so a hook that read both runs once (2026-11-23).
        */
-      if (length !== -1 && (obj as unknown[]).length > length) triggerAt(obj, 'length', (obj as unknown[]).length, length, epoch);
+      if (length !== -1) {
+        if ((obj as unknown[]).length > length) triggerAt(obj, 'length', (obj as unknown[]).length, length, epoch);
+        resized(obj as unknown[], length, epoch);
+      }
       /** `Object.freeze` through the store locks each slot here, after `preventExtensions`: the last one makes it `FIXED`. */
       if (descriptor.writable === false && !Object.isExtensible(obj) && Object.isFrozen(obj)) FIXED.add(obj);
     }
@@ -443,6 +438,7 @@ const handler: ProxyHandler<object> = {
       const epoch = nextWake();
       triggerAt(obj, prop, undefined, prevValue, epoch);
       triggerAt(obj, GLOBAL, undefined, prevValue, epoch);
+      if (Array.isArray(obj)) resized(obj, obj.length, epoch);
     }
     return deleted;
   },
@@ -455,13 +451,40 @@ const handler: ProxyHandler<object> = {
  *
  * Every change to an array's CONTENTS also wakes its `ITEMS` channel: an index written, defined or deleted, `length`
  * moved (a truncating `length = 0` included), a whole-array method. A walk subscribes there ONCE (`walkItems`) instead
- * of once per index. Records never pay for it: only these traps fire it.
+ * of once per index. Records never pay for it: only an array's writes fire it.
  */
 export const ITEMS = Symbol();
-/** Wakes whoever walks this array (`walkItems` subscribed them to `ITEMS`), with one "contents changed" signal. */
-const items = (obj: object) => {
-  const cell = proxyCallbacks.get(obj)?.get(ITEMS);
-  if (cell !== undefined && cell._positions !== 0) wake(cell, { prop: GLOBAL, value: obj } as Change<unknown>, nextWake());
+/**
+ * **What an array's single write changes besides its key, in THAT write's wake** (`epoch`): its contents (`ITEMS`, for a
+ * walk), and for a truncating `length = n` or a shorter `length` defined, the indices past `n` (no index trap fires for
+ * them) and the key set. One wake number, as a whole-array method sends (`operation`), so a hook that read `length` and
+ * a dropped index, or an index and `ITEMS`, runs once; each used to take its own wake, and a `'sync'` effect or a
+ * watched `computed` that read two of them ran twice per write. The dropped indices go through whichever is SHORTER: the
+ * range, or the keys anyone subscribed to (a list rendered through a raw walk subscribes no index at all). Its callers
+ * are the three write traps of the object handler, on an array only; `atomic` keeps its own copy (see there).
+ */
+const resized = (obj: unknown[], length: number, epoch: number) => {
+  const keys = proxyCallbacks.get(obj);
+  if (keys === undefined) return;
+  const change = { prop: GLOBAL, value: obj } as Change<unknown>;
+  const after = obj.length;
+  if (after < length) {
+    if (keys.size < length - after) {
+      for (const [key, cell] of keys)
+        if (typeof key === 'string') {
+          const index = +key;
+          if (index >= after && index < length) wake(cell, change, epoch);
+        }
+    } else
+      for (let i = after; i < length; i++) {
+        const cell = keys.get(String(i));
+        if (cell !== undefined) wake(cell, change, epoch);
+      }
+    const shape = keys.get(GLOBAL);
+    if (shape !== undefined) wake(shape, change, epoch);
+  }
+  const walk = keys.get(ITEMS);
+  if (walk !== undefined) wake(walk, change, epoch);
 };
 const arrayHandler: ProxyHandler<object> = {
   ...handler,
@@ -483,33 +506,9 @@ const arrayHandler: ProxyHandler<object> = {
     return nested(obj, prop, value);
   },
   /**
-   * The three write traps add ONE thing to the object handler's: waking `ITEMS` when the contents actually changed. A
-   * write of the same value, or a refused one, wakes nothing; `length` is compared too, since a truncating
-   * `length = n` deletes indices without any index trap firing.
+   * The write traps are the object handler's, which tell an array's contents and dropped indices in the write's own wake
+   * (`resized`). A define adds one thing: an accessor's getter runs with the store as `this`.
    */
-  set(obj, prop, value, receiver) {
-    const before = (obj as Record<PropertyKey, unknown>)[prop];
-    const length = (obj as unknown[]).length;
-    const written = handler.set!(obj, prop, value, receiver);
-    if (written) {
-      const after = (obj as unknown[]).length;
-      /**
-       * **A truncating `length = n` deletes the indices past `n` without any index trap firing**: their readers, and
-       * whoever read the key set, are told here, as one operation (the indices that were there and are gone).
-       */
-      if (after < length) {
-        const keys = proxyCallbacks.get(obj);
-        if (keys !== undefined) {
-          const send = operation(obj, keys)!;
-          /** NOT inlined: with this its one caller, the minifier pastes `span` here as an immediately-invoked arrow. */
-          /*@__NOINLINE__*/ span(keys, send, after, length);
-          send(GLOBAL);
-        }
-      }
-      if (!same((obj as Record<PropertyKey, unknown>)[prop], before) || after !== length) items(obj);
-    }
-    return written;
-  },
   defineProperty(obj, prop, descriptor) {
     /**
      * **An accessor defined on a store array through the store runs with the store as `this`** (2026-11-11). The read
@@ -526,35 +525,7 @@ const arrayHandler: ProxyHandler<object> = {
       /** A copy: the caller's descriptor is never changed. */
       if (store != null) descriptor = { ...descriptor, get: () => get.call(store) };
     }
-    const length = (obj as unknown[]).length;
-    const defined = handler.defineProperty!(obj, prop, descriptor);
-    /** The `set` trap's own re-entry is reported by `set`. */
-    if (defined && !(obj === writingObj && prop === writingProp)) {
-      /**
-       * **A `length` defined shorter deletes the indices past it** without any index trap firing (2026-11-23): their
-       * readers, and the key set's, are told here as `set` tells them (an index defined past the end tells `length`'s
-       * readers in the object handler's define). Before, `Object.defineProperty(rows, 'length', { value: 1 })` woke
-       * nobody who read a dropped row.
-       */
-      const after = (obj as unknown[]).length;
-      if (after < length) {
-        const keys = proxyCallbacks.get(obj);
-        if (keys !== undefined) {
-          const send = operation(obj, keys)!;
-          span(keys, send, after, length);
-          send(GLOBAL);
-        }
-      }
-      items(obj);
-    }
-    return defined;
-  },
-  deleteProperty(obj, prop) {
-    /** Only an own key that was there: deleting a missing or inherited one changes nothing anyone walked. */
-    const had = Object.hasOwn(obj, prop);
-    const deleted = handler.deleteProperty!(obj, prop);
-    if (deleted && had) items(obj);
-    return deleted;
+    return handler.defineProperty!(obj, prop, descriptor);
   },
 };
 /**
