@@ -1,8 +1,9 @@
 # @verajs/ssr
 
-Server-side rendering for VeraJS components. Node only, plain ESM, **zero dependencies** — no jsdom,
-no parse5, no lit, no acorn. Components render to **declarative shadow DOM**, and the renderer's
-`hydration` module (`wire([renderer, hydration])`) adopts that markup in the browser without re-creating it.
+Server-side rendering for VeraJS components. Node or a Web Worker, plain ESM, **no third-party dependencies**
+(only its Vera peers, `@verajs/core` and `@verajs/styles`) — no jsdom, no parse5, no lit, no acorn. Components
+render to **declarative shadow DOM**, and the renderer's `hydration` module (`wire([renderer, hydration])`) adopts
+that markup in the browser without re-creating it.
 
 **Light-DOM slots** are distributed on the server while `@verajs/renderer/slots` is wired: each filled slot is written
 with the two comments the client keeps around it (`<!--[-->` … `<!--]-->`), and the host states its light tree in

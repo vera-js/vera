@@ -80,7 +80,7 @@ module system is open — use the prebuilt ones or write your own.
 @verajs/renderer/slots  `<slot>` in LIGHT DOM, with the platform's own semantics
 @verajs/store    computed values; reactive Map/Set for stores
 @verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
-@verajs/ssr           server-side rendering (Node only)
+@verajs/ssr           server-side rendering (Node or a Web Worker)
 ```
 
 Two more ship as `devDependencies` rather than runtime modules — nothing imports them, and neither
