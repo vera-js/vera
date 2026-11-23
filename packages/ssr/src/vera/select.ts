@@ -79,7 +79,8 @@ const ID = /^#([\w-]+)/;
 const NOT = /^:not\(/i;
 
 const refuse: (selector: string, why: string) => never = (selector, why) => {
-  throw own(new Error(ssrMisuse('ssr-selector-unsupported', PROSE['ssr-selector-unsupported']!(quoted(selector), why))));
+  /** A `SyntaxError` DOMException, the error every engine raises for a selector it cannot read (2026-11-23). */
+  throw own(new DOMException(ssrMisuse('ssr-selector-unsupported', PROSE['ssr-selector-unsupported']!(quoted(selector), why)), 'SyntaxError'));
 };
 
 /**

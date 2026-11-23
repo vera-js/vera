@@ -132,6 +132,20 @@ const OPS = [
   ['an ancestor query sees a child\'s innerHTML', "const c = el.ownerDocument.createElement('div'); c.innerHTML = '<i class=\"x\"></i><template><b class=\"x\"></b></template>'; el.append(c); return [el.querySelectorAll('.x').length, el.getElementsByTagName('i').length, el.getElementsByTagName('b').length, el.getElementsByClassName('x').length, String(el.querySelector('i') !== null)].join(':');"],
   /** `labels` exists only on the labelable elements' interfaces, as in every engine; it was on every element here. */
   ['labels is on labelable elements only', "return String('labels' in el);"],
+  /**
+   * **What every engine refuses, refused by name** (2026-11-23). Each returns the error's `name`, so a refusal of the
+   * wrong kind is a divergence too. The name row is the engines' relaxed first-character rule, less the two names jsdom
+   * still refuses by the older XML rule (`·a`, `a!`): the browser layer's `ssr-element-names` holds those.
+   */
+  ['createElement names', "const d = el.ownerDocument; return ['1a', '-a', '.a', '_a!', '_a/b', 'éa!', '_a', ':a', 'éa', '_a·', 'a1', 'a.b', ':', '_', 'A'].map((n) => { try { return d.createElement(n).localName; } catch (e) { return 'THREW ' + e.name; } }).join(',');"],
+  ['create with no argument', "const d = el.ownerDocument; return ['createElement', 'createTextNode', 'createComment'].map((m) => { try { d[m](); return 'accepted'; } catch (e) { return 'THREW ' + e.name; } }).join(',') + '|' + d.createElement(undefined).localName;"],
+  ['attachShadow host', "try { el.attachShadow({ mode: 'open' }); return 'ok'; } catch (e) { return 'THREW ' + e.name; }"],
+  ['attachShadow on reserved, SVG and custom-looking names', "const d = el.ownerDocument; return [d.createElement('font-face'), d.createElementNS('http://www.w3.org/2000/svg', 'g'), d.createElement('x-y'), d.createElement('p'), d.createElement('nav')].map((h) => { try { h.attachShadow({ mode: 'open' }); return 'ok'; } catch (e) { return 'THREW ' + e.name; } }).join(',');"],
+  ['dataset key with a hyphen before a lowercase letter', "el.setAttribute('data-a-b', '1'); const out = [String(el.dataset['a-b']), String('a-b' in el.dataset), String(delete el.dataset['a-b']), String(el.getAttribute('data-a-b'))]; try { el.dataset['a-b'] = '2'; out.push('accepted'); } catch (e) { out.push('THREW ' + e.name); } return out.join(',') + '|' + String(el.dataset.aB) + '|' + String(el.dataset['a-B']);"],
+  ['setAttributeNS name and namespace', "const X = 'http://www.w3.org/2000/xmlns/'; return [[null, 'x:y'], ['urn:n', 'xml:a'], [null, 'xmlns'], ['urn:n', 'xmlns:a'], [X, 'a'], [X, 'xmlns:a'], ['urn:n', 'p:a'], ['', 'b']].map(([ns, n]) => { try { el.setAttributeNS(ns, n, '1'); return 'ok'; } catch (e) { return 'THREW ' + e.name; } }).join(',');"],
+  ['a document is not a child', "const d = el.ownerDocument; return [() => el.append(d), () => el.appendChild(d), () => el.insertBefore(d, null)].map((f) => { try { f(); return 'accepted'; } catch (e) { return 'THREW ' + e.name; } }).join(',');"],
+  ['text and a comment take no child', "const d = el.ownerDocument; return [d.createTextNode('t'), d.createComment('c')].map((n) => { try { n.appendChild(d.createElement('b')); return 'accepted'; } catch (e) { return 'THREW ' + e.name; } }).join(',');"],
+  ['an unreadable selector', "el.innerHTML = '<p></p>'; return [() => el.querySelector('['), () => el.matches('a['), () => el.firstChild.closest(':(')].map((f) => { try { f(); return 'accepted'; } catch (e) { return 'THREW ' + e.name; } }).join(',');"],
   ['remove/once/dedupe listeners', "let hits=0; const f=()=>hits++; const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.addEventListener('x',f); el.addEventListener('x',f); el.dispatchEvent(new E('x')); el.removeEventListener('x',f); el.addEventListener('y',()=>hits+=10,{once:true}); el.dispatchEvent(new E('y')); el.dispatchEvent(new E('y')); return String(hits);"]
 ];;
 

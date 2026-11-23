@@ -31,6 +31,16 @@ type StyleView = {
 const dashed = (name: string): string => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
 
 /**
+ * The attribute a `dataset` key names, or `null` for a key no attribute can produce (2026-11-23): a hyphen followed by
+ * a lowercase letter (`'a-b'`) has no camel-cased spelling, so every engine reads it as absent, deletes nothing and
+ * refuses to set it with a `SyntaxError`.
+ */
+const dataName = (key: PropertyKey): string | null => {
+  const name = String(key);
+  return /-[a-z]/.test(name) ? null : `data-${dashed(name)}`;
+};
+
+/**
  * `dataset` and `style` are **views over an attribute**, not stores of their own: an assignment that
  * does not reach the markup is an assignment the server loses. Written as proxies over the element
  * so `this.dataset.userId = '7'` and `this.style.color = 'red'` end up in the tag, which is what
@@ -40,10 +50,26 @@ export const datasetView = (element: ElementShim): Record<string, string | undef
   new Proxy(
     {},
     {
-      get: (_, key) => element.getAttribute(`data-${dashed(String(key))}`) ?? undefined,
-      set: (_, key, value) => (element.setAttribute(`data-${dashed(String(key))}`, value), true),
-      deleteProperty: (_, key) => (element.removeAttribute(`data-${dashed(String(key))}`), true),
-      has: (_, key) => element.hasAttribute(`data-${dashed(String(key))}`),
+      get: (_, key) => {
+        const name = dataName(key);
+        return name === null ? undefined : (element.getAttribute(name) ?? undefined);
+      },
+      set: (_, key, value) => {
+        const name = dataName(key);
+        if (name === null)
+          throw new DOMException(`Failed to set a named property '${String(key)}' on 'DOMStringMap': '${String(key)}' is not a valid property name.`, 'SyntaxError');
+        element.setAttribute(name, value);
+        return true;
+      },
+      deleteProperty: (_, key) => {
+        const name = dataName(key);
+        if (name !== null) element.removeAttribute(name);
+        return true;
+      },
+      has: (_, key) => {
+        const name = dataName(key);
+        return name !== null && element.hasAttribute(name);
+      },
     }
   );
 

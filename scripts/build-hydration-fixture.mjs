@@ -56,6 +56,19 @@ const parseAgreement = async () => {
     doubleEscapedText: holder.querySelector('script')?.textContent ?? null,
   };
 };
+/**
+ * The server DOM's answer to `createElement` for names whose first character is not an ASCII letter, and two whose
+ * rest holds a character the older XML name rule refused: the browser suite holds each engine to the same answers.
+ */
+const ELEMENT_NAMES = ['1a', '-a', '.a', '_a!', '_a/b', '\u00e9a!', '\u00e9a b', '_a', ':a', '\u00e9a', '\u00b7a', '_a\u00b7', '\u00e0', 'a1', 'A', 'a.b', 'a_b', 'a!', ':', '_'];
+const elementNames = () =>
+  ELEMENT_NAMES.map((name) => {
+    try {
+      return document.createElement(name).localName;
+    } catch (error) {
+      return `THREW ${error.name}`;
+    }
+  });
 const target = new URL('../tests/browser/fixtures/hello-ssr.html.js', import.meta.url);
 
 const fixture = async (name, options) =>
@@ -122,6 +135,7 @@ const contents =
    * is the part only a real engine can judge.
    */
   `export const PARSE_AGREEMENT = ${JSON.stringify(await parseAgreement())};\n` +
+  `export const ELEMENT_NAMES = ${JSON.stringify({ names: ELEMENT_NAMES, served: elementNames() })};\n` +
   `export const SPINNER_SSR = ${JSON.stringify(
     await renderToString(new URL('../packages/components/spinner/dist/vera-spinner.min.js', import.meta.url), {
       tag: 'vera-spinner',

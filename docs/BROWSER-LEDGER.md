@@ -1306,3 +1306,11 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   an HTML `<style>` appended to an `<svg>` through the DOM is served there as SVG's. Consequence: `@verajs/ssr` writes a
   `<style>` or `<script>`'s text raw only where its nearest non-HTML ancestor's content is HTML (`foreignObject`,
   `desc`, `title`, a MathML text integration point) or there is none, and escapes it elsewhere.
+- **`createElement` names follow a relaxed first-character rule, and jsdom does not.** In Chromium 159, Firefox 159
+  and WebKit 27.2 (Playwright 1.65, headless, identical in all three): a name starting with an ASCII letter is refused
+  only for whitespace, `/`, `>` or NUL (`a!`, `a.b`, `A` created); one starting with `:`, `_` or a character from U+0080
+  is created when the rest holds only ASCII letters and digits, `-`, `.`, `:`, `_` and characters from U+0080 (`_a`,
+  `:a`, `éa`, `·a`, `_a·`), else refused (`_a!`, `_a/b`, `éa!`, `éa b`); any other first character is
+  `InvalidCharacterError` (`1a`, `-a`, `.a`). jsdom refuses `·a` and `a!` by the older XML name rule. Consequence:
+  `@verajs/ssr`'s DOM applies the engines' rule; the node differential checks the names jsdom agrees on and a browser
+  row (`ssr-element-names`) the rest.

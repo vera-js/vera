@@ -33,6 +33,7 @@ import {
   pendingInstances,
   INSTANCE_ATTRIBUTE,
   NODE_CONSTANTS,
+  validName,
 } from './nodes.js';
 
 /** Any node this DOM builds — what a walk visits and a walker's `root` is. */
@@ -53,20 +54,9 @@ type GlobalScope = Record<string, unknown>;
  */
 type ShimmedGlobal = { _$ssr$?: boolean; __veraSsrShimmed?: boolean };
 
-/** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
-const RESERVED_NAMES = new Set([
-  'annotation-xml',
-  'color-profile',
-  'font-face',
-  'font-face-src',
-  'font-face-uri',
-  'font-face-format',
-  'font-face-name',
-  'missing-glyph',
-]);
-/** A name `define` accepts — the spec's rule, shared with `whenDefined` so the two refuse exactly the same names. */
-const validName = (name: unknown): name is string =>
-  typeof name === 'string' && /^[a-z][^A-Z]*-[^A-Z]*$/.test(name) && !RESERVED_NAMES.has(name);
+/** The `TypeError` a DOM method called with too few arguments raises in every engine. */
+const missingArgument = (method: string): TypeError =>
+  new TypeError(`Failed to execute '${method}' on 'Document': 1 argument required, but only 0 present.`);
 /**
  * The promises `whenDefined` handed out for names not yet defined, settled by their `define`. Cleared at each render's
  * start: a wait from a finished render has nothing left to resume, and names that come from DATA (tags found in user
@@ -552,9 +542,19 @@ export const installShims = () => {
     get childElementCount() {
       return 1;
     },
-    createElement: (localName: string) => createElement(localName),
+    /**
+     * **A create with no argument is refused** (2026-11-23), as every engine refuses it with a `TypeError`; an explicit
+     * `undefined` is the string `'undefined'` there too. This DOM made `<undefined>` either way.
+     */
+    createElement(localName: string) {
+      if (arguments.length === 0) throw missingArgument('createElement');
+      return createElement(localName);
+    },
     createElementNS: (namespace: string, localName: string) => createElement(localName, namespace),
-    createTextNode: (text: string) => new TextShim(text),
+    createTextNode(text: string) {
+      if (arguments.length === 0) throw missingArgument('createTextNode');
+      return new TextShim(text);
+    },
     createDocumentFragment: () => new FragmentShim(),
     /**
      * **The document's queries search the document.** Each answered nothing whatever it was asked,
@@ -647,7 +647,10 @@ export const installShims = () => {
     plugins: [],
     anchors: [],
     hasFocus: () => false,
-    createComment: (text: string) => new CommentShim(text),
+    createComment(text: string) {
+      if (arguments.length === 0) throw missingArgument('createComment');
+      return new CommentShim(text);
+    },
     getSelection: () => null,
     /**
      * An empty walk over an empty tree, which is the truthful answer for a DOM that holds strings.

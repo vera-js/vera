@@ -398,10 +398,14 @@ dependency involved.
   objects, `stopPropagation`, `stopImmediatePropagation`, `composedPath()`, a `dispatchEvent` return
   reflecting `preventDefault`, and a shadow boundary crossed only by a `composed` event. The walk is
   over the node tree, so an event does not continue into `document` or `window`.
-- **Where the platform throws, this throws** — an attribute or tag name that cannot be written, a
-  second `attachShadow` or `attachInternals`, an invalid custom-element name, and every Node-typed
-  argument that is not a node (`appendChild({})`, `removeChild(null)`, `contains({})`), with the
-  platform's `TypeError`. `new HTMLElement()`, `new Node()` and `new X()` for a class never defined are
+- **Where the platform throws, this throws** — an attribute or tag name that cannot be written
+  (`createElement('1a')` included: a name whose first character is not an ASCII letter follows the
+  engines' rule), `attachShadow` on an element that cannot host a root (`<a>`, `<input>`, SVG) or a
+  second time, a second `attachInternals`, an invalid custom-element name, a `dataset` key that no
+  attribute spells (`dataset['a-b'] = 1`), a prefixed `setAttributeNS` name its namespace does not
+  allow, a document inserted as a child, a child appended to text or a comment, a `createElement`,
+  `createTextNode` or `createComment` with no argument, and every Node-typed argument that is not a
+  node (`appendChild({})`, `removeChild(null)`, `contains({})`), with the platform's error name. `new HTMLElement()`, `new Node()` and `new X()` for a class never defined are
   an `Illegal constructor`, as they are in a browser. Lenience on a server does not make anything work;
   it moves the failure to the client and strips the context.
 - **The Node interfaces are the platform's.** A text node is a `Node`, a `CharacterData` and a `Text`;
@@ -409,7 +413,8 @@ dependency involved.
   `(Node or DOMString)` union converts; and `String(node)` names its interface (`[object Text]`) — for
   text, comments, fragments and shadow roots. An element's name depends on its tag and is not yet
   answered (`[object Node]` here, `[object HTMLDivElement]` in a browser).
-- **A selector this DOM cannot answer honestly throws** rather than answering `null`. It matches type,
+- **A selector this DOM cannot answer honestly throws** a `SyntaxError` `DOMException`, as a
+  browser does for one it cannot read, rather than answering `null`. It matches type,
   class, id, every attribute operator, `:not()` and all four combinators — descendant, `>`, `+` and
   `~`. Everything else raises, for **two different reasons**: `:hover`, `:checked`, `:visible` and
   `:root` need user state, layout or a document a server does not have, while `:first-child`,
@@ -439,7 +444,7 @@ dependency involved.
 - **A collection is a plain array**, not a live `NodeList` — `childNodes`, `children`,
   `querySelectorAll`, the `getElementsBy*` family. There is nothing to be live over in a single pass;
   `item()` and `namedItem()` are provided anyway.
-- **A parsed `<template>`'s content is opaque**, and `template.content` is `undefined`. The element is
+- **A `<template>`'s content is opaque**, parsed or created, and `template.content` is `undefined`. The element is
   modeled — queried, styled, serialized byte for byte — and a query on the host correctly does not
   descend into it; reaching *into* one is what is missing.
 - **A constructed sheet holds its CSS as text**, so `cssRules` is empty and `deleteRule` refuses

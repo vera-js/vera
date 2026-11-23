@@ -136,6 +136,24 @@ interface CollectionShim<T> extends Array<T> {
  * has to lose its capitals or the `getAttribute('data-flag')` beside it reads `null`.
  */
 export const HTML_NS = 'http://www.w3.org/1999/xhtml';
+const XML_NS = 'http://www.w3.org/XML/1998/namespace';
+const XMLNS_NS = 'http://www.w3.org/2000/xmlns/';
+/** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
+const RESERVED_NAMES = new Set([
+  'annotation-xml',
+  'color-profile',
+  'font-face',
+  'font-face-src',
+  'font-face-uri',
+  'font-face-format',
+  'font-face-name',
+  'missing-glyph',
+]);
+/** A name `define` accepts — the spec's rule, shared with `whenDefined` so the two refuse exactly the same names. */
+export const validName = (name: unknown): name is string =>
+  typeof name === 'string' && /^[a-z][^A-Z]*-[^A-Z]*$/.test(name) && !RESERVED_NAMES.has(name);
+/** The HTML elements that take a shadow root besides a custom element, as the DOM standard lists them. */
+const SHADOW_HOSTS = new Set(['article', 'aside', 'blockquote', 'body', 'div', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'main', 'nav', 'p', 'section', 'span']);
 
 /**
  * The characters that make a name unusable, checked so the shim refuses what the platform refuses.
@@ -154,6 +172,15 @@ const UNUSABLE_IN_A_NAME = /[\0-\x20/>=\x7f]/;
  * markup where the same character inside an attribute name does not.
  */
 const UNUSABLE_IN_A_TAG = /[\0-\x20"'<>/=\x7f]/;
+
+/**
+ * **A name that does not start with an ASCII letter** (2026-11-23), as every engine reads `createElement`'s: one that
+ * starts with `:`, `_` or a character from U+0080 holds only ASCII letters and digits, `-`, `.`, `:`, `_` and characters
+ * from U+0080; any other first character is refused (`1a`, `-a`, `.a`). Measured in Chromium 159, Firefox 159 and
+ * WebKit 27.2: `_a`, `:a`, `éa`, `·a` and `_a·` are created, `_a!`, `éa!` and `éa b` are not. Asked only of a name whose
+ * first character is not a letter, so a page's ordinary tags pay one comparison.
+ */
+const OTHER_START = /^[:_\u0080-\uffff][\w.:\-\u0080-\uffff]*$/;
 
 /**
  * Declarative shadow DOM can carry more than the mode, and the extras are **not recoverable on the
@@ -611,6 +638,22 @@ const mustBeNode = (value: unknown, method: string, position: number): void => {
   if (!(value instanceof NodeBaseShim))
     throw new TypeError(`Failed to execute '${method}' on 'Node': parameter ${position} is not of type 'Node'.`);
 };
+/**
+ * **A document is never a child** (2026-11-23): every engine's `appendChild(document)`, `insertBefore` and `append`
+ * raise `HierarchyRequestError`, where this DOM's document (not a node shim) was refused as not a node, or appended as
+ * the text `[object Object]`. Asked only once the value is known not to be a node shim.
+ */
+const notADocument = (value: unknown, method: string): void => {
+  if ((value as { nodeType?: unknown } | null)?.nodeType === 9)
+    throw new DOMException(`Failed to execute '${method}' on 'Node': Nodes of type '#document' may not be inserted inside nodes of type 'Element'.`, 'HierarchyRequestError');
+};
+/** `mustBeNode` for the node being inserted. */
+const mustBeChild = (value: unknown, method: string): void => {
+  if (!(value instanceof NodeBaseShim)) {
+    notADocument(value, method);
+    mustBeNode(value, method, 1);
+  }
+};
 /** A required argument that is absent: WebIDL counts arguments before it converts them. */
 const required = (method: string, needed: number, present: number): void => {
   if (present < needed)
@@ -631,6 +674,16 @@ export class CharacterDataShim extends NodeBaseShim {
     this._source = null;
     this._parent = null;
     this.isConnected = true;
+  }
+  /**
+   * **Text and a comment hold no children** (2026-11-23): every engine's `text.appendChild(node)` raises
+   * `HierarchyRequestError`, where this DOM had no such method and threw a `TypeError` naming it.
+   */
+  appendChild(_node: unknown): never {
+    throw new DOMException(`Failed to execute 'appendChild' on 'Node': This node type does not support this method.`, 'HierarchyRequestError');
+  }
+  insertBefore(_node: unknown, _reference: unknown): never {
+    throw new DOMException(`Failed to execute 'insertBefore' on 'Node': This node type does not support this method.`, 'HierarchyRequestError');
   }
   /** Registered here rather than on the platform's `EventTarget`; see `events.js`. */
   override addEventListener(
@@ -942,7 +995,7 @@ export class ContainerShim extends NodeBaseShim {
      * here and throws in every engine, so `this.appendChild(maybeMissing)` — ordinary code —
      * rendered a server page with the child quietly absent and then crashed the client.
      */
-    mustBeNode(node, 'appendChild', 1);
+    mustBeChild(node, 'appendChild');
     /**
      * A registered component that has not rendered is marked, so the scan over this markup renders
      * this instance instead of a new one built from the tag it wrote. See `pendingInstances`.
@@ -979,7 +1032,7 @@ export class ContainerShim extends NodeBaseShim {
    */
   insertBefore<T extends InsertableShim>(node: T, reference: ChildShim | null | undefined): T {
     required('insertBefore', 2, arguments.length);
-    mustBeNode(node, 'insertBefore', 1);
+    mustBeChild(node, 'insertBefore');
     if (reference === null || reference === undefined) return this.appendChild(node);
     mustBeNode(reference, 'insertBefore', 2);
     if (this._entries.indexOf(reference) === -1)
@@ -1033,7 +1086,7 @@ export class ContainerShim extends NodeBaseShim {
    */
   moveBefore<T extends InsertableShim>(node: T, reference: ChildShim | null | undefined): T {
     required('moveBefore', 2, arguments.length);
-    mustBeNode(node, 'moveBefore', 1);
+    mustBeChild(node, 'moveBefore');
     if (reference !== null && reference !== undefined) mustBeNode(reference, 'moveBefore', 2);
     if (!node._parent)
       throw new DOMException(
@@ -1049,7 +1102,7 @@ export class ContainerShim extends NodeBaseShim {
     return this.insertBefore(node, reference ?? null);
   }
   replaceChild(node: InsertableShim, old: ChildShim): ChildShim {
-    mustBeNode(node, 'replaceChild', 1);
+    mustBeChild(node, 'replaceChild');
     mustBeNode(old, 'replaceChild', 2);
     if (this._entries.indexOf(old) === -1)
       throw new DOMException(
@@ -1325,6 +1378,7 @@ export class ContainerShim extends NodeBaseShim {
     for (const node of nodes) {
       /** `(Node or DOMString)`: anything that is not a node is converted to a string — `append({})` is the text `[object Object]`. */
       if (!(node instanceof NodeBaseShim)) {
+        notADocument(node, 'append');
         this._entries.push(escapeHtml(`${node}`));
         this._parsed = false;
       }
@@ -1977,6 +2031,17 @@ export class ElementShim extends ContainerShim {
   attachShadow(init: ShadowInit = {}): ShadowRootShim {
     if (init.mode !== 'open' && init.mode !== 'closed')
       throw new TypeError("Failed to execute 'attachShadow' on 'Element': Failed to read the 'mode' property from 'ShadowRootInit': Required member is undefined.");
+    /**
+     * Only a custom element or one of the platform's listed hosts takes a root (2026-11-23): every engine raises
+     * `NotSupportedError` for an `<a>`, an `<input>` or an SVG element, and a root served on one is a template the
+     * parser leaves as it is. A defined class is asked first: it is every component's case, and one under construction
+     * has no name yet.
+     */
+    if (!constructible.has(this.constructor) && (this._ns !== HTML_NS || !(SHADOW_HOSTS.has(this.localName) || validName(this.localName))))
+      throw new DOMException(
+        `Failed to execute 'attachShadow' on 'Element': This element does not support attachShadow`,
+        'NotSupportedError'
+      );
     if (this._shadowRoot)
       throw new DOMException(
         "Failed to execute 'attachShadow' on 'Element': Shadow root cannot be created on a host which already hosts a shadow tree.",
@@ -2230,7 +2295,21 @@ export class ElementShim extends ContainerShim {
   getAttributeNS(_namespace: string | null, name: string): string | null {
     return this.getAttribute(name);
   }
-  setAttributeNS(_namespace: string | null, name: string, value: unknown): void {
+  setAttributeNS(namespace: string | null, name: string, value: unknown): void {
+    /**
+     * The qualified name is validated against its namespace (2026-11-23), as every engine does: a prefix needs a
+     * namespace, `xml:` is the XML namespace's and `xmlns` the XMLNS one's (`NamespaceError` otherwise).
+     */
+    const qualified = `${name}`;
+    const colon = qualified.indexOf(':');
+    const prefix = colon === -1 ? null : qualified.slice(0, colon);
+    const ns = namespace === '' ? null : namespace;
+    if (
+      (prefix !== null && ns === null) ||
+      (prefix === 'xml' && ns !== XML_NS) ||
+      ((prefix === 'xmlns' || qualified === 'xmlns') !== (ns === XMLNS_NS))
+    )
+      throw new DOMException(`Failed to execute 'setAttributeNS' on 'Element': '${qualified}' is not valid in this namespace.`, 'NamespaceError');
     this.setAttribute(name, value);
   }
   hasAttributeNS(_namespace: string | null, name: string): boolean {
@@ -2555,7 +2634,8 @@ export const createElement = (localName: unknown, namespaceURI: string = HTML_NS
    * parser sees it — and `createElement('')` produced `<>`. Both render markup no browser would
    * have produced from the same call, which is the one thing this DOM exists not to do.
    */
-  if (name === '' || UNUSABLE_IN_A_TAG.test(name))
+  const first = name.charCodeAt(0);
+  if (name === '' || UNUSABLE_IN_A_TAG.test(name) || (!(first >= 97 && first <= 122) && !(first >= 65 && first <= 90) && !OTHER_START.test(name)))
     throw new DOMException(
       `Failed to execute 'createElement' on 'Document': The tag name provided ('${name}') is not a valid name.`,
       'InvalidCharacterError'
