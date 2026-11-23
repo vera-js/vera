@@ -4,23 +4,32 @@
  * zero specificity, so a page's own rule wins; `data-vera-look="none"` on the host drops the look and keeps the scroll
  * lock and the placement.
  *
+ * **Two sheets.** `LOCK` (the page's scroll lock) is adopted into the DOCUMENT: it styles the root element, which a sheet
+ * in a shadow root cannot reach, so a dialog inside another component's shadow root still locks the page. `LOOK` is
+ * adopted into the host's own root, beside the dialog it styles.
+ *
  * **Placement** is the host's `placement` attribute, read by CSS alone: `end` and `start` dock the dialog to that inline
  * edge at full block size, `bottom` to the block end at full inline size (a sheet), each sliding in. **Scroll lock**: the
  * page does not scroll while a modal is open (`:has(dialog:modal)` on the root), keeps its scrollbar's room when it had a
  * scrollbar (the element marks the root `data-vera-scrolled` at open; a gutter on a page that never scrolled would move
- * it), and the dialog's own scrolling does not chain to it. **Entry** fades (or slides) in by `@starting-style` on every engine; the **exit** runs where the engine can
- * transition `display` and `overlay`, and is instant elsewhere (Firefox). Reduced motion: no animation.
+ * it), and the dialog's own scrolling does not chain to it. **Entry** fades (or slides) in by `@starting-style` on
+ * every engine; the **exit** runs where the engine can transition `display` and `overlay`, and is instant elsewhere
+ * (Firefox). Reduced motion: no animation.
  */
 export const SHEET = '_$veraDialog$';
+/** The document's sheet: the scroll lock. */
+export const LOCK_SHEET = '_$veraDialogLock$';
 
 const DIALOG = ':where([data-vera-dialog]) > :where(dialog[data-vera-part="dialog"])';
 const look = (selector: string): string => `:where([data-vera-dialog]:not([data-vera-look="none"])) > ${selector}`;
 const D = ':where(dialog[data-vera-part="dialog"])';
 const at = (placement: string, rest = ''): string => `:where([data-vera-dialog][placement="${placement}"]) > ${D}${rest}`;
 
+/** `:has` crosses no shadow boundary, so the lock keys on the root's own mark, set while a dialog is open. */
+export const LOCK =
+  ':where(:root[data-vera-locked]){overflow:hidden}' + ':where(:root[data-vera-locked][data-vera-scrolled]){scrollbar-gutter:stable}';
+
 export const LOOK =
-  `:where(:root:has(${DIALOG}:modal)){overflow:hidden}` +
-  `:where(:root[data-vera-scrolled]:has(${DIALOG}:modal)){scrollbar-gutter:stable}` +
   `${DIALOG}{overscroll-behavior:contain}` +
   `${look(D)}{box-sizing:border-box;max-inline-size:min(32rem,calc(100vw - 32px));max-block-size:calc(100dvh - 32px);` +
   'padding:24px;border:1px solid var(--vera-border,#d4d4d8);border-radius:var(--vera-radius,6px);' +

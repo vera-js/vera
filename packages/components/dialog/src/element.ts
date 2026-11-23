@@ -12,7 +12,7 @@
 import { effect, isServer } from '@verajs/core';
 import { adoptOwnSheet, diagnostic } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
-import { LOOK, SHEET } from './dialog/styles.js';
+import { LOCK, LOCK_SHEET, LOOK, SHEET } from './dialog/styles.js';
 
 /** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
 export const options = { tag: 'vera-dialog', attributes: ['open'], ownsChildren: true } as const;
@@ -52,7 +52,10 @@ const inside = (dialog: Element, event: PointerEvent): boolean => {
 
 export const setup = (host: DialogHost) => {
   host.setAttribute('data-vera-dialog', '');
-  effect(() => adoptOwnSheet(host, SHEET, LOOK), { timing: 'layout' });
+  effect(() => {
+    adoptOwnSheet(host, SHEET, LOOK);
+    adoptOwnSheet(host.ownerDocument.documentElement, LOCK_SHEET, LOCK);
+  }, { timing: 'layout' });
 
   const dialog = host.querySelector<HTMLDialogElement>(':scope > dialog');
   if (dialog === null) {
@@ -97,12 +100,6 @@ export const setup = (host: DialogHost) => {
 
   if (isServer() || !MODAL) return;
 
-  effect(() => {
-    /** The host's `open`: written by the app, it opens or closes; a user's open or close writes it back. */
-    const wanted = host.open !== null;
-    if (wanted && !dialog.open) dialog.showModal();
-    else if (!wanted && dialog.open) dialog.close();
-  });
 
   effect(() => {
     const doc = host.ownerDocument;
@@ -114,7 +111,7 @@ export const setup = (host: DialogHost) => {
     const onToggle = (event: Event) => {
       if ((event as ToggleEvent).newState === 'open') {
         if (host.open === null) host.setAttribute('open', '');
-      } else if (host.open !== null) host.removeAttribute('open');
+      } else if (!dialog.open && host.open !== null) host.removeAttribute('open');
     };
     /**
      * Before it opens (`beforetoggle` is synchronous, so the lock and the mark land in the same style): the page keeps
@@ -125,12 +122,18 @@ export const setup = (host: DialogHost) => {
       if ((event as ToggleEvent).newState !== 'open') return;
       const root = doc.documentElement;
       root.toggleAttribute('data-vera-scrolled', root.scrollHeight > root.clientHeight);
+      root.toggleAttribute('data-vera-locked', true);
     };
     /**
-     * After a close: when the platform found no opener to return to, the trigger takes focus. At `close` that reads as
-     * focus on the body (Firefox) or still inside the closed dialog (Chromium and WebKit, measured), so both count.
+     * After a close: the page's lock goes once no modal of ours is open, and when the platform found no opener to return
+     * to, the trigger takes focus. At `close` that reads as focus on the body (Firefox) or still inside the closed dialog
+     * (Chromium and WebKit, measured), so both count. Chosen: an app-opened dialog (the host's `open`, focus on the
+     * body) also returns focus to the trigger when there is one. A `close` that arrives while the dialog is open again
+     * (queued before a reconnect reopened it) is stale and changes nothing.
      */
     const onClose = () => {
+      if (dialog.open) return;
+      if (doc.querySelector('[data-vera-dialog] > dialog:modal') === null) doc.documentElement.removeAttribute('data-vera-locked');
       if (host.open !== null) host.removeAttribute('open');
       const active = doc.activeElement;
       if (trigger !== null && trigger.isConnected && (active === null || active === doc.body || dialog.contains(active)))
@@ -164,6 +167,24 @@ export const setup = (host: DialogHost) => {
       dialog.removeEventListener('close', onClose);
       dialog.removeEventListener('pointerdown', onDown);
       dialog.removeEventListener('pointerup', onUp);
+      /** Removed while open, it fires no close (measured), so the page's lock goes here unless another modal of ours holds it. */
+      if (doc.querySelector('[data-vera-dialog] > dialog:modal') === null) doc.documentElement.removeAttribute('data-vera-locked');
     };
+  });
+
+  /**
+   * After the listeners, so their `beforetoggle` sees this effect's opens: at load and at a reconnect the lock is set.
+   */
+  effect(() => {
+    /**
+     * The host's `open`: written by the app, it opens or closes; a user's open or close writes it back. A move keeps it:
+     * an open modal removed and appended again stays `open` but is no longer modal on every engine (no `close` fires;
+     * measured on Chromium, Firefox and WebKit), so this effect, run again on the reconnect, makes it modal again. The
+     * app sees that as one `close` and one `toggle` pair at the reconnect, not at the removal.
+     */
+    const wanted = host.open !== null;
+    if (wanted && dialog.open && !dialog.matches(':modal')) dialog.close();
+    if (wanted && !dialog.open) dialog.showModal();
+    else if (!wanted && dialog.open) dialog.close();
   });
 };

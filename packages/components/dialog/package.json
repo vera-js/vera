@@ -2,7 +2,7 @@
   "name": "@vera-components/dialog",
   "version": "0.1.0",
   "private": true,
-  "description": "A modal dialog over the author's own <dialog>: wired in place, opened by the platform's invokers or a trigger, labelled from its heading, light-dismissible on request, with a host open attribute that binds both ways and a CSS-only sheet placement.",
+  "description": "A modal dialog over the author's own <dialog>: wired in place, opened by the platform's invokers or a trigger, named by its heading, light-dismissible on request, with a host open attribute that binds both ways and a CSS-only sheet placement.",
   "license": "MIT",
   "engines": {
     "node": ">=20"

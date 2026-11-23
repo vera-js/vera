@@ -181,3 +181,48 @@ it('the page does not scroll while a dialog is open (CONTROL: it does again afte
   await frame();
   expect(getComputedStyle(html).overflow, `${ON}: CONTROL: released`).to.not.equal('hidden');
 });
+
+it('a dialog inside another element\'s shadow root locks the page too (CONTROL: released after)', async () => {
+  const outer = document.createElement('div');
+  document.body.append(outer);
+  made.push(outer);
+  const root = outer.attachShadow({ mode: 'open' });
+  root.innerHTML = `<vera-dialog>${FORM}</vera-dialog>`;
+  await frame();
+  const el = root.querySelector('vera-dialog');
+  el.setAttribute('open', '');
+  await until(() => modal(el), 'open', 2000);
+  expect(getComputedStyle(document.documentElement).overflow, `${ON}: the page is locked from a shadow root`).to.equal('hidden');
+  el.removeAttribute('open');
+  await until(() => !dialogOf(el).open, 'closed', 2000);
+  await frame();
+  expect(getComputedStyle(document.documentElement).overflow, `${ON}: CONTROL: released`).to.not.equal('hidden');
+});
+
+it('moving an open dialog keeps it open as a modal, with the host\'s open, and the page stays locked; removing it for good unlocks the page', async () => {
+  const el = await mount();
+  const heard = [];
+  dialogOf(el).addEventListener('close', () => heard.push('close'));
+  el.setAttribute('open', '');
+  await until(() => modal(el), 'open', 2000);
+  const holder = el.parentElement;
+  el.remove();
+  holder.append(el);
+  await frame();
+  await frame();
+  expect(dialogOf(el).open && modal(el), `${ON}: open as a modal where it landed`).to.equal(true);
+  expect(el.hasAttribute('open'), `${ON}: the host keeps open`).to.equal(true);
+  expect(getComputedStyle(document.documentElement).overflow, `${ON}: still locked`).to.equal('hidden');
+  expect(heard.length <= 1, `${ON}: at most one close reached the app (${heard.length})`).to.equal(true);
+  el.remove();
+  await frame();
+  expect(getComputedStyle(document.documentElement).overflow, `${ON}: removed for good, the page scrolls again`).to.not.equal('hidden');
+});
+
+it('a dialog open at load is a modal and locks the page', async () => {
+  const el = await mount(FORM, 'open');
+  await until(() => modal(el), `${ON}: open as a modal at load`, 2000);
+  expect(getComputedStyle(document.documentElement).overflow, `${ON}: the page is locked`).to.equal('hidden');
+  await sendKeys({ press: 'Escape' });
+  await until(() => !el.hasAttribute('open'), 'closed', 2000);
+});

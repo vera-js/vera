@@ -38,14 +38,16 @@ as a modal (at load too); removing it closes it.
 
 **Bound state stays in step.** `open` goes both ways: an app that binds it (`<vera-dialog open={isOpen}>`) sees a user's
 close remove it, whether by Escape, a form, an invoker or a press outside, and the `<dialog>` fires the platform's
-`close`, so the bound state can follow. The `<dialog>`'s own `open` attribute is HTML's non-modal one; leave it alone.
+`close`, so the bound state can follow. Moving an open `<vera-dialog>` (a portal, a re-keyed list) keeps it open: it is shown as
+a modal again where it lands, and the `<dialog>` fires one `close` and `toggle` pair as it does. The `<dialog>`'s own
+`open` attribute is HTML's non-modal one; leave it alone.
 
 **Closing.** Every user close but a form's goes through the platform's cancelable `cancel` on the `<dialog>`: Escape, an
 invoker with `command="request-close"`, and a press outside. Cancel it to keep the dialog open, for a form with unsaved
 changes. Two platform rules apply: a form submission closes without `cancel` (listen to `submit` too), and a second
 Escape always closes, whatever `cancel` did.
 
-**A press outside** closes it only with `dismiss="outside"`, and only when both the press and its release land outside
+**A press outside** closes it only with `dismiss="outside"` (read when the element connects), and only when both the press and its release land outside
 the dialog: dragging out of a text field, or using the dialog's own scrollbar, does not close it. Where the engine has
 the platform's `closedby`, the element sets `closedby="any"`; elsewhere it applies the same rule itself. An
 `role="alertdialog"` never closes on a press outside.
