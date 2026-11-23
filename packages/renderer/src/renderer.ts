@@ -150,6 +150,13 @@ const UPGRADED = {};
  * the SCAN, so development and production parsed one template differently.
  */
 const SHAPE = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|<(\/?)([a-zA-Z][^\t\n\f\r />]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+/**
+ * **A slash an unquoted value takes** (2026-11-23): the tokenizer's unquoted-value state keeps a `/`, so
+ * `<path d=M0/>` is the value `M0/` and the element stays OPEN, where `d="M0"/>`, `<br/>` and `<a b/>` self-close.
+ * Read on the tag's attribute text with its quoted values emptied, as `SHAPE` reads quotes. Reading the slash as a
+ * close kept `<svg class=a/>`'s content out of foreign depth, so a binding in its `<title>` went unrefused.
+ */
+const UNQUOTED_SLASH = /=[\t\n\f\r ]*(?:[^\t\n\f\r "'][^\t\n\f\r ]*)?\/$/;
 const tagShape = (strings: TemplateStringsArray, type: number): [string, string][] | undefined => {
   const markup = strings.join('');
   /** Where each binding sits in `markup`, so a refusal can ask whether one falls inside an element's content. */
@@ -164,7 +171,15 @@ const tagShape = (strings: TemplateStringsArray, type: number): [string, string]
     if (m[2] === undefined) continue;
     const tag = m[2].toLowerCase();
     const closing = m[1] === '/';
-    const selfClosed = !closing && m[3].replace(/[\t\n\f\r ]+$/, '').endsWith('/');
+    const attributes = m[3].replace(/[\t\n\f\r ]+$/, '');
+    /**
+     * A hole ending AT the slash is no unquoted value's: the template writes a space between them (`prepare`), so
+     * `<div class=${x}/>` self-closes as it renders.
+     */
+    const selfClosed =
+      !closing &&
+      attributes.endsWith('/') &&
+      (!UNQUOTED_SLASH.test(attributes.replace(/"[^"]*"|'[^']*'/g, '""')) || holes.includes(SHAPE.lastIndex - 2 - (m[3].length - attributes.length)));
     if (tag === 'svg' || tag === 'math') {
       if (closing) foreign--;
       else if (!selfClosed) foreign++;
