@@ -86,14 +86,13 @@ it('keyboard: ArrowUp on the trigger opens with the last item focused; ArrowDown
 it('pointer: a click opens with the menu itself focused, and the first ArrowDown reaches the first item, ArrowUp the last', async () => {
   const el = await mount();
   await sendMouse({ type: 'click', position: center(triggerOf(el)) });
-  await until(() => isOpen(el), `${ON}: open`, 2000);
-  expect(document.activeElement === menuOf(el), `${ON}: the menu is focused, no item (focus: ${focused()})`).to.equal(true);
+  await until(() => isOpen(el) && document.activeElement === menuOf(el), `${ON}: open, the menu itself focused, no item (focus: ${focused()})`, 2000);
   await sendKeys({ press: 'ArrowDown' });
   expect(focused(), `${ON}: the first ArrowDown`).to.equal('rename');
   await sendKeys({ press: 'Escape' });
   await until(() => !isOpen(el), 'closed', 2000);
   await sendMouse({ type: 'click', position: center(triggerOf(el)) });
-  await until(() => isOpen(el), 'open again', 2000);
+  await until(() => isOpen(el) && document.activeElement === menuOf(el), `${ON}: open again, the menu focused (focus: ${focused()})`, 2000);
   await sendKeys({ press: 'ArrowUp' });
   expect(focused(), `${ON}: the first ArrowUp`).to.equal('delete');
 });
@@ -178,9 +177,8 @@ it('context mode: a right click on the target opens the menu at the pointer with
   const rect = target.getBoundingClientRect();
   const [x, y] = [Math.round(rect.left + 60), Math.round(rect.top + 30)];
   await sendMouse({ type: 'click', button: 'right', position: [x, y] });
-  await until(() => isOpen(el), `${ON}: open`, 2000);
+  await until(() => isOpen(el) && document.activeElement === menuOf(el), `${ON}: open, the menu focused (focus: ${focused()})`, 2000);
   expect(prevented, 'CONTROL: the native menu was prevented').to.equal(true);
-  expect(document.activeElement === menuOf(el), `${ON}: the menu is focused`).to.equal(true);
   if (ANCHORS) {
     const m = menuOf(el).getBoundingClientRect();
     expect(Math.abs(m.left - x) < 2 && m.top >= y && m.top - y < 12, `${ON}: at the pointer ${m.left},${m.top} vs ${x},${y}`).to.equal(true);
