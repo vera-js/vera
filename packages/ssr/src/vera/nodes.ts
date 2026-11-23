@@ -163,8 +163,10 @@ const UNUSABLE_IN_A_TAG = /[\0-\x20"'<>/=\x7f]/;
  * accessibility behavior, so losing it silently under SSR is the kind of difference that never gets
  * reported — it just works worse.
  *
- * `slotAssignment` has no declarative form at all; a component that needs it cannot be faithfully
- * server-rendered, and the README says so rather than pretending.
+ * `slotAssignment: 'manual'` is served as `shadowrootslotassignment="manual"` (2026-11-23): without it the served root
+ * is `named`, which `attachShadow` reuses, so the component's `slot.assign()` calls did nothing and every child showed
+ * in the default slot. Measured headed in Chromium, Firefox and WebKit: with the attribute the served root is `manual`
+ * and `assign()` takes effect.
  */
 const SHADOW_ATTRIBUTES: ReadonlyArray<readonly [ShadowFlag, string]> = [
   ['delegatesFocus', 'shadowrootdelegatesfocus'],
@@ -1427,6 +1429,7 @@ export class ShadowRootShim extends ContainerShim {
   templateAttributes(): string {
     let out = ` shadowrootmode="${this.mode}"`;
     for (const [option, attribute] of SHADOW_ATTRIBUTES) if (this._init[option]) out += ` ${attribute}=""`;
+    if (this._init.slotAssignment === 'manual') out += ' shadowrootslotassignment="manual"';
     return out;
   }
   /**

@@ -527,9 +527,10 @@ markup itself is served byte for byte as it was written.
 
 - `keyed()` and `hold()` are client-renderer constructs; templates that must also server-render use
   plain `.map`.
-- **`slotAssignment: 'manual'` cannot be server-rendered**: declarative shadow DOM has no form for it,
-  and `attachShadow` ignores its options when it reuses a declarative root, so the client cannot
-  repair it. `mode`, `delegatesFocus`, `clonable` and `serializable` are all serialized.
+- **A shadow root is served with the options it was opened with**: `mode`, `delegatesFocus`, `clonable`,
+  `serializable` and `slotAssignment: 'manual'` (as `shadowrootslotassignment="manual"`). They have to be:
+  `attachShadow` reuses a declarative root and ignores the options it is handed, so the client cannot repair one
+  served without them.
 - A function interpolated at a text position renders as nothing here and as its source on the
   client — put functions in `@event` bindings, where both sides drop them.
 - **A hole right after a raw-text element's whole end-tag name (`<style>a</style${x}`) is refused here** as a

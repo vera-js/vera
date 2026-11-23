@@ -1237,3 +1237,10 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   AFTER the scripts left both on the page's own origin (the negative control). Consequence: a bound `href` on a `<base>`
   is refused by every renderer and the server (`base-href`), as a script's own URL is (`script-source`); a path-only
   allowance was rejected because the URL parser reads `/\host` and a tab-split `//host` as another origin.
+- **A declarative shadow root can be served with manual slot assignment, and only with its attribute.** A host served
+  with `<template shadowrootmode="open"><slot></slot></template>` and two children: the client's
+  `attachShadow({ mode: 'open', slotAssignment: 'manual' })` returned the served root, its `slotAssignment` stayed
+  `'named'`, and `slot.assign(second)` changed nothing (both children slotted) in Chromium 159, Firefox 159 and WebKit
+  27.2 (Playwright 1.65, headed); with no served root (the control) the root was `'manual'` and only the assigned child
+  slotted. Served with `shadowrootslotassignment="manual"` on the template, the root was `'manual'` and `assign()` took
+  effect in all three. Consequence: `@verajs/ssr` writes that attribute for a root opened with `slotAssignment: 'manual'`.
