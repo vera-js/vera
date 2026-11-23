@@ -56,8 +56,11 @@ const round = (report: FrameReport | undefined): void => {
     run(fn, report);
   }
 };
-/** A loop that never settles leaves work queued; it must not reach the next component. */
-const discard = (): void => {
+/**
+ * A loop that never settles leaves work queued; it must not reach the next component. Nor may the frames of a
+ * component whose `connectedCallback` threw before its drain: the render's end discards them too (`renderModule`).
+ */
+export const discard = (): void => {
   if (frames.size !== 0) frames.clear();
   if (idle.size !== 0) idle.clear();
 };

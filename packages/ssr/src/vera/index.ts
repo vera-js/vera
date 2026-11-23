@@ -39,6 +39,7 @@ import { ATTRIBUTE, renderComponentTags } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
 import { currentRenderingTag } from './stylesheets.js';
+import { discard as discardFrames } from './frames.js';
 import type { ElementShim, ShadowRootShim } from './nodes.js';
 import { INLINE_HANDLER, thrownMessage } from './escaping.js';
 import { PROSE } from './diagnostics.js';
@@ -597,6 +598,13 @@ const renderModule = async (
      * because the import runs first.
      */
     setRenderingTag('');
+    /**
+     * Nor is a frame left queued: one a component requested before its `connectedCallback` threw never reached the drain
+     * that runs after the callback returns, and ran inside the next render instead, a later request's (its location,
+     * its title). Discarded at the end and not at the start, because the next render's module import may queue frames
+     * of its own.
+     */
+    discardFrames();
     globalThis.document.title = title;
     saved?.forEach((value, i) => (place[LOCATION_PARTS[i]] = value));
     serverTurnOf?.(-1);
