@@ -2012,8 +2012,9 @@ export class ElementShim extends ContainerShim {
   declare _rendered?: boolean;
   /** For a component instance the server renders detached: the shadow root it is served in, else null (`getRootNode`). */
   declare _enclosing?: ShadowRootShim | null;
-  /** An HTML `<template>`'s content (`templateElement`); absent on every other element. */
+  /** An HTML `<template>`'s content once read, and its markup until then (`templateElement`); absent on every other element. */
   declare _content?: FragmentShim;
+  declare _raw?: string;
   constructor(localName: string = '', namespaceURI: string = HTML_NS, made?: typeof MADE) {
     super();
     /**
@@ -2671,31 +2672,41 @@ const build = (name: string, namespaceURI: string = HTML_NS): ElementShim => {
  * Chromium, Firefox, WebKit and jsdom: `children` and `childNodes` are empty, a query on the template finds nothing
  * inside it, and `content` holds what was parsed, for `content.cloneNode(true)`, the way a component stamps one. This
  * DOM kept the interior as the template's children and had no `content`, so `template.querySelector('p')` found what
- * no engine finds and `template.content.cloneNode(true)` threw on the server. Its markup is read and written through
- * `content` (`innerHTML`, so serialization, and the parser's interior); a node appended to the template itself is its
- * child, which the serialization leaves out, as the engines' does. Built on first use, from the reflecting interface
+ * no engine finds and `template.content.cloneNode(true)` threw on the server. A node appended to the template itself is
+ * its child, which the serialization leaves out, as the engines' does. Built on first use, from the reflecting interface
  * (`shadowRootMode` and the rest); a custom element is never a `<template>`.
+ *
+ * **The content is made when it is first read** (`_raw` until then): content is inert, so a parse, a serialization
+ * and a clone carry the markup as the string it came as, and only `content` builds the fragment, whose markup is then
+ * parsed when a node of it is asked for, as any chunk is (a nested template inside it the same way). A fragment per
+ * template at parse time cost the first rounds of a template-heavy parse about 1% (Node A/B, 2026-11-23).
  */
 let TemplateElement: typeof ElementShim | undefined;
 const templateElement = (): typeof ElementShim =>
   (TemplateElement ??= class extends interfaceFor('template', ElementShim) {
-    /** Made here, and by the first `innerHTML` write too: the element constructor writes one before this runs. */
-    constructor(localName?: string, namespaceURI?: string, made?: typeof MADE) {
-      super(localName, namespaceURI, made);
-      this._content ??= new FragmentShim();
-    }
     get content(): FragmentShim {
-      return this._content!;
+      if (this._content === undefined) {
+        const content = new FragmentShim();
+        if (this._raw) content._entries.push(this._raw);
+        this._raw = undefined;
+        this._content = content;
+      }
+      return this._content;
     }
     override get innerHTML(): string {
-      return this._content!.innerHTML;
+      return this._content === undefined ? (this._raw ?? '') : this._content.innerHTML;
     }
+    /** `[LegacyNullToEmptyString]`, as every element's; the element constructor writes `''` here first. */
     override set innerHTML(markup: unknown) {
-      (this._content ??= new FragmentShim()).innerHTML = markup;
+      if (this._content === undefined) this._raw = markup === null ? '' : `${markup}`;
+      else this._content.innerHTML = markup;
     }
     override cloneNode(deep: boolean = false): ElementShim {
       const copy = super.cloneNode(deep);
-      if (deep) cloneEntries(this._content!, copy._content!);
+      if (deep) {
+        if (this._content === undefined) copy._raw = this._raw;
+        else cloneEntries(this._content, (copy as unknown as { content: FragmentShim }).content);
+      }
       return copy;
     }
   });

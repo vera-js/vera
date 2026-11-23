@@ -587,14 +587,15 @@ export const parseFragment = (
   /** Build the real nodes now that the shape is known to be sound. */
   const build = (node: ElementFrame): ElementShim => {
     /**
-     * A `<template>`'s interior, kept as one chunk, is its content's (`templateElement`), never its children. Asked once
-     * per element, by name: reading `_content` for every child of every element cost a parse of a template-heavy article
-     * about 2% (Node A/B, 2026-11-23).
+     * An HTML `<template>`'s interior, kept as one chunk, is its content's markup (`templateElement`, which holds it as a
+     * string until `content` is read), never its children. Asked once per element, by name: reading a field for every
+     * child of every element cost a parse of a template-heavy article about 2% (Node A/B, 2026-11-23).
      */
-    const into = node.localName === 'template' ? (node.element._content ?? node.element) : node.element;
+    const template = node.localName === 'template' && node.element._raw !== undefined;
     for (const child of node.children) {
-      if (typeof child === 'string' || typeof child.markup === 'function') {
-        into._entries.push(child);
+      if (template && typeof child === 'string') node.element._raw = child;
+      else if (typeof child === 'string' || typeof child.markup === 'function') {
+        node.element._entries.push(child);
         if (typeof child !== 'string') child._parent = node.element;
       } else {
         build(child);
