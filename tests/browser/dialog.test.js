@@ -10,6 +10,8 @@ import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { styles } from '@verajs/styles';
 import '@vera-components/dialog';
+/** The element entry is its own bundle carrying its own copy of the setup, so it stands in for a second copy of the package. */
+import { defineAs } from '@vera-components/dialog/element';
 import { until } from './until.js';
 import { ON } from './engine.js';
 
@@ -225,4 +227,36 @@ it('a dialog open at load is a modal and locks the page', async () => {
   expect(getComputedStyle(document.documentElement).overflow, `${ON}: the page is locked`).to.equal('hidden');
   await sendKeys({ press: 'Escape' });
   await until(() => !el.hasAttribute('open'), 'closed', 2000);
+});
+
+it('a dialog moved from the page into a shadow root in one task still reflects a user open and close there (CONTROL: it lives in that root)', async () => {
+  const el = await mount();
+  const outer = document.createElement('div');
+  document.body.append(outer);
+  made.push(outer);
+  const root = outer.attachShadow({ mode: 'open' });
+  root.append(el);
+  await frame();
+  expect(el.getRootNode() === root, 'CONTROL: it lives in the shadow root').to.equal(true);
+  el.querySelector('[slot="trigger"]').click();
+  await until(() => modal(el), `${ON}: open as a modal`, 2000);
+  await until(() => el.hasAttribute('open'), `${ON}: the host reflects a user open from its new root`, 2000);
+  await sendKeys({ press: 'Escape' });
+  await until(() => !el.hasAttribute('open'), `${ON}: and a user close`, 2000);
+});
+
+it('two copies of the package on one page: a dialog defined from the second copy reflects open and close', async () => {
+  const first = await mount();
+  if (!customElements.get('x-dialog-two')) defineAs('x-dialog-two');
+  expect(customElements.get('x-dialog-two') !== customElements.get('vera-dialog'), 'CONTROL: two classes, from two bundles').to.equal(true);
+  const second = await mount(FORM, '', 'x-dialog-two');
+  second.querySelector('[slot="trigger"]').click();
+  await until(() => modal(second), `${ON}: the second copy's dialog opened`, 2000);
+  await until(() => second.hasAttribute('open'), `${ON}: its host reflects open`, 2000);
+  await sendKeys({ press: 'Escape' });
+  await until(() => !second.hasAttribute('open'), `${ON}: and close`, 2000);
+  first.setAttribute('open', '');
+  await until(() => modal(first), `${ON}: the first copy's dialog still opens`, 2000);
+  first.removeAttribute('open');
+  await until(() => !dialogOf(first).open, `${ON}: and closes`, 2000);
 });
