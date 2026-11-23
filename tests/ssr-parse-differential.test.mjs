@@ -254,6 +254,9 @@ const CORPUS = [
   /* A NUL in an attribute value is U+FFFD, written raw or as a reference (2026-11-23). */
   '<p title="a\0b" id=c\0d>x</p>',
   '<p title="&#0;">x</p>',
+  /* And in a tag name or an attribute name: the element `p\uFFFDq` and the attribute `a\uFFFDb`, closed by its own end tag. */
+  '<p a\0b="1">x</p>',
+  '<p\0q id=t>x</p\0q>',
 ];
 
 /**

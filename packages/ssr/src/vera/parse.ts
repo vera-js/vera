@@ -21,7 +21,7 @@
  *    Declining is allowed; disagreeing is not. parse5 is a devDependency and stays one — it is the
  *    oracle, never a runtime dependency.
  */
-import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, attributeNul, decodeCodePoint, leadingNewline, normalizeNewlines as normalized } from './escaping.js';
+import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint, leadingNewline, normalizeNewlines as normalized, tokenNul } from './escaping.js';
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
 import { rawTextCloserAt as closerAt } from './tokenizer.js';
 
@@ -312,7 +312,7 @@ export const parseFragment = (
        */
       let stop = next + 2;
       for (let c = markup.charCodeAt(stop); stop < end && c !== 32 && c !== 9 && c !== 10 && c !== 12 && c !== 13 && c !== 47; c = markup.charCodeAt(++stop));
-      const name = asciiLower(markup.slice(next + 2, stop));
+      const name = asciiLower(tokenNul(markup.slice(next + 2, stop)));
       if (!name) return null;
       flushText();
       /**
@@ -355,7 +355,7 @@ export const parseFragment = (
       index = next + 1;
       continue;
     }
-    const name = asciiLower(markup.slice(next + 1, after));
+    const name = asciiLower(tokenNul(markup.slice(next + 1, after)));
     if (REFUSED.has(name)) return null;
     /** A start tag that leaves foreign content, or a MathML element inside a MathML text integration point: declined. */
     if (foreign ? BREAKOUT.has(name) || name === 'font' : space === 'math-text' && (name === 'mglyph' || name === 'malignmark')) return null;
@@ -382,8 +382,8 @@ export const parseFragment = (
       const attribute = ATTRIBUTE.exec(markup.slice(cursor));
       if (!attribute || cursor >= markup.length) return null;
       const value = attribute[2] ?? attribute[3] ?? attribute[4] ?? '';
-      const lower = asciiLower(attribute[1]);
-      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(attributeNul(normalized(value)))]);
+      const lower = asciiLower(tokenNul(attribute[1]));
+      attributes.push([elementNamespace === undefined ? lower : adjustAttribute(lower, elementNamespace), decode(tokenNul(normalized(value)))]);
       cursor += attribute[0].length;
     }
     const selfClosing = markup.startsWith('/>', cursor);

@@ -153,13 +153,14 @@ export const RCDATA_ELEMENTS = new Set(['textarea', 'title']);
 export const normalizeNewlines = (raw: string): string => (raw.includes('\r') ? raw.replace(/\r\n?/g, '\n') : raw);
 
 /**
- * **A NUL in an attribute value reads as U+FFFD** (2026-11-23), as every attribute-value state of the tokenizer reads
- * it, so `<p id="a\0b">` is found by `getElementById('a\uFFFDb')` here as in the engines. Raw bytes, before decoding:
- * a reference to NUL is the decoder's (`decodeCodePoint`). Attribute values only: a parsed element serves the bytes of
- * the open tag it came from, so what the page receives is unchanged, where a text node serializes its own data and a
- * replaced NUL there would decline the whole chunk's parse.
+ * **A NUL in a tag name, an attribute name or an attribute value reads as U+FFFD** (2026-11-23), as the tokenizer's
+ * states for each read it, so `<p id="a\0b">` is found by `getElementById('a\uFFFDb')` here as in the engines, and
+ * `<p a\0b="1">` is an attribute `a\uFFFDb` where `setAttribute` refused the NUL and failed the parse. Raw bytes, before
+ * decoding: a reference to NUL is the decoder's (`decodeCodePoint`). Names and attribute values only: a parsed element
+ * serves the bytes of the tags it came from, so what the page receives is unchanged, where a text node serializes its
+ * own data and a replaced NUL there would decline the whole chunk's parse.
  */
-export const attributeNul = (raw: string): string => (raw.includes('\0') ? raw.replaceAll('\0', '\ufffd') : raw);
+export const tokenNul = (raw: string): string => (raw.includes('\0') ? raw.replaceAll('\0', '\ufffd') : raw);
 
 /** Both bounds escaped: every code unit past ASCII, an astral character's two surrogates included. */
 const NON_ASCII = /[\x80-\uffff]/;
