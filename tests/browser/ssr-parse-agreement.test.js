@@ -25,6 +25,19 @@ it('a bound value after a static value holding `<` stays inside its quotes', () 
   expect(input.getAttribute('value')).to.equal('x onclick=window.ssrQuotedLtRan=1 y');
 });
 
+/**
+ * A `<` in a static unquoted value or name has no escape, so the server keeps where the tag starts: a bound `id` then
+ * replaces the static one, as the client's `setAttribute` does. By the last `<`, the static `id=a` was served first.
+ */
+it('a bound name written again replaces the earlier write past a `<` in an unquoted value or a name', () => {
+  for (const [key, name, value] of [['unquotedLt', 'title', 'x<c'], ['nameLt', 'x<c', '1']]) {
+    const b = parsed(PARSE_AGREEMENT[key]).querySelector('b');
+    expect(b, `CONTROL: the element was served (${key})`).to.not.equal(null);
+    expect(b.getAttribute(name)).to.equal(value, PARSE_AGREEMENT[key]);
+    expect(b.id).to.equal('B', PARSE_AGREEMENT[key]);
+  }
+});
+
 it('an HTML style appended to an svg is served as text the svg reads as text: no element from it', () => {
   const holder = parsed(PARSE_AGREEMENT.svgStyle);
   const style = holder.querySelector('svg style');

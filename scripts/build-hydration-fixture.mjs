@@ -50,6 +50,8 @@ const parseAgreement = async () => {
   holder.innerHTML = DOUBLE_ESCAPED;
   return {
     quotedLt: serializeTemplate(html`<input title="a <i value=1" value=${'x onclick=window.ssrQuotedLtRan=1 y'}>`),
+    unquotedLt: serializeTemplate(html`<b id=a title=x<c id=${'B'}>t</b>`),
+    nameLt: serializeTemplate(html`<b id=a x<c=1 id=${'B'}>t</b>`),
     svgStyle: svg.outerHTML,
     doubleEscaped: DOUBLE_ESCAPED,
     doubleEscapedScripts: holder.querySelectorAll('script').length,

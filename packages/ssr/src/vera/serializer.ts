@@ -266,6 +266,12 @@ type Plan = {
   readonly joins: ReadonlyArray<readonly string[] | undefined> | undefined;
   /** Per slot (dense, 0 for every slot that is no style hole): when a style value may skip `styleHole` — see `compile`. */
   readonly styleTails: number[];
+  /**
+   * Per slot, dense, only for a template with a raw `<` inside an open tag (`undefined` otherwise): for a slot whose
+   * static opens a tag still open at its end, how far before the end of what it writes that tag's `<` is; -1 for the
+   * rest. The render keeps where the open tag starts by it, because there the last `<` written is not the tag's.
+   */
+  readonly tagBacks: number[] | undefined;
 };
 
 /** No plan at all — every field absent, which is how `serializeTemplate` tells a forgery from a template. */
@@ -558,6 +564,16 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   /** Per hole, the start tag its script was opened by (`openingStep`), read in this function's own scan. */
   const openings: string[] = [];
   const opening: OpeningTrack = { from: 0, at: 0, found: '' };
+  /**
+   * **Where each open tag starts, when the last `<` is not it** (2026-11-23). An edit to the open tag being built (a
+   * name written again, a spread) finds that tag in the markup so far. By its last `<` it is right wherever no raw `<`
+   * follows the tag's own, which values (escaped) and quoted static values (`valueLtsEscaped`) keep true; a `<` in a
+   * static NAME or unquoted value broke it: `<b id=a title=x<c id=${v}>` read `<c id=` as the tag, and the earlier
+   * `id` stayed, served first, where the client's `setAttribute` replaces it. So the slot that opens each tag is noted
+   * (with where its `<` sits in its static), and when a raw `<` sits inside any open tag the plan carries `tagBacks`.
+   */
+  const opened: number[] = [];
+  let ltInTag = false;
   /** Per child binding (sparse): the foreign-content depth it sits at, which a template rendered there starts from. */
   const depths: Array<number | undefined> = [];
   /** Per child binding (sparse): whether it sits in a text-only element, where a template is refused (see `serializeValue`). */
@@ -700,6 +716,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     const first = inTag && tagState.inValue && tagState.opened;
     /** Offsets are in the author's static; `part` may have lost a leading quote to the binding before it. */
     const shift = strings[i].length - part.length;
+    if (inTag) {
+      const tagAt = tagState.tagAt;
+      if (tagAt !== -1) opened.push(kinds.length, tagAt - shift);
+      if (!ltInTag && strings[i].indexOf('<', tagAt + 1) !== -1) ltInTag = true;
+    }
     /**
      * Names in the statics are recorded from the text that is actually **emitted**, which is the
      * part with this binding's own name already trimmed off. Scanning the raw part instead counts
@@ -938,6 +959,17 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     if (elementPosition) dynamicTag = true;
   }
 
+  /**
+   * Measured from the END of what the slot writes, which every later step keeps: the post-pass below trims a part's
+   * start, and a form value is written in after the `>` before this tag, never after its `<`.
+   */
+  let tagBacks: number[] | undefined;
+  if (ltInTag) {
+    tagBacks = [];
+    for (let i = 0; i < kinds.length; i++) tagBacks.push(-1);
+    for (let k = 0; k < opened.length; k += 2) tagBacks[opened[k]!] = parts[opened[k]!]!.length - opened[k + 1]!;
+  }
+
   let last = strings[strings.length - 1];
   if (openQuote !== undefined) {
     const end = valueEnd(last, openQuote);
@@ -1047,7 +1079,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     parts, kinds, names, strip, owners, raws,
     depths: denseDepths,
     texts: denseTexts,
-    elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails,
+    elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails, tagBacks,
   };
   return filed(strings, depth, plan);
 };
@@ -1070,8 +1102,8 @@ const filed = (strings: TemplateStringsArray, depth: number, plan: Plan): Plan =
  * `<input title="a <i value=1" value=${v}>` the edit read `<i value=1"` as the tag, removed `value=1"` with the quote
  * that closed `title`, and `v` was served outside every quote, its `onclick=…` a live attribute in Chromium, Firefox
  * and WebKit. `&#60;` is the same `<` to every parser, so the element is unchanged, and no raw `<` follows a tag's own.
- * Quoted values alone: after an unquoted value or inside a name, a tag read from that `<` reads what follows as the
- * parser does. The author's own strings when none holds one.
+ * Quoted values alone: a `<` in a name has no other spelling, and one in an unquoted value is left as written too; for
+ * either, the plan keeps where each tag starts (`tagBacks` in `compile`). The author's own strings when none holds one.
  */
 const valueLtsEscaped = (strings: TemplateStringsArray, depth: number): TemplateStringsArray => {
   const escaped: string[] = [];
@@ -1128,7 +1160,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
    * `strings` is any value here, a forgery's included: the cast only names the key the maps hold, and `WeakMap#get`
    * answers `undefined` for a key it could never hold, which sends a forgery on to `compile`'s refusal.
    */
-  const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails } =
+  const { parts, kinds, names, strip, owners, raws, depths, texts, elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails, tagBacks } =
     (depth === 0 ? plans.get(strings as TemplateStringsArray) : foreignPlans.get(strings as TemplateStringsArray)?.get(depth)) ??
     compile(strings, depth) ??
     FORGED;
@@ -1166,6 +1198,8 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
    */
   const selectValues: Array<string | number> = [];
 
+  /** Where the open tag starts, kept only for a plan with `tagBacks` (-1: the edits find it by its last `<`). */
+  let tagStart = -1;
   for (let i = 0; i < kinds.length; i++) {
     const part = parts[i];
     if (pendingText === null) out += part;
@@ -1173,6 +1207,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
       out += insertContent(part, pendingText, pendingStrip);
       pendingText = null;
     }
+    if (tagBacks !== undefined && tagBacks[i] !== -1) tagStart = out.length - tagBacks[i]!;
     let kind = kinds[i]!;
     let value = values[i];
     /** A `?`, `.` or `!` value with statics or several holes is its joined text, then its binding — see `closeJoin`. */
@@ -1200,7 +1235,8 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
               : (name, propValue) => {
                   adoption ??= { instances: new Map(), mark: '' };
                   deliverProperty(claimInstance(adoption, elements[i], componentTag), componentTag, name, propValue);
-                }
+                },
+            tagStart
           );
           out = folded.out;
           if (adoption !== null && adoption.mark !== '') {
@@ -1302,7 +1338,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * A nullish sole value and a refused URL REMOVE the attribute on the client (`removeAttribute`), an earlier
          * static write of the name included (`<a title=x title=${null}>` renders `<a>`) — so the strip comes first.
          */
-        if (group.strip) out = removeAttribute(out, group.name);
+        if (group.strip) out = removeAttribute(out, group.name, tagStart);
         if (group.sole && value == null) break;
         if (group.refuse > 1 && (group.refuse === 3 ? SCRIPT_URL_ITEM : SCRIPT_URL).test(joined)) {
           refusedScriptUrl(group.name);
@@ -1312,7 +1348,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
         break;
       }
       case BOOLEAN:
-        if (strip[i]) out = removeAttribute(out, names[i]);
+        if (strip[i]) out = removeAttribute(out, names[i], tagStart);
         if (value) out += ` ${names[i]}=""`;
         break;
       case CONTENT:
@@ -1333,7 +1369,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
          * means nothing to a parser and left the control showing its first option.
          */
         if (owners[i] === 'select' && (names[i] === 'value' || names[i] === 'selectedIndex')) {
-          if (strip[i]) out = removeAttribute(out, names[i]);
+          if (strip[i]) out = removeAttribute(out, names[i], tagStart);
           out += ` ${SELECT_MARK}="${selectValues.push(selection(names[i], value)) - 1}"`;
           break;
         }
@@ -1352,7 +1388,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
           pendingText = value === null ? '' : escapeHtml(value);
           break;
         }
-        if (strip[i]) out = removeAttribute(out, names[i]);
+        if (strip[i]) out = removeAttribute(out, names[i], tagStart);
         if (BOOLEAN_FORM_PROPERTIES.has(names[i])) {
           if (value) out += ` ${names[i]}=""`;
         } else if (value !== null || owners[i] === 'option') {
@@ -1701,8 +1737,9 @@ const insertContent = (staticText: string, text: string, strip: string): string 
  * *remove* on the client and must remove here too. Kinds that never touch attributes client-side
  * (events, non-form properties) leave the tag alone.
  *
- * Splitting on the last `<` is safe: no raw `<` follows the open tag's own. A value's is escaped, and a `<` in a quoted
- * static value is written `&#60;` (`valueLtsEscaped`).
+ * The open tag starts at the last `<` written wherever no raw `<` follows the tag's own: a value's is escaped, and a
+ * `<` in a quoted static value is written `&#60;` (`valueLtsEscaped`). A `<` in a static name or unquoted value is
+ * neither, and a template holding one carries where each tag starts (`tagBacks`).
  */
 /**
  * Removes an attribute already written into the open tag being built, so the last write wins.
@@ -1863,8 +1900,9 @@ const stripAttribute = (tag: string, name: string): string =>
    */
   tag.toLowerCase().includes(name.toLowerCase()) ? withoutAttribute(tag, name) : tag;
 
-const removeAttribute = (out: string, name: string): string => {
-  const tagStart = out.lastIndexOf('<');
+/** `at`: where the open tag starts when the plan knows (`tagBacks`), else -1 and it is the last `<` written. */
+const removeAttribute = (out: string, name: string, at: number): string => {
+  const tagStart = at !== -1 ? at : out.lastIndexOf('<');
   if (tagStart === -1) return out;
   return out.slice(0, tagStart) + stripAttribute(out.slice(tagStart), name);
 };
@@ -1886,9 +1924,11 @@ const foldSpread = (
   /** The tag the spread sits in, as the template's scan named it (see `compile`). */
   owner: string,
   entries: readonly SpreadEntry[],
-  deliverProp: ((name: string, value: unknown) => void) | undefined
+  deliverProp: ((name: string, value: unknown) => void) | undefined,
+  /** Where the open tag starts, as `removeAttribute` takes it. */
+  at: number
 ): Folded => {
-  const tagStart = out.lastIndexOf('<');
+  const tagStart = at !== -1 ? at : out.lastIndexOf('<');
   let tag = out.slice(tagStart);
   let added = '';
   /** A `<textarea>`'s value is its text content, so a `.value` key here is not an attribute. */
