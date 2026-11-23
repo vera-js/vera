@@ -64,6 +64,10 @@ export const PROSE: Record<string, Prose> = {
     `expected a function to derive the value from, and received ${received}.`,
     'Pass the expression as a function — computed(() => a + b), not computed(a + b).',
   ],
+  'computed-cycle': () => [
+    'read its own value while computing it, directly or through another computed, so it has no value to give.',
+    'A computed cannot depend on itself: keep the previous value in a signal you write, and read that instead.',
+  ],
   'untrack-not-function': (received) => [
     `expected a function and received ${received}.`,
     'It runs the function without subscribing — `untrack(() => state.a)`, not `untrack(state.a)`, which reads the property before untrack can do anything about it.',

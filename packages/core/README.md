@@ -326,7 +326,8 @@ document.body.append(document.createElement('x-cart'));
 Reading it a hundred times in one render costs one evaluation, and typing in that coupon field costs
 none, because `total` never read `coupon`. Computeds chain — one may read another — and reading
 `.value` inside a render or effect subscribes it, so the reader re-runs when the result changes (an
-equal result re-runs nothing).
+equal result re-runs nothing). A computed cannot read itself, directly or through another: development throws
+`computed-cycle` at the read; production does not check, and the read overflows the stack.
 
 **It is linked only while something reads it.** Read by a render, an effect or another computed, it
 is kept current inside the write that changes its source. Read by nothing, it holds no subscription at

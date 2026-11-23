@@ -9,6 +9,8 @@ import { MODE_IMMEDIATE, register } from './createHook.js';
  * Below the 50 a renderer registers at, so a computed is already up to date by the time anything renders from it.
  */
 const COMPUTED_PRIORITY = 10;
+/** `_e` while a pulled evaluation runs: below every write count and the stale −1. */
+const EVALUATING = -2;
 /** The computeds whose last reader left this microtask, released together at its end (`release`, below). */
 let releasing: Computed<unknown>[] | undefined;
 
@@ -50,7 +52,7 @@ class Computed<T> {
   declare _h: HookRecord | undefined;
   /** Watched: linked to its sources, kept current inside the writes. */
   declare _w: boolean;
-  /** The write count its pulled value was taken at; −1: none (stale). */
+  /** The write count its pulled value was taken at; −1: none (stale); `EVALUATING` while its function runs. */
   declare _e: number;
 
   constructor(fn: () => T) {
@@ -82,6 +84,8 @@ class Computed<T> {
 
   get value(): T {
     if (tracking.hook !== undefined) {
+      /** Development: read inside its own watched evaluation (see `watch`), the same cycle as a pulled one. */
+      if (__DEV__ && this._e === EVALUATING) cycle();
       /** NOT inlined: with this its one caller, the minifier would paste `watch` back in as an immediately-invoked arrow. */
       if (!this._w) /*@__NOINLINE__*/ watch(this as Computed<unknown>);
       else trackKey(this, 'value');
@@ -92,15 +96,46 @@ class Computed<T> {
        * A throw REACHES THE CALLER (Brian 2026-10-22; TC39's `Signal.Computed` rethrows): plain code asked for the value
        * and can catch. Only a WATCHED evaluation — inside someone else's write — is reported instead (its hook's run).
        * The count is taken after a successful evaluation, so the next read tries again.
+       *
+       * **A computed that reads itself** (directly, or through another computed) is a cycle with no value. In
+       * development it is marked `EVALUATING` while its function runs, and a read that finds the mark throws
+       * `computed-cycle`, as TC39's `Signal.Computed` throws its cycle error; a throw clears the mark, so the next read
+       * tries again. Production keeps no mark (Brian's ruling, 2026-11-23): the mark on this path cost WebKit about 13%
+       * on a computed pulled from plain code, and there the read recurses to the engine's stack-overflow error, thrown
+       * to the reader at once.
        */
       if (this._e !== now) {
-        this._v = this._f();
+        if (__DEV__) {
+          if (this._e === EVALUATING) cycle();
+          this._e = EVALUATING;
+          try {
+            this._v = this._f();
+          } catch (error) {
+            this._e = -1;
+            throw error;
+          }
+        } else this._v = this._f();
         this._e = now;
       }
     }
     return this._v as T;
   }
 }
+
+/** Development only (see `watch`): a watched evaluation, marked while it runs. */
+const markedRun = (c: Computed<unknown>): unknown => {
+  c._e = EVALUATING;
+  try {
+    return c._f();
+  } finally {
+    c._e = -1;
+  }
+};
+
+/** Development only (see `value`): out of the getter, which a cold throw would grow. */
+const cycle = (): never => {
+  throw new TypeError(misuse('computed', 'computed-cycle', __DEV__ && PROSE['computed-cycle']()));
+};
 
 /**
  * **The first watched read: link to the sources and keep current inside the writes.** Out of the getter on purpose: the
@@ -110,7 +145,14 @@ class Computed<T> {
 const watch = (c: Computed<unknown>) => {
   c._w = true;
   (c._h ??= register({} as ComponentElement, () => {
-    const value = c._f();
+    /**
+     * Development: marked while it runs, as a pulled evaluation is. A computed that reads itself here subscribes its own
+     * hook to its own value and re-runs about 1200 times a write until the stack overflows, each overflow reported as
+     * the hook's error and the value left at whatever the last run reached; in development the read that finds the mark
+     * throws `computed-cycle` instead, reported once. Production keeps no mark: the compare it needs on every tracked
+     * read cost Chromium about 1% on watched computeds (measured 2026-11-23).
+     */
+    const value = __DEV__ ? markedRun(c) : c._f();
     const previous = c._v;
     if (!same(previous, value)) {
       c._v = value;
