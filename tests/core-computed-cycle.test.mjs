@@ -9,7 +9,8 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { load, isProduction } from './dist.mjs';
+import { execFileSync } from 'node:child_process';
+import { distUrl, load, isProduction } from './dist.mjs';
 
 const core = await load('core');
 const { computed, createStore } = core;
@@ -48,9 +49,25 @@ test('a computed that reads itself, directly or through another: computed-cycle 
  * a write until the stack overflows, reported as the hook's error each time with the value left wherever the last run
  * reached. In development the read throws `computed-cycle`: the effect's first read throws it, and each later write
  * reports it ONCE through the error chain. Production keeps the runaway, pinned here: more than 100 runs and only
- * stack-overflow errors.
+ * stack-overflow errors, through the chain or, once a write's wake loop catches one, reported as uncaught (a hook's
+ * error never leaves a write), so production's row runs in a child (the test runner fails a file on an uncaught error).
  */
 test('a WATCHED computed that reads itself: computed-cycle once a write in development, the runaway in production', () => {
+  if (isProduction) {
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', `
+const { computed, createStore, effect, wire } = await import(${JSON.stringify(distUrl('core'))});
+const names = [];
+wire({ on: 'error', fn: (error) => { names.push(error.constructor.name); }, priority: 50 });
+process.on('uncaughtException', (error) => names.push(error.constructor.name));
+const state = createStore({ n: 1 });
+let runs = 0;
+const loop = computed(() => { runs++; return state.n + (loop.value ?? 0); });
+try { effect(() => { void loop.value; }, { owner: {} })?.run(); } catch (error) { names.push(error.constructor.name); }
+await new Promise((resolve) => setTimeout(resolve, 20));
+console.log((runs > 100 ? 'runaway' : 'runs ' + runs) + ' ' + [...new Set(names)].join(','));`], { encoding: 'utf8', env: process.env }).trim();
+    assert.equal(out, 'runaway RangeError');
+    return;
+  }
   const { effect, flush, wire } = core;
   const reported = [];
   wire({ on: 'error', fn: (error) => { reported.push(error); }, priority: 50 });
@@ -58,12 +75,6 @@ test('a WATCHED computed that reads itself: computed-cycle once a write in devel
   let runs = 0;
   const loop = computed(() => { runs++; return state.n + (loop.value ?? 0); });
   const first = cycleError(() => effect(() => { void loop.value; }, { owner: {} })?.run());
-  if (isProduction) {
-    assert.ok(runs > 100, `production runs away: ${runs} runs`);
-    const all = [first, ...reported].filter(Boolean);
-    assert.ok(all.length > 0 && all.every((e) => e instanceof RangeError), all.map(String).join(' | '));
-    return;
-  }
   const thrown = first ?? reported.shift();
   assert.ok(thrown instanceof TypeError && thrown.message.includes('computed-cycle'), String(thrown));
   assert.equal(runs, 1, 'one run, not a runaway');

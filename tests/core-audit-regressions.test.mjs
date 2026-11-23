@@ -5,7 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { isProduction, load } from './dist.mjs';
+import { execFileSync } from 'node:child_process';
+import { distUrl, isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element'])
@@ -134,7 +135,23 @@ test('an ordinary assignment notifies exactly once', async () => {
  * overflow reports the trap rather than the cause. Development stops it at depth 50 and names it.
  */
 test('a self-feeding useSyncEffect is stopped and named in development', async () => {
-  const { isProduction } = await import('./dist.mjs');
+  /**
+   * Production has no guard: the stack overflows, the documented cost. A hook's error never leaves a write, so the
+   * overflow a write's wake loop catches is reported as uncaught, after the run: in a child (the test runner fails a file
+   * on any uncaught error), where only RangeErrors may arrive, and at least one.
+   */
+  if (isProduction) {
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', `
+const { signal, effect } = await import(${JSON.stringify(distUrl('core'))});
+const names = [];
+process.on('uncaughtException', (e) => names.push(e.constructor.name));
+const s = signal(0);
+try { effect(() => { s.value = s.value + 1; }, { owner: {}, timing: 'sync' })?.run(); } catch (e) { names.push(e.constructor.name); }
+await new Promise((r) => setTimeout(r, 20));
+console.log([...new Set(names)].join(','));`], { encoding: 'utf8', env: process.env }).trim();
+    assert.equal(out, 'RangeError');
+    return;
+  }
   const el = document.createElement('div');
   document.body.append(el);
   core.init({ host: el, shadow: 'open' });
@@ -148,14 +165,10 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
       state.n = state.n + 1;
     }, { timing: 'sync', owner: el });
     el._$h$?.forEach((cb) => cb.$n(undefined, true));
-  } catch (error) {
-    if (isProduction) return; // production has no guard; a stack overflow here is the documented cost
-    throw error;
   } finally {
     console.error = nativeError;
   }
 
-  if (isProduction) return;
   assert.ok(
     errors.some((m) => m.includes('re-entered') && m.includes('effect') && m.includes('(sync-loop)')),
     'it must name the hook, the cause and the alternative, by its code'

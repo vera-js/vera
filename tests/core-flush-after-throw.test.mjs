@@ -151,3 +151,49 @@ test('setRenderScheduler from inside a flush, with a scheduler that runs at once
   assert.equal(b, 4);
   setRenderScheduler(microtask);
 });
+
+/**
+ * **A hook's error never leaves a write** (2026-11-23). A `'sync'` effect runs inside the write, and so does every pass
+ * when the scheduler runs the flush at once: an `'error'` handler that rethrows carried the error out of the write's
+ * wake loop, so every subscriber after the failing one missed that write (later writes still reached them). Now each
+ * one hears it and the error is reported as uncaught, as the default scheduler's flush reports it. The last row is a
+ * write that changes two channels (a key added: the key and the key set), the failing hook on the first. CONTROL: no
+ * throw, and the write is heard once.
+ */
+test('a rethrown hook error inside a write: every later subscriber still hears that write', () => {
+  const out = child(`
+const { signal, createStore, effect, wire, setRenderScheduler, microtask } = core;
+wire({ on: 'error', fn: (e) => { throw e; }, priority: 50 });
+const seen = [];
+process.on('uncaughtException', (e) => seen.push(e.message));
+const rows = [];
+for (const [label, timing, atOnce, fails] of [
+  ['CONTROL', 'sync', false, false],
+  ['sync effect', 'sync', false, true],
+  ['scheduler at once', undefined, true, true],
+]) {
+  setRenderScheduler(atOnce ? (run) => run() : microtask);
+  const s = signal(0);
+  let later = 0;
+  effect(() => { if (s.value === 1 && fails) throw new Error(label); }, { owner: {}, timing })?.run();
+  effect(() => { s.value; later++; }, { owner: {}, timing })?.run();
+  let thrown = 'none';
+  try { s.value = 1; } catch (e) { thrown = e.message; }
+  rows.push(label + ': later ' + (later - 1) + ', write threw ' + thrown);
+}
+setRenderScheduler(microtask);
+{
+  const st = createStore({});
+  let keys = 0;
+  effect(() => { if (st.x === 1) throw new Error('key'); }, { owner: {}, timing: 'sync' })?.run();
+  effect(() => { Object.keys(st); keys++; }, { owner: {}, timing: 'sync' })?.run();
+  try { st.x = 1; } catch {}
+  rows.push('two channels: key set heard ' + (keys - 1));
+}
+await new Promise((r) => setTimeout(r, 20));
+console.log(rows.join(' | ') + ' | uncaught ' + seen.join(','));`);
+  assert.equal(
+    out,
+    'CONTROL: later 1, write threw none | sync effect: later 1, write threw none | scheduler at once: later 1, write threw none | two channels: key set heard 1 | uncaught sync effect,scheduler at once,key',
+  );
+});
