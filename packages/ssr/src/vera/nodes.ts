@@ -1500,12 +1500,31 @@ export class ContainerShim extends NodeBaseShim {
  * for an element — a check the renderer makes, and one that a shared class would have made true for
  * everything.
  */
+/** A deep clone's children: markup chunks as they are, nodes cloned deep and re-parented to `to`. */
+const cloneEntries = (from: ContainerShim, to: ContainerShim): void => {
+  for (const entry of from._entries) {
+    if (typeof entry === 'string') to._entries.push(entry);
+    else {
+      const child = entry.cloneNode(true);
+      child._parent = to;
+      to._entries.push(child);
+    }
+  }
+  to._parsed = from._parsed;
+};
+
 export class FragmentShim extends ContainerShim {
   get nodeType(): 11 {
     return 11;
   }
   get nodeName(): '#document-fragment' {
     return '#document-fragment';
+  }
+  /** A template's `content.cloneNode(true)` is how a component stamps it (2026-11-23): it had no clone at all. */
+  cloneNode(deep: boolean = false): FragmentShim {
+    const copy = new FragmentShim();
+    if (deep) cloneEntries(this, copy);
+    return copy;
   }
 }
 
@@ -1993,6 +2012,8 @@ export class ElementShim extends ContainerShim {
   declare _rendered?: boolean;
   /** For a component instance the server renders detached: the shadow root it is served in, else null (`getRootNode`). */
   declare _enclosing?: ShadowRootShim | null;
+  /** An HTML `<template>`'s content (`templateElement`); absent on every other element. */
+  declare _content?: FragmentShim;
   constructor(localName: string = '', namespaceURI: string = HTML_NS, made?: typeof MADE) {
     super();
     /**
@@ -2551,15 +2572,7 @@ export class ElementShim extends ContainerShim {
     copy._sourceOpenTag = this._sourceOpenTag;
     copy._sourceCloseTag = this._sourceCloseTag;
     if (!deep) return copy;
-    for (const entry of this._entries) {
-      if (typeof entry === 'string') copy._entries.push(entry);
-      else {
-        const child = entry.cloneNode(true);
-        child._parent = copy;
-        copy._entries.push(child);
-      }
-    }
-    copy._parsed = this._parsed;
+    cloneEntries(this, copy);
     return copy;
   }
   /** This element's own markup, end tag included — the call every node kind answers. */
@@ -2649,9 +2662,43 @@ export class ElementShim extends ContainerShim {
  * guessing at them is what this whole file exists not to do.
  */
 const build = (name: string, namespaceURI: string = HTML_NS): ElementShim => {
-  const Element = namespaceURI === HTML_NS ? interfaceFor(name, ElementShim) : ElementShim;
+  const Element = namespaceURI === HTML_NS ? (name === 'template' ? templateElement() : interfaceFor(name, ElementShim)) : ElementShim;
   return new Element(name, namespaceURI, MADE);
 };
+
+/**
+ * **An HTML `<template>`'s markup is its CONTENT, a fragment of its own, never its children** (2026-11-23), as in
+ * Chromium, Firefox, WebKit and jsdom: `children` and `childNodes` are empty, a query on the template finds nothing
+ * inside it, and `content` holds what was parsed, for `content.cloneNode(true)`, the way a component stamps one. This
+ * DOM kept the interior as the template's children and had no `content`, so `template.querySelector('p')` found what
+ * no engine finds and `template.content.cloneNode(true)` threw on the server. Its markup is read and written through
+ * `content` (`innerHTML`, so serialization, and the parser's interior); a node appended to the template itself is its
+ * child, which the serialization leaves out, as the engines' does. Built on first use, from the reflecting interface
+ * (`shadowRootMode` and the rest); a custom element is never a `<template>`.
+ */
+let TemplateElement: typeof ElementShim | undefined;
+const templateElement = (): typeof ElementShim =>
+  (TemplateElement ??= class extends interfaceFor('template', ElementShim) {
+    /** Made here, and by the first `innerHTML` write too: the element constructor writes one before this runs. */
+    constructor(localName?: string, namespaceURI?: string, made?: typeof MADE) {
+      super(localName, namespaceURI, made);
+      this._content ??= new FragmentShim();
+    }
+    get content(): FragmentShim {
+      return this._content!;
+    }
+    override get innerHTML(): string {
+      return this._content!.innerHTML;
+    }
+    override set innerHTML(markup: unknown) {
+      (this._content ??= new FragmentShim()).innerHTML = markup;
+    }
+    override cloneNode(deep: boolean = false): ElementShim {
+      const copy = super.cloneNode(deep);
+      if (deep) cloneEntries(this._content!, copy._content!);
+      return copy;
+    }
+  });
 
 export const createElement = (localName: unknown, namespaceURI: string = HTML_NS): ElementShim => {
   const name = namespaceURI === HTML_NS ? asciiLower(`${localName}`) : `${localName}`;

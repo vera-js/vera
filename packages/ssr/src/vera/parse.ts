@@ -117,9 +117,9 @@ const FOREIGN = new Set(['svg', 'math']);
  *
  * Keeping the interior opaque is also the honest answer rather than merely the convenient one. A
  * real DOM does not match template content from the host either — `host.querySelector('b')` never
- * finds a `<b>` inside a `<template>` — so on the question this parser exists to answer, an opaque
- * chunk and a content fragment agree. What is given up is reaching INTO one (`template.content
- * .querySelector`), which is a far smaller loss than the whole tree.
+ * finds a `<b>` inside a `<template>`. The chunk is the template's CONTENT, a fragment of its own
+ * (`templateElement` in `nodes.ts`, 2026-11-23), never its children, and it is parsed when a node view
+ * of the content is asked for, as any chunk is.
  */
 const OPAQUE = new Set([...FOREIGN, 'template']);
 
@@ -588,7 +588,8 @@ export const parseFragment = (
   const build = (node: ElementFrame): ElementShim => {
     for (const child of node.children) {
       if (typeof child === 'string' || typeof child.markup === 'function') {
-        node.element._entries.push(child);
+        /** A `<template>`'s interior, kept as one chunk, is its content's (`templateElement`), never its children. */
+        (node.element._content ?? node.element)._entries.push(child);
         if (typeof child !== 'string') child._parent = node.element;
       } else {
         build(child);

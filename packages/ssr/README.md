@@ -452,9 +452,6 @@ dependency involved.
 - **A collection is a plain array**, not a live `NodeList` — `childNodes`, `children`,
   `querySelectorAll`, the `getElementsBy*` family. There is nothing to be live over in a single pass;
   `item()` and `namedItem()` are provided anyway.
-- **A `<template>`'s content is opaque**, parsed or created, and `template.content` is `undefined`. The element is
-  modeled — queried, styled, serialized byte for byte — and a query on the host correctly does not
-  descend into it; reaching *into* one is what is missing.
 - **A constructed sheet holds its CSS as text**, so `cssRules` is empty and `deleteRule` refuses
   rather than pretends. `checkVisibility()` is always `false` and layout reads as zero, as for a
   detached element in a browser. A `style` value is kept as written (`url("data:…")` keeps its quotes).
