@@ -33,3 +33,18 @@ test('an effect reading length, an index or the whole array sees a define that m
     assert.deepEqual(seen, read(store.arr), label);
   }
 });
+
+/** One define, one wake (`core-store-one-write-one-wake`): a hook reading the new index and `length` runs once, as for `set`. */
+test("an index or length defined past the end runs a 'sync' hook that read the index and length once", () => {
+  for (const [label, write] of [
+    ['CONTROL: set', (list) => { list[3] = 'd'; }],
+    ['define', (list) => Object.defineProperty(list, 3, { ...DATA, value: 'd' })],
+    ['define length longer', (list) => Object.defineProperty(list, 'length', { value: 5 })],
+  ]) {
+    const list = createStore({ l: ['a'] }).l;
+    let runs = 0;
+    effect(() => { void list[3]; void list.length; runs++; }, { owner: {}, timing: 'sync' }).run();
+    write(list);
+    assert.equal(runs - 1, 1, label);
+  }
+});

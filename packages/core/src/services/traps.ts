@@ -388,12 +388,19 @@ const handler: ProxyHandler<object> = {
     /** An accessor or a read-only property may make it no longer a data record (`dataRecord`). */
     if (descriptor.get !== undefined || descriptor.set !== undefined || descriptor.writable === false) unclassify(obj);
     const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
+    /** An array's `length` before an index is defined past it (-1 for anything else): see below. */
+    const length = Array.isArray(obj) && prop !== 'length' ? obj.length : -1;
     const defined = Reflect.defineProperty(obj, prop, descriptor);
     if (defined) {
       const epoch = nextWake();
       if (!previous || !same(descriptor.value, previous.value) || descriptor.get !== previous.get)
         triggerAt(obj, prop, descriptor.value, previous?.value, epoch);
       if (!previous) triggerAt(obj, GLOBAL, descriptor.value, undefined, epoch);
+      /**
+       * An index defined past the end grows `length`, which no trap of its own reports: told here, in the same wake as
+       * the index, as `set` tells it, so a hook that read both runs once (2026-11-23).
+       */
+      if (length !== -1 && (obj as unknown[]).length > length) triggerAt(obj, 'length', (obj as unknown[]).length, length, epoch);
       /** `Object.freeze` through the store locks each slot here, after `preventExtensions`: the last one makes it `FIXED`. */
       if (descriptor.writable === false && !Object.isExtensible(obj) && Object.isFrozen(obj)) FIXED.add(obj);
     }
@@ -519,15 +526,13 @@ const arrayHandler: ProxyHandler<object> = {
     /** The `set` trap's own re-entry is reported by `set`. */
     if (defined && !(obj === writingObj && prop === writingProp)) {
       /**
-       * **`length` moves here as it does through `set`** (2026-11-23): an index defined past the end grows it, and a
-       * `length` defined shorter deletes the indices past it, neither through an index or `length` trap of its own. So
-       * `length`'s readers, and the dropped indices' readers and the key set's, are told here as `set` tells them;
-       * before, `Object.defineProperty(rows, 2, …)` and `Object.defineProperty(rows, 'length', { value: 1 })` woke
-       * nobody who read `length` or a dropped row.
+       * **A `length` defined shorter deletes the indices past it** without any index trap firing (2026-11-23): their
+       * readers, and the key set's, are told here as `set` tells them (an index defined past the end tells `length`'s
+       * readers in the object handler's define). Before, `Object.defineProperty(rows, 'length', { value: 1 })` woke
+       * nobody who read a dropped row.
        */
       const after = (obj as unknown[]).length;
-      if (after > length) triggerAt(obj, 'length', after, length, nextWake());
-      else if (after < length) {
+      if (after < length) {
         const keys = proxyCallbacks.get(obj);
         if (keys !== undefined) {
           const send = operation(obj, keys)!;

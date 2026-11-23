@@ -81,6 +81,31 @@ out.push(\`calls \${calls}\`);`;
   assert.equal(child(RETHROWS('() => { throw new Error("handler broke"); }', drive)), '2/1/1 3/2/2 3/2/3 calls 4 settled 3/2/3');
 });
 
+/**
+ * A scheduler that runs the flush at once runs the rest INSIDE the call that asked for it, so a second failing pass's
+ * error comes back there: it is thrown again as uncaught, never dropped, and the first still leaves `flush()`. The
+ * write is queued with the scheduler doing nothing, so all three passes wait for the one flush.
+ */
+test('with a scheduler that runs at once, two rethrown errors both surface and the rest still runs', () => {
+  const out = child(`
+const { signal, effect, flush, wire, setRenderScheduler } = core;
+wire({ on: 'error', fn: (e) => { throw e; }, priority: 50 });
+let atOnce = false;
+setRenderScheduler((run) => { if (atOnce) run(); });
+const s = signal(0); let c = 0;
+const seen = [];
+process.on('uncaughtException', (e) => seen.push('uncaught ' + e.message));
+effect(() => { if (s.value === 1) throw new Error('first'); }, { owner: {} })?.run();
+effect(() => { if (s.value === 1) throw new Error('second'); }, { owner: {} })?.run();
+effect(() => { s.value; c++; }, { owner: {} })?.run();
+s.value = 1;
+atOnce = true;
+try { flush(); } catch (e) { seen.push('flush ' + e.message); }
+await new Promise((r) => setTimeout(r, 20));
+console.log(seen.join(', ') + ' | c ' + c);`);
+  assert.equal(out, 'flush first, uncaught second | c 2');
+});
+
 test('setRenderScheduler from inside a flush, with a scheduler that runs at once, keeps flushing', async () => {
   const { signal, effect, setRenderScheduler, microtask } = await load('core');
   const s = signal(0);

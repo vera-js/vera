@@ -247,8 +247,16 @@ const strandedNone = () => {
   scheduled = true;
   try {
     renderScheduler(drain, rest[0]._owner ?? undefined);
-  } catch {
+  } catch (error) {
+    /**
+     * No flush is promised, so the next write asks again. What was thrown is not dropped: a scheduler that runs the
+     * flush at once throws the NEXT failing pass's error here, as uncaught as the first, so it is thrown where the
+     * platform reports an uncaught error, after this one has left.
+     */
     scheduled = false;
+    queueMicrotask(() => {
+      throw error;
+    });
   }
 };
 
