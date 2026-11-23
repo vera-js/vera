@@ -2,7 +2,8 @@
  * What a spread key may be called, in engines that decide it.
  *
  * `setAttribute` is the arbiter and jsdom is not a good stand-in for it: measured across Chromium,
- * Firefox and WebKit, all three refuse only whitespace, `>`, `=` and `/`, while jsdom enforces the
+ * Firefox and WebKit, all three refuse only whitespace, NUL, `>`, `=` and `/` (keeping VT, the other controls and
+ * DEL, 2026-11-23), while jsdom enforces the
  * strict XML Name production and refuses `a|b`, `a*b`, `a?b` and the rest. So the node suite covers
  * the keys `@verajs/renderer/spread` refuses for itself, and this covers the ones it must not.
  */
@@ -40,14 +41,14 @@ it('binds a legal name that is a regex metacharacter, and leaves its neighbor al
 it('agrees with the engine about which names are impossible', () => {
   const element = document.createElement('div');
   const rejected = [];
-  for (const name of ['a b', 'a>b', 'a=b', 'a/b', 'a|b', 'a?b', 'a"b', "a'b", 'a<b', 'a`b']) {
+  for (const name of ['a b', 'a>b', 'a=b', 'a/b', 'a\tb', 'a\fb', 'a\rb', 'a\0b', 'a|b', 'a?b', 'a"b', "a'b", 'a<b', 'a`b', 'a\vb', 'a\x01b', 'a\x7fb']) {
     try {
       element.setAttribute(name, '1');
     } catch {
       rejected.push(name);
     }
   }
-  expect(rejected, 'the engine refuses exactly these').to.deep.equal(['a b', 'a>b', 'a=b', 'a/b']);
+  expect(rejected, 'the engine refuses exactly these').to.deep.equal(['a b', 'a>b', 'a=b', 'a/b', 'a\tb', 'a\fb', 'a\rb', 'a\0b']);
 });
 
 /**

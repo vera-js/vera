@@ -1314,3 +1314,9 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   `InvalidCharacterError` (`1a`, `-a`, `.a`). jsdom refuses `·a` and `a!` by the older XML name rule. Consequence:
   `@verajs/ssr`'s DOM applies the engines' rule; the node differential checks the names jsdom agrees on and a browser
   row (`ssr-element-names`) the rest.
+- **A name keeps VT, the other C0 controls and DEL; the parser's whitespace and NUL are refused.** In Chromium 159,
+  Firefox 159 and WebKit 27.2 (Playwright 1.65, headless, identical): `setAttribute` and `createElement` accept `a\vb`,
+  `a\x01b`, `a\x1fb` and `a\x7fb`, and refuse `a\tb`, `a\nb`, `a\fb`, `a\rb`, `a b` and `a\0b`
+  (`InvalidCharacterError`); a parser reading such a name back keeps it whole. jsdom refuses every control. Consequence:
+  `@verajs/ssr`'s DOM refuses only the parser's whitespace, NUL, `/`, `>` and `=` in a name (and quotes and `<` in a tag
+  name, which markup cannot carry); the spread rule, client and server, still refuses every control on purpose.

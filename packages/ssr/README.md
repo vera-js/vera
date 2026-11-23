@@ -31,7 +31,9 @@ const { html, styles, title } = await renderToString(new URL('./components/app.j
   location: request.url,           // this request's URL, for anything that reads one
 });
 
-response.end(`<!doctype html><title>${escape(title)}</title><style>${styles}</style>${html}`);
+/** A `<title>`'s text: `&` and `<` are all it needs escaped. (Node's global `escape` percent-encodes; it is not this.) */
+const text = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+response.end(`<!doctype html><title>${text(title)}</title><style>${styles}</style>${html}`);
 ```
 
 `html` is the component's markup, its shadow root serialized as `<template shadowrootmode>`. `styles`
@@ -75,7 +77,7 @@ already awaits. A render that throws does not stop the queue.
 | `children` | markup placed inside the entry tag, where a client parser would have put it — what a `<slot>` renders. **Raw markup** |
 | `location` | this request's URL — a path or a full URL — applied for the render and restored after |
 | `seen` | a `Set` carried across renders, so a page of islands ships each component's styles once |
-| `base` | a directory the module URL must resolve inside. Pass it whenever **any part of the URL came from a request** |
+| `base` | a directory the module URL must resolve inside, as a URL (`pathToFileURL(dir)` for one on disk). Pass it whenever **any part of the URL came from a request** |
 | `static` | `true` for a page that will not be interactive: a store's reads skip tracking, identical markup; faster in proportion to the tracked reads a render makes (see [Static pages](#static-pages)) |
 | `timeout` | how long `renderToStringAsync` waits on promises a component starts, in milliseconds (default 2000), before serving what it has and warning — see below. **`0` waits for nothing** (it is not "no limit", which this option cannot express): every such promise is abandoned at once |
 
@@ -450,8 +452,8 @@ dependency involved.
 - **A constructed sheet holds its CSS as text**, so `cssRules` is empty and `deleteRule` refuses
   rather than pretends. `checkVisibility()` is always `false` and layout reads as zero, as for a
   detached element in a browser. A `style` value is kept as written (`url("data:…")` keeps its quotes).
-- `insertAdjacentHTML` with `beforebegin` or `afterend` raises a message explaining that a
-  server-rendered component has no parent.
+- `insertAdjacentHTML` with `beforebegin` or `afterend` on an element with no parent (a component's own root)
+  raises `NoModificationAllowedError`, as a browser does; on any element inside one it places the markup beside it.
 - **A created or parsed `<pre>`, `<listing>` or `<textarea>` whose text begins with a line feed reads back with
   one extra line feed from `innerHTML`/`outerHTML`.** The parser takes one line feed right after those start tags,
   and a browser's own serialization does not account for it — Chromium, Firefox and WebKit serialize the text

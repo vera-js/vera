@@ -406,7 +406,16 @@ const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expecte
   },
   { name: 'children', valid: (v) => typeof v === 'string', expected: 'a markup string' },
   { name: 'seen', valid: (v) => v === undefined || v instanceof Set, expected: 'a Set' },
-  { name: 'base', valid: (v) => v === undefined || isUrl(v), expected: 'a URL or a path string' },
+  /**
+   * `base` is a directory URL, absolute (2026-11-23): its message offered "a path string", but a path such as
+   * `'/srv/components/'` has no URL to resolve against, so the bound threw `Invalid URL` from inside the check. A `file:`
+   * URL is a directory on disk (`pathToFileURL(dir)`).
+   */
+  {
+    name: 'base',
+    valid: (v) => v === undefined || v instanceof URL || (typeof v === 'string' && URL.canParse(v)),
+    expected: 'a URL or an absolute URL string (for a directory on disk, a file: URL)',
+  },
   { name: 'location', valid: (v) => v === undefined || isUrl(v), expected: 'a URL or a path string' },
   { name: 'static', valid: (v) => typeof v === 'boolean', expected: 'true or false' },
   /** Node turns a `setTimeout` past 2^31 − 1 ms into 1 ms, so that is the largest budget that means what it says. */
@@ -424,7 +433,7 @@ const OPTION_LIST = [...OPTION_NAMES].join(', ');
  * An attribute NAME that could not come out of one entry: the characters the engines' `setAttribute`
  * refuses, so an object entry can never write a second attribute (`{ 'a=1 onload': v }`) or leave the tag.
  */
-const BAD_ATTRIBUTE_NAME = /[\0-\x20"'>/=\x7f]/;
+const BAD_ATTRIBUTE_NAME = /[\0\t\n\f\r "'>/=]/;
 const attributeMarkup = (attributes: string | Record<string, unknown>): string =>
   typeof attributes === 'string'
     ? attributes
@@ -613,11 +622,13 @@ const renderModule = async (
 
 /**
  * **A render's failure, one form**: the component that threw, how many others did, and its own error — quoted when it is
- * not ours, whose text is code-shaped — as the cause, the identical object.
+ * not ours, whose text is code-shaped — as the cause, the identical object. Its text is read by `thrownMessage`, as
+ * every other report here reads it: `String()` on a thrown `Object.create(null)` threw, so the render rejected with
+ * `Cannot convert object to primitive value` and no component named (2026-11-23).
  */
 const renderThrew = (tag: string, others: string, error: unknown): Error =>
   own(new Error(
-    ssrMisuse('ssr-render-threw', PROSE['ssr-render-threw']!(tag, others, isOwn(error) ? (error as Error).message : quoted(String((error as { message?: unknown } | null | undefined)?.message ?? error)))),
+    ssrMisuse('ssr-render-threw', PROSE['ssr-render-threw']!(tag, others, isOwn(error) ? (error as Error).message : quoted(thrownMessage(error)))),
     { cause: error }
   ));
 

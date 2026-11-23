@@ -38,6 +38,15 @@ test('a connectedCallback that throws is named, sync and async, with its error a
   }
 });
 
+test('a thrown value String() cannot read is still named: an object with no prototype', async () => {
+  const { BARE } = await import(fixture('connected-throws-bare-ssr.js'));
+  for (const render of [renderToString, renderToStringAsync]) {
+    const error = await rejection(() => render(fixture('connected-throws-bare-ssr.js'), { tag: 'connected-throws-bare-ssr' }));
+    assert.match(error.message, /<connected-throws-bare-ssr> threw while rendering.*\(ssr-render-threw\)/, `${render.name}: ${error.message}`);
+    assert.equal(error.cause, BARE, `${render.name}: the cause is the identical value`);
+  }
+});
+
 test('a nested component that throws is named by its own tag, not the page', async () => {
   for (const render of [renderToString, renderToStringAsync]) {
     const error = await rejection(() => render(fixture('connected-throws-nest-ssr.js'), { tag: 'connected-throws-nest-ssr' }));

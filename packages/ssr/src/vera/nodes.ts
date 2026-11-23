@@ -162,16 +162,18 @@ const SHADOW_HOSTS = new Set(['article', 'aside', 'blockquote', 'body', 'div', '
  * rejects `a(b)`, `a|b`, `a?b` and about fifty other shapes that every real engine accepts —
  * `tests/browser/spread-names.test.js` records that the engines refuse exactly `a b`, `a>b`, `a=b`
  * and `a/b`, and `CLAUDE.md` records the false finding that came of trusting jsdom here. So this is
- * whitespace, `>`, `=`, `/` and controls, plus the empty string: strictly the set that cannot survive
- * being written into a tag, and nothing invented on top.
+ * the parser's whitespace (tab, LF, FF, CR, space), NUL, `>`, `=` and `/`, plus the empty string: strictly the set that
+ * cannot survive being written into a tag, and nothing invented on top. Other controls and DEL survive — the tokenizer
+ * keeps them in the name — and every engine accepts them (2026-11-23: `a\vb`, `a\x01b`, `a\x7fb`), so they are
+ * accepted here too; NUL becomes U+FFFD and CR a line feed when parsed, so those two stay refused.
  */
-const UNUSABLE_IN_A_NAME = /[\0-\x20/>=\x7f]/;
+const UNUSABLE_IN_A_NAME = /[\0\t\n\f\r />=]/;
 
 /**
  * A tag name is checked slightly harder, because a quote or a `<` inside one **does** break the
  * markup where the same character inside an attribute name does not.
  */
-const UNUSABLE_IN_A_TAG = /[\0-\x20"'<>/=\x7f]/;
+const UNUSABLE_IN_A_TAG = /[\0\t\n\f\r "'<>/=]/;
 
 /**
  * **A name that does not start with an ASCII letter** (2026-11-23), as every engine reads `createElement`'s: one that

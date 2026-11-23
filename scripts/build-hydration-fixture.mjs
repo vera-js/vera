@@ -57,18 +57,22 @@ const parseAgreement = async () => {
   };
 };
 /**
- * The server DOM's answer to `createElement` for names whose first character is not an ASCII letter, and two whose
- * rest holds a character the older XML name rule refused: the browser suite holds each engine to the same answers.
+ * The server DOM's answers to `createElement` and `setAttribute` for names jsdom cannot judge: a first character that
+ * is not an ASCII letter, a character the older XML name rule refused, and the controls and DEL the parser keeps in a
+ * name (tab, LF, FF, CR and NUL it does not). The browser suite holds each engine to the same answers.
  */
-const ELEMENT_NAMES = ['1a', '-a', '.a', '_a!', '_a/b', '\u00e9a!', '\u00e9a b', '_a', ':a', '\u00e9a', '\u00b7a', '_a\u00b7', '\u00e0', 'a1', 'A', 'a.b', 'a_b', 'a!', ':', '_'];
-const elementNames = () =>
-  ELEMENT_NAMES.map((name) => {
-    try {
-      return document.createElement(name).localName;
-    } catch (error) {
-      return `THREW ${error.name}`;
-    }
-  });
+const ELEMENT_NAMES = ['1a', '-a', '.a', '_a!', '_a/b', '\u00e9a!', '\u00e9a b', '_a', ':a', '\u00e9a', '\u00b7a', '_a\u00b7', '\u00e0', 'a1', 'A', 'a.b', 'a_b', 'a!', ':', '_', 'a\vb', 'a\x01b', 'a\x7fb', 'a\fb', 'a\rb', 'a\0b'];
+const ATTRIBUTE_NAMES = ['a\vb', 'a\x01b', 'a\x7fb', 'a\x1fb', 'a\tb', 'a\fb', 'a\rb', 'a\nb', 'a\0b', 'a b', 'a|b', '\u00b7a'];
+const answer = (make) => {
+  try {
+    return make();
+  } catch (error) {
+    return `THREW ${error.name}`;
+  }
+};
+const elementNames = () => ELEMENT_NAMES.map((name) => answer(() => document.createElement(name).localName));
+const attributeNames = () =>
+  ATTRIBUTE_NAMES.map((name) => answer(() => (document.createElement('div').setAttribute(name, '1'), 'ok')));
 const target = new URL('../tests/browser/fixtures/hello-ssr.html.js', import.meta.url);
 
 const fixture = async (name, options) =>
@@ -135,7 +139,7 @@ const contents =
    * is the part only a real engine can judge.
    */
   `export const PARSE_AGREEMENT = ${JSON.stringify(await parseAgreement())};\n` +
-  `export const ELEMENT_NAMES = ${JSON.stringify({ names: ELEMENT_NAMES, served: elementNames() })};\n` +
+  `export const ELEMENT_NAMES = ${JSON.stringify({ names: ELEMENT_NAMES, served: elementNames(), attributes: ATTRIBUTE_NAMES, servedAttributes: attributeNames() })};\n` +
   `export const SPINNER_SSR = ${JSON.stringify(
     await renderToString(new URL('../packages/components/spinner/dist/vera-spinner.min.js', import.meta.url), {
       tag: 'vera-spinner',
