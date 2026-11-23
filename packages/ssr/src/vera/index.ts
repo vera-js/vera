@@ -420,7 +420,12 @@ const renderInstanceAsync = async (
  * The options, checked by one table: a wrong one otherwise surfaced as an internal
  * (`markup.includes is not a function`, `Cannot find package 'undefined'`) naming nothing the caller did.
  */
-const isUrl = (value: unknown): value is string | URL => typeof value === 'string' || value instanceof URL;
+/**
+ * A `URL` or a `Set` from any realm, by its tag: `instanceof` asks about THIS realm's class, so jsdom's window's `URL`
+ * or a `vm` context's `Set` was refused as the wrong kind of option. A URL object is read through `String()`, its `href`.
+ */
+const tagged = (value: unknown, tag: string): boolean => Object.prototype.toString.call(value) === `[object ${tag}]`;
+const isUrl = (value: unknown): value is string | URL => typeof value === 'string' || tagged(value, 'URL');
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expected: string }> = [
@@ -441,7 +446,7 @@ const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expecte
     expected: 'an object of properties to assign',
   },
   { name: 'children', valid: (v) => typeof v === 'string', expected: 'a markup string' },
-  { name: 'seen', valid: (v) => v === undefined || v instanceof Set, expected: 'a Set' },
+  { name: 'seen', valid: (v) => v === undefined || tagged(v, 'Set'), expected: 'a Set' },
   /**
    * `base` is a directory URL, absolute (2026-11-23): its message offered "a path string", but a path such as
    * `'/srv/components/'` has no URL to resolve against, so the bound threw `Invalid URL` from inside the check. A `file:`
@@ -449,7 +454,7 @@ const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expecte
    */
   {
     name: 'base',
-    valid: (v) => v === undefined || v instanceof URL || (typeof v === 'string' && URL.canParse(v)),
+    valid: (v) => v === undefined || tagged(v, 'URL') || (typeof v === 'string' && URL.canParse(v)),
     expected: 'a URL or an absolute URL string (for a directory on disk, a file: URL)',
   },
   { name: 'location', valid: (v) => v === undefined || isUrl(v), expected: 'a URL or a path string' },
@@ -537,14 +542,14 @@ const renderModule = async (
    * passed, and `import()` ran the module outside it. A bare specifier resolves through `node_modules`, which no URL
    * here can follow, so it is left as written and the bound refuses it, as it always has.
    */
-  const href = url instanceof URL ? url.href : base !== undefined && URL_LIKE.test(url) ? new URL(url, import.meta.url).href : url;
+  const href = typeof url !== 'string' ? String(url) : base !== undefined && URL_LIKE.test(url) ? new URL(url, import.meta.url).href : url;
 
   /**
    * **A module URL is bounded to `base` when one is given** — `import()` executes whatever it is handed. Read as a
    * directory whether or not it was written as one: that can only tighten the bound.
    */
   if (base !== undefined) {
-    const directory = String(base instanceof URL ? base.href : base);
+    const directory = String(base);
     const root = new URL('.', directory.endsWith('/') ? directory : `${directory}/`).href;
     if (!href.startsWith(root)) throw own(new Error(ssrMisuse('ssr-url-refused', PROSE['ssr-url-refused']!(quoted(href), quoted(root)))));
   }
