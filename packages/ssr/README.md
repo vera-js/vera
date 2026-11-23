@@ -343,7 +343,9 @@ neither may carry anything from a request unsanitized. Everything else is checke
 - **Shadow DOM:** markup cannot carry a constructed sheet, so a component's styles are serialized as
   `<style data-vm-sheet="styles">` inside its template — plain strings first, then sheets, which is the
   order the browser's cascade applies them in (adopted sheets win over a root's own `<style>`). When
-  every style is a sheet the client can adopt, it removes that copy, so the rules never apply twice.
+  every style is a sheet the client can adopt, it removes that copy, so the rules never apply twice. A
+  `<style>` a component appends to its own shadow root is served the same way, in order, with its
+  attributes (`media`, `nonce`, …).
 - **Light DOM:** a component's `@scope (tag) { … }` block is returned in `styles` for the page shell,
   **only for the components this render touched**, and — with a shared `seen` — once across a page of
   islands. An instance inside a served declarative shadow root gets the block in THAT root instead (the

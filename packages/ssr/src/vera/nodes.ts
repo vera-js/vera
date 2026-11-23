@@ -1528,12 +1528,51 @@ export class FragmentShim extends ContainerShim {
   }
 }
 
+/**
+ * An element's attributes as served: ` name="value"` each, the value escaped. **The one rule** for every element the
+ * serializer writes (`openTag`) and for a `<style>` a shadow root captures as a sheet, which leaves out the marker the
+ * root writes itself (`skip`); two copies would let a later attribute rule reach one door and not the other.
+ */
+const attributeText = (attributes: Map<string, string>, skip?: string): string => {
+  let out = '';
+  for (const [name, value] of attributes) if (name !== skip) out += ` ${name}="${escapeHtml(value)}"`;
+  return out;
+};
+
+/**
+ * **`styleTags` for a root holding a sheet with attributes**, set on that root alone when it captures the first one
+ * (`ShadowRootShim.appendChild`). Its own sheets are written here with their attributes, in order; the rest (the
+ * adopted sheets) by the shared method, called with this root's own sheets set aside. The shared method is left
+ * exactly as it was for every other root: reading an attribute list there, even one never made, cost a styled page's
+ * steady render +1.2–1.8% (one marked sheet in each of 101 roots), where the same build without it read −0.03%. The
+ * sheet tag is written here and there alike: a change to one is a change to both.
+ */
+function attributedStyleTags(this: ShadowRootShim): string {
+  const styles = this._styles;
+  const attributes = this._styleAttributes!;
+  let tags = '';
+  for (let i = 0; i < styles.length; i++) if (styles[i]) tags += `<style data-vm-sheet="styles"${attributes[i]}>${escapeStyleText(styles[i])}</style>`;
+  /**
+   * Set aside, not passed: the shared method takes nothing, so it stays base's code for every root. Safe because the
+   * shared method only reads (`_styles`, `_adopted`) and calls nothing that reaches this root again; the `finally`
+   * restores the list even if a sheet's text throws, so a second serialization of the root reads it whole.
+   */
+  this._styles = [];
+  try {
+    return tags + ShadowRootShim.prototype.styleTags.call(this);
+  } finally {
+    this._styles = styles;
+  }
+}
+
 export class ShadowRootShim extends ContainerShim {
   declare mode: ShadowRootMode;
   declare _init: ShadowInit;
   declare _host: ElementShim | null;
   /** The text of the `<style>` elements appended here. */
   declare _styles: string[];
+  /** Their attributes as written (`' media="print"'`, `''` for none), made only once one has any (`appendChild`). */
+  declare _styleAttributes?: string[];
   declare _adopted?: StyleSheetShim[];
   constructor(init: ShadowInit) {
     super();
@@ -1560,7 +1599,28 @@ export class ShadowRootShim extends ContainerShim {
    */
   override appendChild<T extends InsertableShim>(node: T): T {
     if ((node as DuckNode)?.localName === 'style') {
-      this._styles.push((node as ElementShim).innerHTML);
+      /**
+       * **Served with its attributes** (2026-11-23): only its text was kept, so `media="print"` was dropped (print CSS
+       * applied on screen) and so was `nonce` (a nonce-based policy blocked it), where the same style one level down kept
+       * both. Written as every attribute is, less `data-vm-sheet`: that is the marker this root writes itself, and
+       * `@verajs/styles` sets it on the element it appends. The list is made at the first style with any other
+       * attribute, padded for the ones before it, so a root of plain or `@verajs/styles` sheets never makes one.
+       */
+      const style = node as unknown as ElementShim;
+      const own = style._attributes;
+      /**
+       * None, or only the marker (every `@verajs/styles` sheet), is `''` without walking the list: walking it for each
+       * sheet cost a cold render of 101 marked roots +1.15% (noise 0.57%).
+       */
+      const attributes = own.size === 0 || (own.size === 1 && own.has('data-vm-sheet')) ? '' : attributeText(own, 'data-vm-sheet');
+      if (attributes !== '' || this._styleAttributes !== undefined) {
+        if (this._styleAttributes === undefined) {
+          this._styleAttributes = this._styles.map(() => '');
+          this.styleTags = attributedStyleTags;
+        }
+        this._styleAttributes.push(attributes);
+      }
+      this._styles.push(style.innerHTML);
       return node;
     }
     return super.appendChild(node);
@@ -1666,6 +1726,7 @@ export class ShadowRootShim extends ContainerShim {
      */
     let tags = '';
     const styles = this._styles;
+    /** A root holding a sheet with attributes serves its own sheets in `attributedStyleTags`, which then calls this. */
     for (let i = 0; i < styles.length; i++) if (styles[i]) tags += `<style data-vm-sheet="styles">${escapeStyleText(styles[i])}</style>`;
     const adopted = this._adopted;
     if (adopted !== undefined) {
@@ -2605,9 +2666,7 @@ export class ElementShim extends ContainerShim {
      * reading `children`.
      */
     if (this._sourceOpenTag) return this._sourceOpenTag;
-    let out = `<${this.localName}`;
-    for (const [name, value] of this._attributes) out += ` ${name}="${escapeHtml(value)}"`;
-    return out + '>';
+    return `<${this.localName}${attributeText(this._attributes)}>`;
   }
 
   /**
