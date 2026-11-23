@@ -1493,13 +1493,6 @@ export class ContainerShim extends NodeBaseShim {
   }
 }
 
-/**
- * A fragment is a container and nothing more.
- *
- * Its own class rather than a reused `ElementShim`, so `instanceof DocumentFragment` answers `false`
- * for an element — a check the renderer makes, and one that a shared class would have made true for
- * everything.
- */
 /** A deep clone's children: markup chunks as they are, nodes cloned deep and re-parented to `to`. */
 const cloneEntries = (from: ContainerShim, to: ContainerShim): void => {
   for (const entry of from._entries) {
@@ -1513,6 +1506,13 @@ const cloneEntries = (from: ContainerShim, to: ContainerShim): void => {
   to._parsed = from._parsed;
 };
 
+/**
+ * A fragment is a container and nothing more.
+ *
+ * Its own class rather than a reused `ElementShim`, so `instanceof DocumentFragment` answers `false`
+ * for an element — a check the renderer makes, and one that a shared class would have made true for
+ * everything.
+ */
 export class FragmentShim extends ContainerShim {
   get nodeType(): 11 {
     return 11;
