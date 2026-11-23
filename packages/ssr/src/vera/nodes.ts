@@ -766,11 +766,12 @@ export class TextShim extends CharacterDataShim {
     const name = parent?.localName;
     /**
      * Named, not looked up: a lookup keyed by every parent's name is a megamorphic load on every text node written. Raw
-     * text is HTML's alone (2026-11-18): an SVG or MathML `<style>`'s content is markup to a browser, so its text is
-     * escaped as text — raw-text escaping there let a value end the element and break out of it. A JSON data block's
-     * text keeps `<` out as `\u003c` (`escapeRawText`'s `json`): the static tier writes one here.
+     * text is decided by WHERE THE BROWSER PARSES the element (`parsedAsHtml`), not by the namespace it was created in
+     * (2026-11-23): an HTML `<style>` appended to an `<svg>` is served as `<svg><style>`, which a browser reads as SVG's,
+     * its content markup, so raw text there let `<img onerror=…>` run in Chromium, Firefox and WebKit. A JSON data
+     * block's text keeps `<` out as `\u003c` (`escapeRawText`'s `json`): the static tier writes one here.
      */
-    return (name === 'style' || name === 'script') && parent!._ns === HTML_NS
+    return (name === 'style' || name === 'script') && parsedAsHtml(parent as unknown as Ancestry)
       ? escapeRawText(this._data, name === 'script' && JSON_BLOCK.test((parent as unknown as ElementShim).getAttribute('type') ?? '') ? 'json' : name)
       : escapeHtml(this._data);
   }
@@ -787,6 +788,24 @@ export class TextShim extends CharacterDataShim {
     return tail;
   }
 }
+
+/** What the walk reads of a node: its parent, and an element's namespace. */
+type Ancestry = { readonly _parent: Ancestry | null; readonly _ns?: string };
+/**
+ * **Whether a browser parses this element as HTML where it is served**: its nearest ancestor outside HTML's namespace
+ * decides, by the space that ancestor's content is parsed in (`contentSpace`: an `<svg>` or `<math>` element's is
+ * foreign, a `<foreignObject>` or `<mi>`'s is HTML); with none, it is HTML. An HTML element between them is passed
+ * over whether or not it would break out of the foreign content, so a doubtful element's text is escaped: wrong only in
+ * how CSS reads `&gt;`, never in what runs. Read only for a `<style>` or `<script>`'s text.
+ */
+const parsedAsHtml = (element: Ancestry): boolean => {
+  for (let at = element._parent; at !== null; at = at._parent) {
+    if (at._ns === undefined || at._ns === HTML_NS) continue;
+    const space = contentSpace(at as unknown as ElementShim);
+    return space !== 'svg' && space !== 'math';
+  }
+  return true;
+};
 
 export class CommentShim extends CharacterDataShim {
   get nodeType(): 8 {

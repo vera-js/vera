@@ -1290,3 +1290,19 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   27.2 (Playwright 1.65, headed); with no served root (the control) the root was `'manual'` and only the assigned child
   slotted. Served with `shadowrootslotassignment="manual"` on the template, the root was `'manual'` and `assign()` took
   effect in all three. Consequence: `@verajs/ssr` writes that attribute for a root opened with `slotAssignment: 'manual'`.
+- **A script's text runs on past a `</script>` while it is double-escaped.** `<script><!--` then `var s =
+  '<script src=a.js></script>';` then `//--></script><p>after</p>`, parsed: ONE script, holding every line up to the
+  second `</script>`, then the `<p>`, in Chromium 159, Firefox 159 and WebKit 27.2 (Playwright 1.65, headless); a
+  script with `<!--` but no inner `<script` ended at its first `</script>` (the control). This is the standard's
+  escaped and double-escaped script-data states. Consequence: `@verajs/ssr` finds a script's end by those states, in its
+  template compiler and its DOM parser alike; a hole in such text is a script hole (`ssr-script-hole`).
+- **A quote or a leading `=` is part of an attribute name.** `<script x"type="application/json">` has the one
+  attribute `x"type` and `<script =type="application/json">` the one attribute `=type`, neither a `type`, in all three
+  engines (same run); `<script a'b type='application/json'>` keeps its `type` (the control). Consequence: the data-block
+  judgment (`dataBlock`, client and server) reads names as the parser does, so such a script is code, and a hole in it
+  is refused on both sides.
+- **An element's text inside an `<svg>` is markup unless an integration point intervenes.** `<svg><style><img src=x
+  onerror=…></style></svg>` parses the `<img>` as an element, breaking out of the svg, in all three engines (same run):
+  an HTML `<style>` appended to an `<svg>` through the DOM is served there as SVG's. Consequence: `@verajs/ssr` writes a
+  `<style>` or `<script>`'s text raw only where its nearest non-HTML ancestor's content is HTML (`foreignObject`,
+  `desc`, `title`, a MathML text integration point) or there is none, and escapes it elsewhere.

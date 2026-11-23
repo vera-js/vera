@@ -31,6 +31,31 @@ const { slots } = await import('@verajs/renderer/slots');
 wire([slots]);
 
 const check = process.argv.includes('--check');
+
+/**
+ * **Shapes where the server's reading of markup must be the browser's**, served by the real server for
+ * `tests/browser/ssr-parse-agreement.test.js`: a `<` inside a quoted static value before a bound name written again;
+ * an HTML `<style>` appended to an `<svg>` through the server's DOM; and a script whose text is double-escaped, as the
+ * server's DOM parser reads it (how many scripts, and the first one's text).
+ */
+const DOUBLE_ESCAPED = "<script><!--\nvar s = '<script src=a.js></script>';\nwindow.ssrDoubleEscaped = 1;\n//--></script><p>after</p>";
+const parseAgreement = async () => {
+  const { html } = await import('@verajs/core');
+  const { serializeTemplate } = await import('@verajs/ssr');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const style = document.createElement('style');
+  style.textContent = '<img src=x onerror="window.ssrSvgStyleRan = 1">';
+  svg.append(style);
+  const holder = document.createElement('div');
+  holder.innerHTML = DOUBLE_ESCAPED;
+  return {
+    quotedLt: serializeTemplate(html`<input title="a <i value=1" value=${'x onclick=window.ssrQuotedLtRan=1 y'}>`),
+    svgStyle: svg.outerHTML,
+    doubleEscaped: DOUBLE_ESCAPED,
+    doubleEscapedScripts: holder.querySelectorAll('script').length,
+    doubleEscapedText: holder.querySelector('script')?.textContent ?? null,
+  };
+};
 const target = new URL('../tests/browser/fixtures/hello-ssr.html.js', import.meta.url);
 
 const fixture = async (name, options) =>
@@ -96,6 +121,7 @@ const contents =
    * copy only once script runs), wrapped as `@verajs/styles` wraps a light component's sheet, keyframes included, which
    * is the part only a real engine can judge.
    */
+  `export const PARSE_AGREEMENT = ${JSON.stringify(await parseAgreement())};\n` +
   `export const SPINNER_SSR = ${JSON.stringify(
     await renderToString(new URL('../packages/components/spinner/dist/vera-spinner.min.js', import.meta.url), {
       tag: 'vera-spinner',

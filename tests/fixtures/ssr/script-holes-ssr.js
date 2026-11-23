@@ -11,6 +11,15 @@ export const SHAPES = [
   ['json', () => html`<script type="application/json">${V}</script>`, true],
   ['ld+json', () => html`<script type="application/ld+json">${V}</script>`, true],
   ['two holes in one block', () => html`<script type="application/json">{"a":${'1'},"b":${'2'}}</script>`, true],
+  /** A quote or a leading `=` is part of a name: no `type` here, so the script runs (2026-11-23). */
+  ['a quote inside the name before type', () => html`<script x"type="application/json">${V}</script>`, false],
+  ['a name that starts with =', () => html`<script =type="application/json">${V}</script>`, false],
+  /** Double-escaped script text (`<!--` then `<script`): the first `</script>` ends nothing, so the hole is in the code. */
+  /** Served: the block's statics go out with `<` as `\u003c` too, so the page never enters an escape state. */
+  ['a JSON block whose text holds <!--<script>', () => html`<script type="application/json"><!--<script>${V}</script></script>`, true],
+  /** The same across a split: the double escape opens in one static and the hole follows in the next. */
+  ['a hole after a split double-escaped </script>', () => html`<script><!--<script></script>${V}</script>`, false],
+  ['a hole after a double-escaped </script>', () => html`<script><!--\nvar s = '<script src=a.js></script>';\nvar n = ${V};\n//--></script>`, false],
   ['a parameter (inert)', () => html`<script type="text/javascript; x=json">${V}</script>`, true],
   ['plain', () => html`<script>${'zq()'}</script>`, false],
   ['module', () => html`<script type="module">${'zq()'}</script>`, false],

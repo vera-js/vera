@@ -293,13 +293,42 @@ test("openingTags: the tag at every hole is exactly the per-hole function's", ()
  * static by static, and neither assumes it equals one scan of the concatenation — it does not, by design: a hole is a
  * token boundary (a `<!` and a `--` in two statics are no comment, a raw closer split by a hole ends nothing, an
  * `encoding` is read whole within one static). Where a split falls just after a `>`, the carried scan IS the whole
- * one, every carried field but `encoding`, and that too unless the split falls inside an attribute value. Held here, so
- * a change to the tokenizer that makes a boundary matter somewhere new is seen.
+ * one, every carried field but `encoding`, and that too unless the split falls inside an attribute value; and but a
+ * split inside a script's text after a `<!--` (2026-11-23): each static starts in plain script data, as a hole is a token
+ * boundary there too (a hole in a script is refused unless it is a JSON block, whose statics are served with `<` as
+ * `\u003c`, so the page itself never enters an escape state). Held here, so a change to the tokenizer that makes a
+ * boundary matter somewhere new is seen.
  */
+/**
+ * What makes a split inside a script's escaped text safe to read from plain script data, asserted for each one: a hole
+ * there is refused (a classic script's), or it is a JSON block's, served with no raw `<` in the block before the value,
+ * so the page itself never enters an escape state.
+ */
+const MARK = 'VALUEMARK';
+const escapeCuts = { refused: 0, served: 0 };
+const servedWithoutEscape = (text, cut, label) => {
+  const strings = Object.assign([text.slice(0, cut), text.slice(cut)], { raw: [text.slice(0, cut), text.slice(cut)] });
+  let html;
+  try {
+    html = serializeTemplate({ _$litType$: 1, strings, values: [MARK] });
+  } catch (error) {
+    assert.match(String(error?.message), /\((?:ssr-[a-z-]+|tag-hole|script-hole)\)/, `refused, by a code (${label})`);
+    escapeCuts.refused++;
+    return;
+  }
+  const at = html.indexOf(MARK);
+  if (at === -1) return;
+  const opener = [...html.slice(0, at).matchAll(/<script\b[^>]*>/gi)].pop();
+  assert.ok(opener, `a value served in script text has its script (${label}): ${html}`);
+  const before = html.slice(opener.index + opener[0].length, at);
+  assert.equal(before.includes('<'), false, `served in a script, with no raw < before it in the block (${label}): ${html}`);
+  escapeCuts.served++;
+};
 const FIELDS = ['inTag', 'phase', 'inValue', 'quote', 'rawTag', 'tagName', 'attrName', 'closing', 'inert', 'comment', 'textTag', 'foreign', 'attrRaw'];
 test('scanTag: carried across splits after a `>`, the state is the whole text\'s', () => {
   let compared = 0;
   let inValue = 0;
+  let inEscape = 0;
   let anywhere = 0;
   for (const seed of SEEDS) {
     const random = lcg(seed ^ 0xc4a7);
@@ -310,10 +339,17 @@ test('scanTag: carried across splits after a `>`, the state is the whole text\'s
       let state = freshScan(0);
       let from = 0;
       let cutInValue = false;
+      let escapeCut = -1;
       for (const cut of [...cuts, text.length]) {
         state = scanTag(text.slice(from, cut), state);
         if (cut < text.length && state.inValue) cutInValue = true;
+        if (cut < text.length && escapeCut === -1 && state.rawTag === 'script' && text.slice(0, cut).includes('<!--')) escapeCut = cut;
         from = cut;
+      }
+      if (escapeCut !== -1) {
+        inEscape++;
+        servedWithoutEscape(text, escapeCut, `seed ${seed} case ${c}: ${JSON.stringify(text)} cut at ${escapeCut}`);
+        continue;
       }
       const label = `seed ${seed} case ${c}: ${JSON.stringify(text)} cut at ${cuts}`;
       for (const field of FIELDS) assert.equal(state[field], whole[field], `scanTag: ${field} differs carried across splits after a \`>\` (${label})`);
@@ -327,8 +363,9 @@ test('scanTag: carried across splits after a `>`, the state is the whole text\'s
       if (FIELDS.some((field) => split[field] !== whole[field])) anywhere++;
     }
   }
-  console.log(`scanTag: ${compared} texts split after a \`>\` (${inValue} with a split inside a value); a split anywhere changed the state of ${anywhere}`);
+  console.log(`scanTag: ${compared} texts split after a \`>\` (${inValue} with a split inside a value; ${inEscape} inside a script's escaped text, checked instead: ${escapeCuts.refused} refused, ${escapeCuts.served} served with no raw < in the block); a split anywhere changed the state of ${anywhere}`);
   assert.ok(compared >= 5000, `the corpus is broken, not the property: ${compared} texts split`);
+  assert.ok(escapeCuts.refused >= 100, `CONTROL: splits inside escaped script text were checked (${escapeCuts.refused} refused)`);
 });
 
 /**

@@ -261,9 +261,10 @@ export const JSON_BLOCK = /json\s*$/i;
  * ending in `json`. The only script a bound value may enter on the server (`ssr-script-hole`). Its name compare keeps the
  * twin's native `toLowerCase`, not the ASCII fold the rest of this server uses: compared with `type`, the two answer
  * alike, since no character outside ASCII lowercases to anything holding `t`, `y`, `p` or `e` (every code point checked).
+ * Names are read as the parser reads them, a quote or a leading `=` included (see the twin).
  */
 export const dataBlock = (openTag: string) => {
-  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\t\n\f\r /]*([^\t\n\f\r "'>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r >]*)))?/g))
+  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\t\n\f\r /]*([^\t\n\f\r />][^\t\n\f\r />=]*)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r >]*)))?/g))
     if (name!.toLowerCase() === 'type') {
       const type = double ?? single ?? bare ?? '';
       return !type.includes('&') && JSON_BLOCK.test(type);

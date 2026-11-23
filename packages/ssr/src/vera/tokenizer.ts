@@ -206,14 +206,63 @@ const cdataHere = (opens: Open[], text: string, from: number): boolean => {
  * and `compile` for the static after a JSON block's or a style's hole. That end used to be carried in every scan's
  * answer (`rawUntil`), which cost the `.innerHTML` scan about 0.5% per render, counted (2026-11-19; the store and the
  * answer's extra field together), and was read only there. A search from a fresh start is exact because the rule is
- * STATELESS: `indexOf('</')`, a lowercase name compare and `endsName`, with no escape state carried from one static
- * to the next. If the tokenizer ever learns script-data escape states, a search from a fresh start stops being exact.
+ * STATELESS for every element but `<script>`: `indexOf('</')`, a lowercase name compare and `endsName`. A script's
+ * text has escape states (`scriptCloserAt`). The one search that starts after a script hole, at a JSON block's end
+ * (`closeRawSlot`), starts fresh on purpose: a block's statics are served with every `<` as `\u003c`, so the served
+ * page never enters an escape state, and the block ends where that search ends it.
  */
 const closerAt = (text: string, from: number, name: string): number => {
+  if (name === 'script') return scriptCloserAt(text, from);
   const length = text.length;
   for (let at = text.indexOf('</', from); at !== -1; at = text.indexOf('</', at + 2)) {
     const after = at + 2 + name.length;
     if (asciiLower(text.slice(at + 2, after)) === name && (after >= length || endsName(text[after]))) return at;
+  }
+  return -1;
+};
+
+/** Whether `script`, any case, starts at `at` and ends a name there (or the text ends). */
+const scriptNameAt = (text: string, at: number): boolean =>
+  asciiLower(text.slice(at, at + 6)) === 'script' && (at + 6 >= text.length || endsName(text[at + 6]));
+
+/**
+ * **Where a `<script>`'s text ends, by the parser's script-data states** (2026-11-23). `<!--` enters the ESCAPED state,
+ * where a `<script` enters the DOUBLE-ESCAPED one, in which `</script>` does not end the element (it returns to
+ * escaped); `-->` returns to plain script data from either. `<script><!--\n'<script src=a.js></script>'\nvar n = …`
+ * runs on past that first `</script>` in Chromium, Firefox and WebKit, and a search for the first one put the rest of
+ * the script, a hole included, outside it: the value was served as escaped TEXT inside code that runs. At the end of
+ * the text a `</script` still counts as an end in the plain and escaped states, as `closerAt` counts one. Each static
+ * starts in plain script data: a hole is a token boundary, and one inside a script's text is refused unless the script
+ * is a JSON data block, whose statics are served with every `<` as `\u003c`, so the page itself never enters an escape
+ * state there.
+ */
+const scriptCloserAt = (text: string, from: number): number => {
+  /** 0: script data; 1: escaped; 2: double-escaped. */
+  let state = 0;
+  for (let at = from; at < text.length; at++) {
+    const c = text.charCodeAt(at);
+    /** `-->` ends an escape, of either depth. */
+    if (c === 45) {
+      if (state !== 0 && text.startsWith('-->', at)) {
+        state = 0;
+        at += 2;
+      }
+      continue;
+    }
+    if (c !== 60) continue;
+    if (text.charCodeAt(at + 1) === 47) {
+      if (!scriptNameAt(text, at + 2)) continue;
+      if (state !== 2) return at;
+      state = 1;
+      at += 7;
+    } else if (state === 0 && text.startsWith('!--', at + 1)) {
+      /** On to the `!`: the `--` it opens with can be the `-->` that closes it (`<!-->`). */
+      state = 1;
+      at += 1;
+    } else if (state === 1 && scriptNameAt(text, at + 1)) {
+      state = 2;
+      at += 6;
+    }
   }
   return -1;
 };

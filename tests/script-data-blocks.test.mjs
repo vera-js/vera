@@ -37,6 +37,8 @@ test('the rule, on start tags as written: the first type, read in attribute orde
     '<script type="application/json" type="text/javascript">': true, '<script type="text/javascript" type="application/json">': false,
     '<script>': false, '<script type="">': false, '<script type>': false, '<script type="module">': false,
     '<script type="application&#47;json">': false, '<script data-x=" type=application/json">': false, '<script data-x=">" type="application/json">': true,
+    /** A name as the parser reads it (2026-11-23): `x"type` and `=type` are names of their own, and the script runs. */
+    '<script x"type="application/json">': false, '<script =type="application/json">': false, "<script a'b type='application/json'>": true,
   };
   for (const [tag, expected] of Object.entries(cases)) assert.equal(dataBlock(tag), expected, tag);
 });

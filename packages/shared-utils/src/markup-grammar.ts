@@ -167,10 +167,13 @@ export const JSON_BLOCK = /json\s*$/i;
  * holding no `&` (a character reference is refused rather than decoded — a decoder slightly off would make the server
  * and the client disagree) and ending in `json` (`JSON_BLOCK`). Every side applies it to the start tag that OPENED the
  * script a hole sits in — recorded where the scanner enters raw text, never found by searching back (a `<script…>`
- * inside a script's own text is no start tag). `@verajs/ssr` holds a twin, held equal by a test.
+ * inside a script's own text is no start tag). `@verajs/ssr` holds a twin, held equal by a test. A name is read as the
+ * parser reads one (2026-11-23): from any character but whitespace, `/` and `>`, a quote or `=` included, so
+ * `<script x"type="application/json">` holds the attribute `x"type` and no `type`, and runs its text as code in
+ * Chromium, Firefox and WebKit; the name pattern used to skip the quote and find a `type` there.
  */
 export const dataBlock = (openTag: string) => {
-  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\t\n\f\r /]*([^\t\n\f\r "'>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r >]*)))?/g))
+  for (const [, name, double, single, bare] of openTag.slice(7).matchAll(/[\t\n\f\r /]*([^\t\n\f\r />][^\t\n\f\r />=]*)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r >]*)))?/g))
     if (name!.toLowerCase() === 'type') {
       const type = double ?? single ?? bare ?? '';
       return !type.includes('&') && JSON_BLOCK.test(type);

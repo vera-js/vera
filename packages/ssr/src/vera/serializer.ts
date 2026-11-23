@@ -595,6 +595,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   let wasInTag = false;
   /** Carried across statics — see `scanTag`. */
   let tagState: ScanStart | ScanResult = freshScan(depth);
+  /** Whether a binding here edits an open tag it wrote: a name written again, or a spread (see `valueLtsEscaped`). */
+  let edits = false;
   /** Per binding: whether a component property's name is a URL sink. */
   const urls: Array<boolean | undefined> = [];
   /**
@@ -789,7 +791,9 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       if (kinds[joinAt] === DROPPED) joinAt = -1;
       pieces = tagState.valueStart === strings[i].length ? undefined : leadPieces(strings[i], tagState.valueStart);
       names.push(sigilName);
-      strip.push(dynamicTag || written.has(asciiLower(sigilName)));
+      const again = dynamicTag || written.has(asciiLower(sigilName));
+      if (again) edits = true;
+      strip.push(again);
       owners.push(owner);
       raws.push(tagState.rawTag);
       elementPositions.push(false);
@@ -847,6 +851,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         const sink = URL_SINK.exec(lower);
         record(before);
         parts.push(before);
+        const again = dynamicTag || written.has(lower);
+        if (again) edits = true;
         group = {
           name: tagState.attrRaw,
           /** Everything the render writes before the value: the separating space, the name, `=` and the quote. */
@@ -863,7 +869,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
            */
           refuse: inert || lower === 'srcdoc' || INLINE_HANDLER.test(lower) || ((owner === 'script' || owner === 'base') && sink !== null && sink[1] !== undefined) ? 1 : sink === null ? 0 : sink[1] ? 2 : 3,
           /** An earlier write of this name in the tag: the client's `setAttribute` replaces it, so it is removed. */
-          strip: dynamicTag || written.has(lower),
+          strip: again,
           /** The WHOLE value is this one binding — the only shape where a nullish value removes the attribute. */
           sole: prefix === '',
           suffix: '',
@@ -926,6 +932,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     if (elementPosition && !tagNameHole && (NAME_CHAR_BEFORE.test(part) || NAME_CHAR_AFTER.test(strings[i + 1])))
       nameHole(part, strings[i + 1]);
     elementPositions.push(elementPosition);
+    if (elementPosition) edits = true;
     elements.push(elementOrdinal);
     /** A spread's keys are unknown until it runs, so its tag can no longer be settled here. */
     if (elementPosition) dynamicTag = true;
@@ -1016,6 +1023,16 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     styleTails.push(raws[i] !== 'style' || before.length < 6 || before.lastIndexOf('<') >= before.length - 6 ? 0 : parts[i + 1]!.charCodeAt(0) === 47 ? 2 : 1);
   }
   /**
+   * A template that edits an open tag it wrote (a name written again, a spread) finds that tag by its last `<`: if a
+   * quoted static value holds one, it is compiled once more with each written `&#60;` (`valueLtsEscaped`), its plan
+   * filed under the author's strings too. Asked here and only of such templates, not in the scan every template gets:
+   * there, an `indexOf` per quoted value cost compile 1–3% (measured 2026-11-23).
+   */
+  if (edits) {
+    const escaped = valueLtsEscaped(strings, depth);
+    if (escaped !== strings) return filed(strings, depth, compile(escaped, depth)!);
+  }
+  /**
    * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
    * through to the prototype chain on every child binding of every render — measured at about 3% of a server render.
    * Built in a loop, not `Array.from` with a callback, which cost compile about a fifth of its time (2026-11-20).
@@ -1032,6 +1049,11 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     texts: denseTexts,
     elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails,
   };
+  return filed(strings, depth, plan);
+};
+
+/** A plan, filed under its template's strings at this depth, and returned. */
+const filed = (strings: TemplateStringsArray, depth: number, plan: Plan): Plan => {
   if (depth === 0) plans.set(strings, plan);
   else {
     let byDepth = foreignPlans.get(strings);
@@ -1039,6 +1061,44 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     byDepth.set(depth, plan);
   }
   return plan;
+};
+
+/**
+ * **A `<` inside a quoted static attribute value, written `&#60;`** (2026-11-23). A binding or spread that writes a
+ * name again first removes the earlier write from the open tag being built, and that tag is found by the last `<`
+ * written. No VALUE can hold one (values are escaped), but a template's own static could: in
+ * `<input title="a <i value=1" value=${v}>` the edit read `<i value=1"` as the tag, removed `value=1"` with the quote
+ * that closed `title`, and `v` was served outside every quote, its `onclick=…` a live attribute in Chromium, Firefox
+ * and WebKit. `&#60;` is the same `<` to every parser, so the element is unchanged, and no raw `<` follows a tag's own.
+ * Quoted values alone: after an unquoted value or inside a name, a tag read from that `<` reads what follows as the
+ * parser does. The author's own strings when none holds one.
+ */
+const valueLtsEscaped = (strings: TemplateStringsArray, depth: number): TemplateStringsArray => {
+  const escaped: string[] = [];
+  let found = false;
+  let state: ScanStart | ScanResult = freshScan(depth);
+  for (let k = 0; k < strings.length; k++) {
+    const text = strings[k]!;
+    const start = { ...state, opens: state.opens.slice() };
+    state = scanTag(text, state);
+    let written = '';
+    let from = 0;
+    /**
+     * Only the tag still open where a hole follows is ever edited, so only a `<` inside it is asked about: the scan up
+     * to it says whether it sits in a quoted value. Every other `<` is left as written, and a page-sized static costs
+     * one scan, not one per `<` in it.
+     */
+    if (k < strings.length - 1 && state.inTag)
+      for (let at = text.indexOf('<', state.tagAt + 1); at !== -1; at = text.indexOf('<', at + 1)) {
+        const there = scanTag(text.slice(0, at), { ...start, opens: start.opens.slice() });
+        if (!there.inValue || there.quote === '') continue;
+        written += text.slice(from, at) + '&#60;';
+        from = at + 1;
+      }
+    if (from !== 0) found = true;
+    escaped.push(written + text.slice(from));
+  }
+  return found ? (Object.assign(escaped, { raw: escaped }) as unknown as TemplateStringsArray) : strings;
 };
 
 /**
