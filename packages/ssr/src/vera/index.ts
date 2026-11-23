@@ -40,6 +40,7 @@ import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
 import { currentRenderingTag } from './stylesheets.js';
 import { discard as discardFrames } from './frames.js';
+import { inRender, stale } from './render-context.js';
 import type { ElementShim, ShadowRootShim } from './nodes.js';
 import { INLINE_HANDLER, asciiLower, thrownMessage } from './escaping.js';
 import { PROSE } from './diagnostics.js';
@@ -74,7 +75,7 @@ type Assembled = { open: string; inner: string };
 /** An option `CHECKS` validates, or the module URL. */
 type Checked = keyof SsrRenderOptions | 'url';
 
-installShims();
+installShims(stale);
 const { wire, inserts, flush } = await import('@verajs/core');
 /**
  * **A process with working web storage** hands it to every component this renders, because they run against the
@@ -485,7 +486,7 @@ const entryTags = new Map<string, string>();
  */
 let turn: Promise<unknown> = Promise.resolve();
 const takeTurn = <T>(work: () => Promise<T>): Promise<T> => {
-  const mine = turn.then(work);
+  const mine = turn.then(() => inRender(work));
   turn = mine.then(
     () => undefined,
     () => undefined

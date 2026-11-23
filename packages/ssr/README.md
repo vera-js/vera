@@ -103,7 +103,10 @@ budget runs out the render serves what it has and warns, in every build, naming 
 for the life of the process, as every ssr warning is: the page served is not the one its code describes, so raise
 `timeout` if the wait is real or find the promise that never settles.
 There is deliberately no way to wait without limit: `timeout: 0` means wait for nothing, and the largest value is
-2147483647 ms.
+2147483647 ms. What a served-at-its-budget render left running still resolves later, but it cannot touch the next
+render: a `document.title` it writes or a frame it requests then is dropped, silently (that render's `ssr-timeout`
+warning already named the component), so each page keeps its own title. That takes Node's `AsyncLocalStorage`; where
+the runtime has none (a browser Web Worker, Node before 20.16), the package renders as before, without the guard.
 
 **What ssr says, and how.** Every line ends with its code — the full explanation of a code is at
 `https://verajs.dev/e/<code>` — and keeps its whole sentence in every build, since a server's log is read by its

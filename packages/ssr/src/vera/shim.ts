@@ -311,7 +311,11 @@ export const LOCATION_PARTS = [
   'href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin',
 ] as const;
 
-export const installShims = () => {
+/**
+ * `stale` answers whether the work running now belongs to a render that has settled (`render-context.ts`): handed in by
+ * the caller, so this module imports nothing of it — imported here, it cost the cold compile 1–3% (measured 2026-11-23).
+ */
+export const installShims = (stale: () => boolean) => {
   if ((globalThis as ShimmedGlobal)._$ssr$) return registry;
   (globalThis as ShimmedGlobal)._$ssr$ = true;
   /**
@@ -356,8 +360,20 @@ export const installShims = () => {
    *
    * The document is a literal rather than a class — it has one instance and no subclasses — so it
    * is given this prototype rather than built from it.
+   *
+   * `title` is the prototype's accessor over an own data field, as a browser's document has it: an accessor in the
+   * document's literal made the document a slower object, and every compile that reads it paid (measured 2026-11-23).
    */
-  globalThis.Document = (class Document {}) as unknown as typeof Document;
+  globalThis.Document = (class Document {
+    declare _title: string;
+    get title(): string {
+      return this._title;
+    }
+    /** A write from a render that is no longer current (a timed-out one's late continuation) is refused. */
+    set title(value: string) {
+      if (!stale()) this._title = String(value);
+    }
+  }) as unknown as typeof Document;
   Object.defineProperty(globalThis.Document.prototype, 'adoptedStyleSheets', { value: [], writable: true });
   globalThis.DocumentFragment = FragmentShim as unknown as typeof DocumentFragment;
   /** `new Image()` is a spelling of `createElement('img')`, and `Audio` of `createElement('audio')`. */
@@ -517,7 +533,7 @@ export const installShims = () => {
    * reason the containers do: this holds strings, not a tree.
    */
   globalThis.document = ({
-    title: '',
+    _title: '',
     body: createElement('body'),
     documentElement: createElement('html'),
     /**
@@ -957,6 +973,7 @@ export const installShims = () => {
       throw new TypeError(
         `Failed to execute 'requestAnimationFrame' on 'Window': parameter 1 is not of type 'Function'.`
       );
+    if (stale()) return 0;
     return requestFrame(fn, false);
   };
   globalThis.cancelAnimationFrame = (id) => cancelFrame(id, false);

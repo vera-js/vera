@@ -1305,6 +1305,11 @@ For a fair race (each written the way that framework's own js-framework-benchmar
   one attribute grammar, HTML's tokenizer rule, for its DOM's parser and for the rebuild of a nested component, which
   had split `x"title="v"` into `x` plus a `title` nobody wrote. A name led by `=` is kept by the parser but refused by
   `setAttribute`, the server DOM's only way in: its parser declines such markup, and the rebuild skips the name.
+- **A module Web Worker cannot load a graph holding a `node:` import.** A static `import … from 'node:async_hooks'` in
+  `@verajs/ssr` stopped its module loading in a worker in Chromium, Firefox and WebKit (Playwright 1.65, the gate's
+  `ssr-worker` rows, 2026-11-23: "Failed to fetch dynamically imported module" / "error loading dynamically imported
+  module: node:async_hooks"). Consequence: the package, which renders in a worker as well as on Node, takes a Node
+  built-in only through `process.getBuiltinModule` and works without it.
 - **A repeated attribute is its first occurrence.** `<a href="javascript:…" href="/safe">` is a `javascript:` link and
   `<p title="first" TITLE="second">` has the title `first`, in Chromium, Firefox and WebKit (Playwright 1.65, headless,
   2026-11-23, identical, matching parse5): the tokenizer drops a later name already on the tag, case-folded.
