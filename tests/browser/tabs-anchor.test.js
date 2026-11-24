@@ -56,12 +56,23 @@ it('with a transition, the anchored inset slides through values in between when 
   await until(() => afterLeft(list) === a.offsetLeft, 'settled under A', 2000);
   name(a, false);
   name(c, true);
+  /**
+   * Asked of the transition itself, not by polling through it: a stalled main thread (WebKit under the full suite's
+   * load) saw no frame inside the 400 ms and read "no value between". Paused at its midpoint, a sliding inset lies
+   * strictly between A and C; an engine that moves it straight there makes no transition, or one that reads A or C.
+   */
+  afterLeft(list);
+  const slide = document.getAnimations().find((animation) => animation.effect?.target === list && animation.effect.pseudoElement === '::after' && animation.transitionProperty === 'left');
+  if (ENGINE?.name !== 'Firefox') expect(slide !== undefined, `${ON}: a transition of the list's ::after left started when the name moved`).to.equal(true);
   let between = null;
-  await until(() => {
+  if (slide) {
+    slide.pause();
+    slide.currentTime = 200;
     const left = afterLeft(list);
     if (left > a.offsetLeft && left < c.offsetLeft) between = left;
-    return left === c.offsetLeft;
-  }, 'settled under C', 3000);
+    slide.finish();
+  }
+  await until(() => afterLeft(list) === c.offsetLeft, 'settled under C', 3000);
   const slides = ENGINE?.name !== 'Firefox';
-  expect(between !== null, `${ON}: ${slides ? 'a value between A and C was seen: it slid' : 'no value between: it moved straight to C'}`).to.equal(slides);
+  expect(between !== null, `${ON}: ${slides ? 'the transition at its midpoint is between A and C: it slides' : 'no value between: it moved straight to C'}`).to.equal(slides);
 });
