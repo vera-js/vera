@@ -1306,7 +1306,7 @@ Semantics worth stating:
   `autoload()` scans the page on demand, so hand-written static markup works with nothing rendering.
 - Watching is **per-component opt-in**: each component hosting lazily-loaded children needs the
   `data-autoload` attribute. All three attributes are watched, not read once — marking a component
-  `autoloader` later reaches inside a shadow root it already had, repointing `data-autoload-dir` retries
+  `data-autoload` later reaches inside a shadow root it already had, repointing `data-autoload-dir` retries
   from the new location, and removing `data-autoload-ignore` lets an element load.
 - Server-rendered pages work: `autoload()` reaches through declarative shadow DOM, so components
   inside `<template shadowrootmode="open">` load with nothing rendering. An observer cannot cross into a descendant's shadow root, so that child
@@ -1314,6 +1314,8 @@ Semantics worth stating:
 - `data-autoload-dir="alt"` overrides the directory per element; it must resolve **inside the entry
   file's directory** — absolute URLs, `//host`, and `../` escapes are refused. (It is
   `data-autoload-dir`, never HTML's global `dir` attribute.)
+  Keep the entry in a directory of its own: an entry at the site root lets any markup's
+  `data-autoload-dir` name any path on the origin.
 - One load attempt per URL per page load, and one module per **tag** — `<x-y>` and
   `<x-y data-autoload-dir="alt">` are two URLs for one tag, and a tag can only be defined once. The
   second location is tried only if the first fails.

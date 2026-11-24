@@ -139,11 +139,28 @@ const REMOVED = {
   useDismiss: "@vera-hooks/light-dismiss's lightDismiss",
   'ui-defined-twice': 'defined-twice',
   'ui-select-duplicate': 'select-duplicate',
+  /** The autoloader's attributes took the `data-` prefix; its README taught the bare forms for months after. Keyed with
+   *  the delimiter before each, so `data-autoload-dir` never matches; the host marker itself is markup, keyed by its tag in
+   *  `REMOVED_ATTRIBUTES` below. */
+  '[autoloader]': '[data-autoload]',
+  ' autoload-dir': 'data-autoload-dir',
+  '`autoload-dir': '`data-autoload-dir`',
+  ' autoload-ignore': 'data-autoload-ignore',
+  '`autoload-ignore': '`data-autoload-ignore`',
   /** 2026-11-21: `isServer` became a function read when called (core 0.5.0). */
   'if (!isServer)': 'if (!isServer())',
   /** 2026-11-21: one letter from the component packages' `defined-twice`, so core's code was renamed. */
   'define-twice': 'tag-defined-again',
 };
+
+/**
+ * **A removed ATTRIBUTE, which only a pattern can key.** An attribute is markup, wherever it sits in its tag, and its
+ * bare word is ordinary prose ("the autoloader fetches…"): a substring key either misses the attribute when another
+ * follows it in the tag or fires on every sentence naming the module. So the key is the tag: the name as an attribute of one `<…>`, read attribute by attribute so a quoted value that
+ * mentions the module (`caption="… the autoloader fetched …"`) is not it.
+ */
+const ATTRIBUTE = String.raw`\s+[\w:.-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>]+))?`;
+const REMOVED_ATTRIBUTES = [[new RegExp(String.raw`<[a-z][\w.-]*(?:${ATTRIBUTE})*?\s+autoloader(?=[\s=/>])`), '`data-autoload` on the host']];
 
 /**
  * **A retired RULE, which is the half of drift the name list cannot see.**
@@ -294,6 +311,9 @@ test('no documentation teaches an API that was removed', () => {
               `    ${line.trim().slice(0, 96)}`
           );
         }
+        for (const [pattern, instead] of REMOVED_ATTRIBUTES)
+          if (pattern.test(line))
+            problems.push(`${relative(root, file)}:${first + offset + 1} still teaches the attribute ${pattern} — use ${instead}\n    ${line.trim().slice(0, 96)}`);
       });
     }
   }

@@ -3,7 +3,7 @@
 Lazy component loading by tag name — <!--size:autoloader.gzip-->1.87 KB<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
-When an undefined custom element appears inside a component marked `autoloader`, its module is
+When an undefined custom element appears inside a component marked `data-autoload`, its module is
 fetched and defined. No manifest, no import list, no bundler plugin: the tag name *is* the module
 name.
 
@@ -28,7 +28,7 @@ autoload();                // and scan whatever is already on the page
 ```
 
 ```html
-<my-page autoloader>
+<my-page data-autoload>
   <user-card></user-card>   <!-- fetches components/user-card.js the first time it appears -->
 </my-page>
 ```
@@ -40,7 +40,7 @@ omitting `componentsDir` puts components beside the entry file.
 
 | | |
 | --- | --- |
-| `autoload()` | scan the page for `[autoloader]` hosts and watch them |
+| `autoload()` | scan the page for `[data-autoload]` hosts and watch them |
 | `autoload(element)` | watch that component |
 | `autoload(shadowRoot)` | watch that root — no attribute needed, handing it over is the opt-in |
 | `autoload.url(tag)` | the absolute URL it would fetch — **throws** if it would resolve outside `rootDir` |
@@ -64,7 +64,7 @@ markup lands:
   autoloader(import.meta.url, 'components')();
 </script>
 
-<div autoloader>
+<div data-autoload>
   <user-card></user-card>   <!-- loads, though nothing here renders -->
 </div>
 ```
@@ -76,19 +76,19 @@ there.
 
 | | |
 | --- | --- |
-| `autoloader` | on a component, scan its tree for undefined elements. **Opt-in, per component** |
-| `autoload-dir` | on an element, load it from a different directory |
-| `autoload-ignore` | on an element, leave it alone. Applies to that element only, not its subtree |
+| `data-autoload` | on a component, scan its tree for undefined elements. **Opt-in, per component** |
+| `data-autoload-dir` | on an element, load it from a different directory |
+| `data-autoload-ignore` | on an element, leave it alone. Applies to that element only, not its subtree |
 
 Scanning is per-component on purpose: the insert scans the element's own tree, not the shadow roots
 of its descendants, so each component that hosts lazily-loaded children carries the attribute.
 
-It is `autoload-dir`, never HTML's global `dir` — `dir="rtl"` on any internationalized page would
+It is `data-autoload-dir`, never HTML's global `dir` — `dir="rtl"` on any internationalized page would
 otherwise have silently redirected component loading.
 
-**All three are watched, not just read once.** Marking a component `autoloader` after it already has
-a shadow root reaches inside it; repointing `autoload-dir` after a failed attempt tries the new
-location; removing `autoload-ignore` lets an element load. None of that needed a re-insertion, which
+**All three are watched, not just read once.** Marking a component `data-autoload` after it already has
+a shadow root reaches inside it; repointing `data-autoload-dir` after a failed attempt tries the new
+location; removing `data-autoload-ignore` lets an element load. None of that needed a re-insertion, which
 is not a thing that happens.
 
 ## Options
@@ -108,7 +108,7 @@ autoloader(import.meta.url, 'components', {
 });
 ```
 
-`dir` is the element's `autoload-dir` if it has one, otherwise `componentsDir`. The result is still
+`dir` is the element's `data-autoload-dir` if it has one, otherwise `componentsDir`. The result is still
 resolved against the entry file and still bounded by it, so a custom layout cannot reach anywhere
 the default one could not.
 
@@ -116,18 +116,20 @@ the default one could not.
 
 **Every resolved URL must stay inside the entry file's own directory**, and one that does not is
 refused with a console error rather than fetched. Tag names cannot carry a `/` — the HTML parser
-will not produce one — but `autoload-dir` is free text on an element, and turning markup into a
-module URL is exactly the thing that needs bounding.
+will not produce one — but `data-autoload-dir` is free text on an element, and turning markup into a
+module URL is exactly the thing that needs bounding. The bound is the entry file's directory, so keep
+the entry in a directory of its own: an entry at the site root lets any markup's
+`data-autoload-dir` name any path on the origin.
 
 ```html
-<x-y autoload-dir="https://example.com/x"></x-y>   <!-- refused: absolute -->
-<x-y autoload-dir="//example.com/x"></x-y>         <!-- refused: protocol-relative -->
-<x-y autoload-dir="../../../"></x-y>               <!-- refused: escapes upward -->
-<x-y autoload-dir="components?v=2"></x-y>          <!-- refused: ? ends the path -->
+<x-y data-autoload-dir="https://example.com/x"></x-y>   <!-- refused: absolute -->
+<x-y data-autoload-dir="//example.com/x"></x-y>         <!-- refused: protocol-relative -->
+<x-y data-autoload-dir="../../../"></x-y>               <!-- refused: escapes upward -->
+<x-y data-autoload-dir="components?v=2"></x-y>          <!-- refused: ? ends the path -->
 ```
 
 **A directory cannot contain `?` or `#`.** Both end the path, so the tag name would land in the
-query or the fragment: `autoload-dir="components?v=2"` requests `components` with `x-y.js` inside
+query or the fragment: `data-autoload-dir="components?v=2"` requests `components` with `x-y.js` inside
 the query string, and the component file is never asked for. That is a *wrong* module rather than a
 missing one, so it is refused rather than left to 404 — and note that containment does not catch it,
 because such a URL is genuinely inside the entry's directory.
@@ -151,7 +153,7 @@ and moves on, so a hostile attribute costs a console line rather than a broken p
 
 A URL is tried once per page load: a component that 404s logs once and is not retried until reload.
 
-A **tag** is loaded once too, which is a different question. `<x-y>` and `<x-y autoload-dir="alt">`
+A **tag** is loaded once too, which is a different question. `<x-y>` and `<x-y data-autoload-dir="alt">`
 are two URLs for one tag; both used to import, and the second module's `customElements.define('x-y')`
 threw. A tag can only be defined once, so the second location could never have helped — it is tried
 only if the first attempt fails.
@@ -223,7 +225,7 @@ nothing rendering it. `autoload()` reaches through those shadow roots the same a
 server-rendered page loads its components with no framework involvement:
 
 ```html
-<ssr-shell autoloader>
+<ssr-shell data-autoload>
   <template shadowrootmode="open">
     <ssr-child></ssr-child>       <!-- found by autoload() -->
   </template>
@@ -234,7 +236,7 @@ server-rendered page loads its components with no framework involvement:
 
 Watching does not cross into a child component's shadow root on its own — a `MutationObserver`
 cannot, by design — so a child that hosts lazily-loaded elements of its own marks itself
-`autoloader`, or has its root handed over as above. Vera components get this automatically, because
+`data-autoload`, or has its root handed over as above. Vera components get this automatically, because
 the `'render'` insert offers each one up as it renders.
 
 ## What it costs
