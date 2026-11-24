@@ -76,6 +76,7 @@ const CASES = [
   ['createStore(notAnObject)', () => core.createStore(42), /createStore: expected an object/],
   ['effect(fn) outside a setup, with no owner', () => core.effect(() => {}), /an effect: .*\(no-owner\)/s],
   ['effect(notAFunction) with an owner', () => core.effect(undefined, { owner: {} }), /an effect: .*\(callback-not-function\)/s],
+  ['a computed that reads itself', () => { const self = core.computed(() => self.value + 1); return self.value; }, /\(computed-cycle\)/],
   ['applyStyles([notCSS], element)', () => styleModule.applyStyles([42], document.createElement('div')), /applyStyles: expected CSS/],
   ['a frozen store refusing a write', () => { const store = core.createStore(Object.freeze({ n: 1 })); store.n = 2; }, /createStore: this store's source object refused the write/],
   ['html("markup")', () => core.html('<p>x</p>'), /html: expected a template literal/],
