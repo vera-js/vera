@@ -217,22 +217,47 @@ it('transition-mode play: the compositor animates, reverses from current, and li
   expect(t.hasAttribute('data-vm-on'), 'below the line: resting').to.equal(false);
   expect(opacityOf(t), 'base paints, no entry flash').to.be.closeTo(0.1, 0.02);
 
-  /** Cross the line: the marker flips and the compositor owns the next 500ms. */
-  await scrollTo(t.offsetTop);
-  let sawMid = false;
-  let sawOvershoot = false;
-  const t0 = performance.now();
-  while (performance.now() - t0 < 1200) {
-    await new Promise((r) => requestAnimationFrame(r));
-    const v = opacityOf(t);
-    if (v > 0.25 && v < 0.75) sawMid = true;
-    const tf = getComputedStyle(o).transform;
-    if (tf !== 'none' && new DOMMatrix(tf).m42 < -2) sawOvershoot = true;
+  /**
+   * Cross the line: the marker flips and the platform's transition owns the next 500 ms. The mid-range and the dip are
+   * read from the TRANSITION ITSELF, paused and seeked, not caught by polling frames: under a full WebKit suite the main
+   * thread stalled through the whole 500 ms and the poll saw neither (measured on Windows, 2026-11-23, while the row
+   * passed alone). An engine that snapped would make no transition, so the reading still fails it.
+   */
+  /** Both running transitions, `filter` on #t (it carries opacity()) and `transform` on #o, or undefined while either is missing. */
+  const running = () => {
+    const fade = t.getAnimations().find((a) => a.transitionProperty === 'filter');
+    const dip = o.getAnimations().find((a) => a.transitionProperty === 'transform');
+    return fade && dip ? { fade, dip } : undefined;
+  };
+  /**
+   * A stall longer than the 500 ms can let a transition finish before it is found (a finished one leaves
+   * getAnimations()), so up to three entries are tried, each from rest, as the reversal below does.
+   */
+  let pair;
+  for (let attempt = 0; attempt < 3 && pair === undefined; attempt++) {
+    if (attempt > 0) {
+      await scrollTo(0);
+      await until(() => !t.hasAttribute('data-vm-on') && Math.abs(opacityOf(t) - 0.1) < 0.02, 'back at rest before the entry', 5000);
+    }
+    window.scrollTo(0, t.offsetTop);
+    await ever(() => (pair = running()) !== undefined, 2000);
   }
+  expect(pair, 'both transitions were caught running, in three tries').to.be.an('object');
+  const { fade, dip } = pair;
+  /** The value `read` gives with the transition paused at `fraction` of its duration; then it runs on to its end. */
+  const atFraction = (transition, fraction, read) => {
+    transition.pause();
+    transition.currentTime = transition.effect.getTiming().duration * fraction;
+    const value = read();
+    transition.play();
+    return value;
+  };
   expect(t.hasAttribute('data-vm-on'), 'entered: one attribute flip IS the driver').to.equal(true);
-  expect(sawMid, 'the transition PASSED THROUGH the mid-range — animated, not snapped').to.equal(true);
-  expect(opacityOf(t), 'and landed on the authored end').to.be.closeTo(0.9, 0.02);
-  expect(sawOvershoot, 'the synthesized linear() carried the dip PAST the resting value').to.equal(true);
+  const mid = atFraction(fade, 0.5, () => opacityOf(t));
+  expect(mid > 0.25 && mid < 0.75, `the transition PASSES THROUGH the mid-range — animated, not snapped (${mid} at half)`).to.equal(true);
+  const y = atFraction(dip, 0.7, () => new DOMMatrix(getComputedStyle(o).transform).m42);
+  expect(y < -2, `the synthesized linear() carried the dip PAST the resting value (translateY ${y} at 70%)`).to.equal(true);
+  await until(() => Math.abs(opacityOf(t) - 0.9) < 0.02, 'and landed on the authored end', 3000);
 
   /** Reverse mid-flight: back above the line partway through a fresh run — the platform
    *  reverses from the CURRENT value, retimed (the ratified semantics). */
