@@ -147,6 +147,36 @@ it('one component\'s light-DOM styles do not reach another component', async fun
   }
 });
 
+/**
+ * **A name holding `.` is scoped by its tag, not read as a class**: `@scope (x-a.b)` styled a stray `<x-a class="b">`
+ * and left `<x-a.b>` unstyled in all three engines (2026-11-23). The stray element is the control the other way: it
+ * must stay unstyled, so a scope that matched nothing at all cannot pass.
+ */
+it('a light component whose name holds `.` is styled, and a look-alike class is not', async function () {
+  if (typeof CSSScopeRule !== 'function') this.skip();
+  const tag = `x-dot-${seq++}.v`;
+  customElements.define(tag, class extends HTMLElement {
+    static styles = css`b { color: rgb(255, 0, 0); }`;
+    connectedCallback() {
+      init(this, () => () => html`<b>dotted</b>`);
+    }
+  });
+  const el = document.createElement(tag);
+  const [base, cls] = tag.split('.');
+  const stray = document.createElement(base);
+  stray.className = cls;
+  stray.innerHTML = '<b>stray</b>';
+  document.body.append(el, stray);
+  await frame();
+  try {
+    expect(getComputedStyle(el.querySelector('b')).color, 'the component is styled').to.equal('rgb(255, 0, 0)');
+    expect(getComputedStyle(stray.querySelector('b')).color, 'an element of the base name with that class is not').to.not.equal('rgb(255, 0, 0)');
+  } finally {
+    el.remove();
+    stray.remove();
+  }
+});
+
 it('applyStyles falls back to a <style> element for a plain string', () => {
   const el = document.createElement('div');
   document.body.appendChild(el);

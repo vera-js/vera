@@ -361,6 +361,12 @@ from another machine, or after that is undone, has a variable changed.
   component's sheet after a root's own sheets, the document's order (adopted sheets follow the page's), and that order
   decides nothing for this case; only a higher-specificity author rule overrides a component's default, and a deliberate
   cascade position for defaults is the `@layer` design's question. `tests/browser/scope-proximity.test.js`. (2026-11-21)
+- **A custom element name may hold `.`, and a selector naming that tag must escape it.** `x-a.b` is a valid name
+  (`customElements.define` accepts it) in all three engines; `@scope (x-a.b) { … }` reads `.b` as a class, so it styled
+  nothing inside `<x-a.b>` and styled a stray `<x-a class="b">`; CONTROL: `@scope (x-ab)` styles its element, and the
+  escaped `@scope (x-a\.b)` styles `<x-a.b>` and not the stray. Chromium 159, Firefox 159, WebKit 27.2 (Playwright,
+  headless), computed style. Consequence: `@verajs/styles` escapes every ASCII character outside an identifier in the
+  tag it scopes by, by hand (no `CSS.escape` on a server). `tests/browser/styles.test.js`. (2026-11-23)
 
 - **CSS `content` alt text on EMPTY generated content (`::before { content: "" / attr(data-word) " " }`) is spoken
   and never copied; the visible text beside it is what a copy holds.** The `content: <string> / <alt>` syntax parses on

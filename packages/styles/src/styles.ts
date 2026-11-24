@@ -248,7 +248,13 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   /** Development: `::slotted()` only ever matches inside a shadow root — in light DOM an ordinary selector reaches it. */
   if (__DEV__ && /::slotted\s*\(/.test(withoutText(raw)))
     console.warn(diagnostic('styles', `<${element.localName}>`, 'slotted-light', __DEV__ && PROSE['slotted-light']()));
-  const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
+  /**
+   * The tag as a selector: a custom element name may hold `.`, which CSS reads as a class: `@scope (x-a.b)` scoped
+   * nothing of `<x-a.b>` and styled a stray `<x-a class="b">` (Chromium, Firefox, WebKit, 2026-11-23). Every ASCII
+   * character outside an identifier is escaped, by hand (no `CSS.escape` on a server), so a name rule that allows more
+   * punctuation needs no second fix; the server serves this same text, so the client still finds its copy.
+   */
+  const scoped = supported ? `@scope (${element.localName.replace(/[^\w\-\x80-\uffff]/g, '\\$&')}) {\n${cssText}\n}` : cssText;
   /**
    * **The server's copy of this block in this shadow root** (`@verajs/ssr` serves it as `data-vm-sheet="light"`, with
    * this exact text, among the `<style>` elements that open the root), replaced by the adopted sheet in the same task, so

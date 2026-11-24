@@ -506,7 +506,7 @@ wire([renderer, styles]);
 | Export | Notes |
 | --- | --- |
 | `styles` | The module. `wire([renderer, styles])`. |
-| `css` | Tagged template → `{ styleSheet, cssText }`. `import { css } from '@verajs/styles'` — **not** from core. |
+| `css` | Tagged template → `{ styleSheet, cssText }`. `import { css } from '@verajs/styles'` — **not** from core. Its values are CSS source, not escaped: interpolate constants only; a user's value goes in a custom property (`el.style.setProperty('--x', value)`). |
 | `adoptStyles(element)` | What `styles` registers on `'init'` (priority 50); `wire({ on: 'init', fn: adoptStyles, priority })` for another priority. |
 | `applyStyles(styles, element)` | The adoption step alone, for an element this package's `init` insert never sees. |
 
