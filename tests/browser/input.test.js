@@ -495,7 +495,7 @@ describe('vera-input: the box', () => {
     try {
       const quiet = await mount('<label>q <vera-input><input></vera-input></label>');
       const strong = await mount('<div id="strong"><label>q <vera-input><input></vera-input></label></div>');
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await until(() => said.some((line) => line.includes('input-inner-border')), `${ON}: the warning for the box under the stronger rule`, 2000);
       const inner = said.filter((line) => line.includes('input-inner-border'));
       expect(inner.length, `${ON}: one warning, for the box under the stronger rule (said: ${said.join(' | ')})`).to.equal(1);
       expect(inner[0].startsWith('[vera]'), 'the convention prefix').to.equal(true);
@@ -561,13 +561,13 @@ describe('vera-input: the box', () => {
 
 describe('vera-input: the stepper, on a number input', () => {
   const style = (node) => getComputedStyle(node);
-  const centre = (node) => {
+  const center = (node) => {
     const r = node.getBoundingClientRect();
     return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
   };
   /** A real pointer press on `node`, held `ms` before release. */
   const press = async (node, ms = 0) => {
-    await sendMouse({ type: 'move', position: centre(node) });
+    await sendMouse({ type: 'move', position: center(node) });
     await sendMouse({ type: 'down' });
     if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms));
     await sendMouse({ type: 'up' });
