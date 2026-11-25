@@ -30,6 +30,7 @@ import {
   ShadowRootShim,
   ElementShim,
   createElement,
+  guardRoots,
   pendingInstances,
   clearPending,
   stampCount,
@@ -320,6 +321,41 @@ export const LOCATION_PARTS = [
   'href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin',
 ] as const;
 
+/** What a render may change on the shared document and must not hand the next one: the title, the cookie, and the attributes of `<html>` and `<body>` (an empty map is kept as `undefined`, so a render that touched neither copies nothing). */
+export type DocumentState = readonly [title: string, cookie: string | undefined, html: ElementShim, body: ElementShim, htmlAttributes: Map<string, string> | undefined, bodyAttributes: Map<string, string> | undefined];
+type SharedDocument = { _title: string; _cookie: string | undefined; _documentElement: ElementShim; _body: ElementShim };
+
+const copied = (attributes: Map<string, string>): Map<string, string> | undefined => (attributes.size === 0 ? undefined : new Map(attributes));
+const put = (attributes: Map<string, string>, kept: Map<string, string> | undefined): void => {
+  if (kept === undefined) {
+    if (attributes.size !== 0) attributes.clear();
+    return;
+  }
+  attributes.clear();
+  for (const [name, value] of kept) attributes.set(name, value);
+};
+
+/**
+ * **The document a render found, to be put back when it ends** (2026-11-25): one shared document serves every render,
+ * so a `lang`, a body flag or a cookie one request's component set (in time or late) was what the next request's
+ * components read. Taken after the page's module is imported, so what a module sets at its top is the process's, as
+ * a module's own state is; put back on every path, as the location is. The fields are written directly: the put-back
+ * belongs to no render, and the roots refuse only a settled render's writes (`refusedOnRoot`).
+ */
+export const documentState = (): DocumentState => {
+  const shared = globalThis.document as unknown as SharedDocument;
+  return [shared._title, shared._cookie, shared._documentElement, shared._body, copied(shared._documentElement._attributes), copied(shared._body._attributes)];
+};
+export const restoreDocument = (state: DocumentState): void => {
+  const shared = globalThis.document as unknown as SharedDocument;
+  shared._title = state[0];
+  shared._cookie = state[1];
+  shared._documentElement = state[2];
+  shared._body = state[3];
+  put(state[2]._attributes, state[4]);
+  put(state[3]._attributes, state[5]);
+};
+
 /**
  * `stale` answers whether the work running now belongs to a render that has settled (`render-context.ts`): handed in by
  * the caller, so this module imports nothing of it — imported here, it cost the cold compile 1–3% (measured 2026-11-23).
@@ -375,12 +411,43 @@ export const installShims = (stale: () => boolean) => {
    */
   globalThis.Document = (class Document {
     declare _title: string;
+    declare _cookie: string | undefined;
+    declare _body: ElementShim;
+    declare _documentElement: ElementShim;
     get title(): string {
       return this._title;
     }
     /** A write from a render that is no longer current (a timed-out one's late continuation) is refused. */
     set title(value: string) {
       if (!stale()) this._title = String(value);
+    }
+    /**
+     * The two roots the same way (2026-11-25): they were plain properties, so a `<body>` one request's component put in
+     * place was the next request's body, its children and attributes with it. Put back when a render ends
+     * (`documentState`); a settled render's replacement is refused.
+     */
+    get body(): ElementShim {
+      return this._body;
+    }
+    set body(value: ElementShim) {
+      if (!stale()) this._body = value;
+    }
+    get documentElement(): ElementShim {
+      return this._documentElement;
+    }
+    set documentElement(value: ElementShim) {
+      if (!stale()) this._documentElement = value;
+    }
+    /**
+     * `cookie` the same way (2026-11-25): it was a plain property any code could write, so a cookie one request's
+     * component set, in time or late, was what the next request's components read. It still reads `undefined` until a
+     * render writes it (a server has no user's cookies to invent): the accessor exists only to refuse a stale write.
+     */
+    get cookie(): string {
+      return this._cookie as string;
+    }
+    set cookie(value: string) {
+      if (!stale()) this._cookie = String(value);
     }
   }) as unknown as typeof Document;
   Object.defineProperty(globalThis.Document.prototype, 'adoptedStyleSheets', { value: [], writable: true });
@@ -541,10 +608,14 @@ export const installShims = (stale: () => boolean) => {
    * silently is the failure mode this package keeps producing. Queries answer emptily for the same
    * reason the containers do: this holds strings, not a tree.
    */
+  const body = createElement('body');
+  const html = createElement('html');
+  guardRoots(stale, html, body);
   globalThis.document = ({
     _title: '',
-    body: createElement('body'),
-    documentElement: createElement('html'),
+    _cookie: undefined,
+    _body: body,
+    _documentElement: html,
     /**
      * **`body` is what a browser reports when nothing has focus**, and it never answers `null` for a
      * document that exists. `null` here meant `document.activeElement.tagName` — ordinary code —

@@ -1889,6 +1889,9 @@ Rules an assistant must not guess around:
   effects reach the markup through BOTH entry points.
 - Renders take a turn each across both entry points, so concurrent calls cannot see each other's
   state. Pass `location` per call; never assign `globalThis.location`.
+- **What every render shares is put back when it ends**: the title, the `<html>` and `<body>` elements and their
+  attributes (`lang`), and `document.cookie` (`undefined` until a render writes it). A module's top-level writes stay; a write from work a finished
+  render left running is refused.
 - **The page is written top-down, in one pass**: a component's markup is written before its children are built, so
   state a descendant writes during its own setup is not in an ancestor's served markup (the browser re-renders the
   ancestor on that write). Settle shared state in the ancestor's setup or before the render.

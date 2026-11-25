@@ -1191,7 +1191,6 @@ export const OUT_OF_SCOPE = {
     "preferredStyleSheetSet": "needs a viewport and a user gesture",
     "selectedStyleSheetSet": "needs a viewport and a user gesture",
     "styleSheetSets": "needs a viewport and a user gesture",
-    "cookie": "per-user state a server must not invent",
     "hasStorageAccess": "per-user state a server must not invent",
     "requestStorageAccess": "per-user state a server must not invent",
     "requestStorageAccessFor": "per-user state a server must not invent",

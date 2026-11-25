@@ -2195,6 +2195,7 @@ export class ElementShim extends ContainerShim {
     return this._attributes.has(name) ? this._attributes.get(name)! : null;
   }
   setAttribute(name: string, value: unknown): void {
+    if (refusedOnRoot(this)) return;
     name = this._name(name);
     /**
      * **A name the platform refuses is refused here**, because the alternative is worse than a
@@ -2220,6 +2221,7 @@ export class ElementShim extends ContainerShim {
    * for an attribute that was already there, which silently erased it.
    */
   toggleAttribute(name: string, force?: boolean): boolean {
+    if (refusedOnRoot(this)) return this.hasAttribute(name);
     name = this._name(name);
     if (name === '' || UNUSABLE_IN_A_NAME.test(name))
       throw new DOMException(
@@ -2319,6 +2321,7 @@ export class ElementShim extends ContainerShim {
     styleView(this).cssText = value === null ? '' : `${value}`;
   }
   removeAttribute(name: string): void {
+    if (refusedOnRoot(this)) return;
     name = this._name(name);
     if (!this._attributes.has(name)) return;
     const previous = this.getAttribute(name);
@@ -2761,6 +2764,27 @@ const build = (name: string, namespaceURI: string = HTML_NS): ElementShim => {
   const Element = namespaceURI === HTML_NS ? (name === 'template' ? templateElement() : interfaceFor(name, ElementShim)) : ElementShim;
   return new Element(name, namespaceURI, MADE);
 };
+
+/**
+ * **A settled render's write to the document's `<html>` or `<body>` is refused** (2026-11-25), as `document.title`'s
+ * is: work a render left running (a timed-out continuation, a timer) would otherwise set what the next request's
+ * components read (`lang`, a body flag). The node is compared with the two roots the document was made with, handed in
+ * once by `installShims` with its `stale`: two pointer compares per write. Reading the live roots instead (a global
+ * load and two getters at every `setAttribute`) cost attribute-heavy renders 1–3.4%, measured, Node, 2026-11-25. The
+ * originals are enough: a settled render cannot replace a root (the accessors refuse it), and a root a render put in
+ * place in time is replaced by the original when it ends, so a late write to it reaches nothing a later render reads.
+ * The roots stay ordinary elements: a class of their own made every walk that met them polymorphic (`getElementById`
+ * over 2000 ids +27%, measured, Node, 2026-11-25).
+ */
+let staleRender: () => boolean = () => false;
+let htmlRoot: ElementShim | undefined;
+let bodyRoot: ElementShim | undefined;
+export const guardRoots = (stale: () => boolean, html: ElementShim, body: ElementShim): void => {
+  staleRender = stale;
+  htmlRoot = html;
+  bodyRoot = body;
+};
+const refusedOnRoot = (node: ElementShim): boolean => (node === bodyRoot || node === htmlRoot) && staleRender();
 
 /**
  * **An HTML `<template>`'s markup is its CONTENT, a fragment of its own, never its children** (2026-11-23), as in

@@ -91,7 +91,10 @@ and a request does not: the call awaits `import()`, which yields on a module's f
 whichever request assigned last wins for every render after it. Measured with three concurrent
 first-time imports, two of three rendered another request's path. The option is applied inside the
 render's turn and restored in a `finally`. `title` is returned rather than left on the global for the
-same reason, and the document's own title is restored afterwards. **Renders take turns**, process-wide: two
+same reason, and the document's own title is restored afterwards, with the rest of what every render shares: the
+`<html>` and `<body>` elements and their attributes (`lang`, a flag on the body), and `document.cookie`, which reads `undefined` until a render
+writes it (a server has no user's cookies). What a page's module sets at its top stays, as its own state does; what work a render left running writes
+after the render ended is refused. **Renders take turns**, process-wide: two
 calls made together run one after the other, so no render ever sees another's frames, adopted stylesheets or
 globals (measured: two `renderToStringAsync` calls started at once finish at 154 ms and 255 ms, the second's
 budget starting at its turn).

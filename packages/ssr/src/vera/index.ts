@@ -36,6 +36,8 @@ import {
   INSTANCE_ATTRIBUTE,
   unmarked,
   LOCATION_PARTS,
+  documentState,
+  restoreDocument,
 } from './shim.js';
 import { UNSAFE_ATTRIBUTE_NAME, serializeTemplate, serializeValue } from './serializer.js';
 import { decode as decodeEntities, heldAt } from './parse.js';
@@ -604,11 +606,12 @@ const renderModule = async (
     throw own(new Error(ssrMisuse('ssr-renderer-replaced', PROSE['ssr-renderer-replaced']!())));
 
   /**
-   * The request's globals, applied inside this turn and restored in one `finally`, on every path. The
-   * location is saved only when it is replaced: reading every part of it cost more than a small render.
+   * The request's globals, applied inside this turn and restored in one `finally`, on every path: the document as
+   * this render found it (`documentState`: title, cookie, the attributes of `<html>` and `<body>`), and the location,
+   * saved only when it is replaced: reading every part of it cost more than a small render.
    */
   const place = globalThis.location as unknown as Record<(typeof LOCATION_PARTS)[number], string>;
-  const title = globalThis.document.title;
+  const found = documentState();
   const saved = location === undefined ? undefined : LOCATION_PARTS.map((part) => place[part]);
   if (saved) {
     const next = new URL(String(location), place.href);
@@ -683,7 +686,7 @@ const renderModule = async (
      * of its own.
      */
     discardFrames();
-    globalThis.document.title = title;
+    restoreDocument(found);
     saved?.forEach((value, i) => (place[LOCATION_PARTS[i]] = value));
     serverTurnOf?.(-1);
   }
