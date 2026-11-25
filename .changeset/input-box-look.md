@@ -7,3 +7,5 @@ colors, 36px on a 16px page) with your input borderless inside it and the clear,
 inside the border. Focus draws one ring around the box, an invalid input turns the border to the danger color, and a
 disabled one dims it. Everything reads the shared `--vera-*` tokens, and `scale` now sizes the box, which the input
 follows. `data-vera-look="none"` still drops all of it.
+The input inside the box keeps its resets above a page's ordinary `input` rules, so a reset's or a framework's input
+styles no longer draw a box inside the box; development warns when a rule stronger still does.
