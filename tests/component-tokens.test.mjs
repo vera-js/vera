@@ -74,7 +74,7 @@ export const breaches = (component, files, tokens) => {
 };
 
 /** Components whose look has not moved onto the tokens yet (W106/W108). A name leaves this list in its look's commit. */
-const NOT_YET = ['dialog', 'field', 'icon', 'input', 'kbd', 'menu', 'select', 'spinner', 'tabs'];
+const NOT_YET = ['dialog', 'field', 'icon', 'input', 'kbd', 'menu', 'select', 'spinner'];
 
 /** Each component's look sources: every .ts under src except its demo and surface (data) and diagnostics (prose). */
 const lookFiles = (name) => {

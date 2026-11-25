@@ -14,6 +14,8 @@
  * positioning the selected tab draws its own underline and nothing slides. Reduced motion: no slide. Forced colors: the
  * indicator is `Highlight`, and the selected tab is also bold.
  */
+import { ACCENT, BORDER, FG, FG_MUTED, RADIUS } from '@verajs/shared-utils';
+
 export const SHEET = '_$veraTabs$';
 
 const look = (selector: string): string => `:where([data-vera-tabs]:not([data-vera-look="none"])) ${selector}`;
@@ -21,26 +23,27 @@ const LIST = ':where([data-vera-part="tablist"][data-vera-tabs])';
 const TAB = `${LIST} > :where([role="tab"])`;
 
 export const LOOK =
-  `${look(LIST)}{position:relative;display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin;` +
-  'border-block-end:1px solid var(--vera-border,light-dark(#e4e4e7,#3f3f46))}' +
-  `${look(`${LIST}[aria-orientation="vertical"]`)}{flex-direction:column;overflow-x:visible;border-block-end:0;border-inline-start:1px solid var(--vera-border,light-dark(#e4e4e7,#3f3f46))}` +
-  `${look(TAB)}{flex:none;padding:8px 12px;border:0;background:none;color:var(--vera-fg-muted,light-dark(#71717a,#a1a1aa));font:inherit;cursor:pointer;white-space:nowrap}` +
+  `${look(LIST)}{position:relative;display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin;border-block-end:1px solid ${BORDER}}` +
+  `${look(`${LIST}[aria-orientation="vertical"]`)}{flex-direction:column;overflow-x:visible;border-block-end:0;border-inline-start:1px solid ${BORDER}}` +
+  `${look(TAB)}{flex:none;padding:8px 14px;border:0;background:none;color:${FG_MUTED};font:inherit;font-weight:500;cursor:pointer;white-space:nowrap}` +
+  `${look(`${TAB}:hover`)},${look(`${TAB}[aria-selected="true"]`)}{color:${FG}}` +
   `${look(`${LIST}[aria-orientation="vertical"] > :where([role="tab"])`)}{text-align:start;padding-inline-start:16px}` +
-  `${look(`${TAB}[aria-selected="true"]`)}{color:var(--vera-fg,light-dark(#18181b,#fafafa))}` +
   `${look(`${TAB}:disabled`)},${look(`${TAB}[aria-disabled="true"]`)}{opacity:.5;cursor:default}` +
-  `${look(`${TAB}:focus-visible`)}{outline:2px solid var(--vera-accent,light-dark(#7c3aed,#a78bfa));outline-offset:-2px;border-radius:var(--vera-radius,6px)}` +
+  `${look(`${TAB}:focus-visible`)}{outline:2px solid ${ACCENT};outline-offset:-2px;border-radius:${RADIUS}}` +
   '@supports (top: anchor(bottom)){' +
   `${look(`${TAB}[aria-selected="true"]`)}{anchor-name:var(--_vera-tabs-anchor)}` +
   `${look(`${LIST}::after`)}{content:"";position:absolute;position-anchor:var(--_vera-tabs-anchor);` +
-  'left:anchor(left);width:anchor-size(width);top:calc(anchor(bottom) - 2px);height:2px;background:var(--vera-accent,light-dark(#7c3aed,#a78bfa));pointer-events:none}' +
+  `left:anchor(left);width:anchor-size(width);top:calc(anchor(bottom) - 2px);height:2px;border-radius:2px;background:${ACCENT};pointer-events:none}` +
   `${look(`${LIST}[aria-orientation="vertical"]::after`)}{left:-1px;width:2px;top:anchor(top);height:anchor-size(height)}` +
   `${look(`${LIST}[aria-orientation="vertical"]:dir(rtl)::after`)}{left:auto;right:-1px}` +
   '@media (prefers-reduced-motion:no-preference){' +
   `${look(`${LIST}::after`)}{transition:left 160ms ease,width 160ms ease,top 160ms ease,height 160ms ease}}}` +
   '@supports not (top: anchor(bottom)){' +
-  `${look(`${TAB}[aria-selected="true"]`)}{box-shadow:inset 0 -2px 0 var(--vera-accent,light-dark(#7c3aed,#a78bfa))}` +
-  `${look(`${LIST}[aria-orientation="vertical"] > :where([role="tab"][aria-selected="true"])`)}{box-shadow:inset 2px 0 0 var(--vera-accent,light-dark(#7c3aed,#a78bfa))}` +
-  `${look(`${LIST}[aria-orientation="vertical"]:dir(rtl) > :where([role="tab"][aria-selected="true"])`)}{box-shadow:inset -2px 0 0 var(--vera-accent,light-dark(#7c3aed,#a78bfa))}}` +
+  `${look(`${TAB}[aria-selected="true"]`)}{box-shadow:inset 0 -2px 0 ${ACCENT}}` +
+  `${look(`${LIST}[aria-orientation="vertical"] > :where([role="tab"][aria-selected="true"])`)}{box-shadow:inset 2px 0 0 ${ACCENT}}` +
+  `${look(`${LIST}[aria-orientation="vertical"]:dir(rtl) > :where([role="tab"][aria-selected="true"])`)}{box-shadow:inset -2px 0 0 ${ACCENT}}}` +
+  '@media (prefers-reduced-motion:no-preference){' +
+  `${look(TAB)}{transition:color 120ms ease}}` +
   '@media (forced-colors:active){' +
   `${look(`${LIST}::after`)}{background:Highlight}` +
   `${look(`${TAB}[aria-selected="true"]`)}{font-weight:bold}}`;
