@@ -4,7 +4,8 @@
  * the render with the bare error, so a page of components said nothing about which one failed (`<x-nest>` holding a
  * throwing `<x-fail>` came back as just its message). Now the thrower is named — the inner tag, not the page's — and
  * its error is the cause, the identical object; in the async chain too, where a sibling prepared while the callback
- * awaited must not take its name. A frame's throw is named as before, and the next render starts clean — no tag left
+ * awaited must not take its name. The page component's own constructor is named too (it was built outside the wrap,
+ * so a throwing one rejected bare). A frame's throw is named as before, and the next render starts clean — no tag left
  * current by the thrower, so a sheet the next render's module adopts is not filed under it.
  */
 import { test } from 'node:test';
@@ -59,6 +60,14 @@ test('a nested component whose constructor throws is named by its own tag, sync 
   for (const render of [renderToString, renderToStringAsync]) {
     const error = await rejection(() => render(fixture('constructor-throws-nest-ssr.js'), { tag: 'constructor-throws-nest-ssr' }));
     assert.match(error.message, /<constructor-throws-ssr> threw while rendering/, `${render.name}: ${error.message}`);
+    assert.equal(error.cause, BUILT, `${render.name}: the cause is the identical error`);
+  }
+});
+
+test('the page component whose constructor throws is named by its tag, sync and async', async () => {
+  for (const render of [renderToString, renderToStringAsync]) {
+    const error = await rejection(() => render(fixture('constructor-throws-nest-ssr.js'), { tag: 'constructor-throws-ssr' }));
+    assert.match(error.message, /<constructor-throws-ssr> threw while rendering.*\(ssr-render-threw\)/, `${render.name}: ${error.message}`);
     assert.equal(error.cause, BUILT, `${render.name}: the cause is the identical error`);
   }
 });

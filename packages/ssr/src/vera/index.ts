@@ -627,15 +627,16 @@ const renderModule = async (
    */
   serverTurnOf?.(1);
   try {
-    const element = buildInstance(tag, attrString, null);
     let rendered: Assembled;
     try {
+      const element = buildInstance(tag, attrString, null);
       rendered = isAsync ? await renderInstanceAsync(element, tag, 0, props, children) : renderInstance(element, tag, 0, props, children);
     } catch (error) {
       /**
        * A component's `connectedCallback` that throws is named, as a frame's throw is (`finishPage`): the README promises
        * it, and a bare error from a page of components said nothing about which one. In the synchronous chain the tag
        * being rendered when it threw is the thrower's, a nested one's included; the async chain names its own above.
+       * The page's own constructor runs inside this too: built outside it, a root whose constructor threw rejected bare.
        */
       throw isOwn(error) ? error : renderThrew(currentRenderingTag() || tag, failures.length > 0 ? ` (and ${failures.length} more)` : '', error);
     }
