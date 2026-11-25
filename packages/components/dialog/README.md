@@ -38,7 +38,8 @@ as a modal (at load too); removing it closes it.
 
 **Bound state stays in step.** `open` goes both ways: an app that binds it (`<vera-dialog open={isOpen}>`) sees a user's
 close remove it, whether by Escape, a form, an invoker or a press outside, and the `<dialog>` fires the platform's
-`close`, so the bound state can follow. Moving an open `<vera-dialog>` (a portal, a re-keyed list) keeps it open: it is shown as
+`close`, so the bound state can follow. An open that a `beforetoggle` listener cancels removes it too, and is not tried
+again. Moving an open `<vera-dialog>` (a portal, a re-keyed list) keeps it open: it is shown as
 a modal again where it lands, and the `<dialog>` fires one `close` and `toggle` pair as it does. The `<dialog>`'s own
 `open` attribute is HTML's non-modal one; leave it alone.
 

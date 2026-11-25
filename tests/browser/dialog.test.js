@@ -260,3 +260,61 @@ it('two copies of the package on one page: a dialog defined from the second copy
   first.removeAttribute('open');
   await until(() => !dialogOf(first).open, `${ON}: and closes`, 2000);
 });
+
+/**
+ * Opened by a real click on the trigger, closed by Escape or by the form's own button: focus comes back to the trigger.
+ * Where a clicked button takes no focus (Safari on macOS; Playwright's WebKit build was measured on Windows here), the
+ * platform finds no opener and the element's own fallback returns it.
+ */
+for (const close of ['Escape', 'the form\'s button']) {
+  it(`a real click on the trigger, then ${close}: focus comes back to the trigger, and the host's open goes`, async () => {
+    const el = await mount();
+    const trigger = el.querySelector('[slot="trigger"]');
+    const [x, y] = center(trigger);
+    await sendMouse({ type: 'click', position: [x, y] });
+    await until(() => modal(el) && el.hasAttribute('open'), `${ON}: open as a modal, the host reflects it`, 2000);
+    if (close === 'Escape') await sendKeys({ press: 'Escape' });
+    else dialogOf(el).querySelector('button[value="cancel"]').click();
+    await until(() => !dialogOf(el).open && !el.hasAttribute('open'), `${ON}: closed, the host's open gone`, 2000);
+    await until(() => document.activeElement === trigger, `${ON}: focus back on the trigger`, 2000);
+  });
+}
+
+it('an author\'s own invoker elsewhere on the page still opens it, and the host reflects open through toggle', async () => {
+  if (!INVOKERS) return;
+  const el = await mount();
+  const own = document.createElement('button');
+  own.setAttribute('commandfor', dialogOf(el).id);
+  own.setAttribute('command', 'show-modal');
+  own.textContent = 'elsewhere';
+  el.parentElement.append(own);
+  own.click();
+  await until(() => modal(el) && el.hasAttribute('open'), `${ON}: the author's invoker opened it and the host reflects open`, 2000);
+});
+
+/**
+ * An open that a `beforetoggle` listener cancels leaves the host's `open` absent, whichever path asked for it, and is
+ * tried once: no retry reopens it. The listener is a capture one on the dialog, so it runs before the element's own.
+ */
+for (const path of ['the trigger', 'the host\'s open']) {
+  it(`an open from ${path} that a beforetoggle listener cancels: the dialog stays closed and the host's open is absent, asked once`, async () => {
+    const el = await mount();
+    let asked = 0;
+    const refuse = (event) => {
+      if (event.newState !== 'open') return;
+      asked++;
+      event.preventDefault();
+    };
+    dialogOf(el).addEventListener('beforetoggle', refuse, { capture: true });
+    if (path === 'the trigger') el.querySelector('[slot="trigger"]').click();
+    else el.setAttribute('open', '');
+    await frame();
+    await frame();
+    expect(dialogOf(el).open, `${ON}: the dialog stayed closed`).to.equal(false);
+    expect(el.hasAttribute('open'), `${ON}: the host's open is absent`).to.equal(false);
+    expect(asked, `${ON}: the open was asked exactly once`).to.equal(1);
+    dialogOf(el).removeEventListener('beforetoggle', refuse, { capture: true });
+    el.querySelector('[slot="trigger"]').click();
+    await until(() => modal(el) && el.hasAttribute('open'), `${ON}: CONTROL: with the listener gone, the trigger opens it`, 2000);
+  });
+}

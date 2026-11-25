@@ -132,8 +132,11 @@ export const setup = (host: DialogHost) => {
     if (!modal) return;
     const wanted = host.open !== null;
     if (wanted && dialog.open && !dialog.matches(':modal')) dialog.close();
-    if (wanted && !dialog.open) dialog.showModal();
-    else if (!wanted && dialog.open) dialog.close();
+    if (wanted && !dialog.open) {
+      dialog.showModal();
+      /** A `beforetoggle` listener canceled the open: the host's `open` goes, once, so it never sits on a closed dialog. */
+      if (!dialog.open) host.removeAttribute('open');
+    } else if (!wanted && dialog.open) dialog.close();
     return () => {
       /**
        * Removed while open, it fires no close (measured), so the page's lock goes here unless another modal of ours holds
