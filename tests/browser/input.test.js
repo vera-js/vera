@@ -346,13 +346,19 @@ describe('vera-input: upgraded by the parser before its children exist', () => {
 describe('vera-input: look v2 (scale, one clear glyph)', () => {
   const size = (wrap) => parseFloat(getComputedStyle(wrap.querySelector('input')).fontSize);
 
+  /**
+   * At a 20px page: a bare input keeps the browser's own size, 13.33px on most engines but 16px on WebKit on Linux, where
+   * a 16px page made the control below read equal (CI, Ubuntu). No engine's own input size is 20px.
+   */
   it("scale sets the box's font size, which the input follows: md the page's, sm below it, lg above it, and none the page's too", async () => {
-    const plain = await mount('<label>q <vera-input><input></vera-input></label>');
-    const bare = await mount('<label>q <input></label>');
-    const sm = await mount('<label>q <vera-input scale="sm"><input></vera-input></label>');
-    const md = await mount('<label>q <vera-input scale="md"><input></vera-input></label>');
-    const lg = await mount('<label>q <vera-input scale="lg"><input></vera-input></label>');
-    const page = parseFloat(getComputedStyle(md).fontSize);
+    const at = (markup) => mount('<div style="font-size: 20px">' + markup + '</div>');
+    const plain = await at('<label>q <vera-input><input></vera-input></label>');
+    const bare = await at('<label>q <input></label>');
+    const sm = await at('<label>q <vera-input scale="sm"><input></vera-input></label>');
+    const md = await at('<label>q <vera-input scale="md"><input></vera-input></label>');
+    const lg = await at('<label>q <vera-input scale="lg"><input></vera-input></label>');
+    const page = parseFloat(getComputedStyle(md.firstElementChild).fontSize);
+    expect(page, 'CONTROL: the page size is the 20px set').to.equal(20);
     expect(page, 'CONTROL: a font size was read').to.be.above(0);
     expect(size(md), 'md is the page\'s size').to.equal(page);
     expect(size(sm)).to.be.below(size(md));
