@@ -110,15 +110,22 @@ if (COMPONENT) {
     read(document);
     out.seen = { attributes: [...attributes].sort(), parts: [...parts].sort() };
     out.hosts = document.querySelectorAll(surface.tag).length;
-    out.parked = parkedIn(document, surface.tag).map((host) => host.outerHTML.slice(0, 120));
-    /** CONTROL: a light element with children and no `ownsChildren`, wired the same way, reads as parked here. */
-    define({ tag: 'demo-parks-children' }, () => {});
+    /**
+     * CONTROL, and the page's condition: a light element with children and no `ownsChildren` that renders a template
+     * with no `<slot>`. Slots moves captured children out of sight at the end of a render, ANY render on the page,
+     * for every host still holding them: a component that renders nothing (field) is parked by its neighbours' renders
+     * on a real page, and alone in this process by none (the first reading of this check, 0 of 4 fields, where the
+     * preview page in Chromium had 4 of 4). So the parked reading comes after this render ends, as on a page.
+     */
+    const { html } = await load('core');
+    define({ tag: 'demo-parks-children' }, () => () => html`<b>its own</b>`);
     const probe = document.body.appendChild(document.createElement('div'));
     probe.innerHTML = '<demo-parks-children><span>authored</span></demo-parks-children>';
     flush();
     await Promise.resolve();
     flush();
     out.instrument = parkedIn(probe, 'demo-parks-children').length === 1;
+    out.parked = parkedIn(document, surface.tag).map((host) => host.outerHTML.slice(0, 120));
     out.gaps = gaps(surface, demo, out.seen);
   }
   process.stdout.write(JSON.stringify(out));
