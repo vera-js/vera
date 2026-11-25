@@ -30,6 +30,9 @@ import {
   pendingDefinitionNames,
   resetPendingDefinitions,
   pendingInstances,
+  clearPending,
+  stampCount,
+  releaseSince,
   INSTANCE_ATTRIBUTE,
   unmarked,
   LOCATION_PARTS,
@@ -235,7 +238,9 @@ const buildInstance = (tag: string, attrString: string, enclosing: ShadowRootShi
   /**
    * A tag with no attributes — most of them — does no attribute work at all. The rest are read by `exec` on the shared
    * regex, not `matchAll`, which copies its regex per call; nothing runs between the reads but `decodeEntities`, so the
-   * shared `lastIndex` is this loop's alone. The instance marker is found in the same pass: the first, as `heldAt` keeps.
+   * shared `lastIndex` is this loop's alone. The instance marker is found in the same pass, the first as `heldAt`
+   * keeps, and never kept as an attribute: it is the server's own handle, so the instance is never handed it (it was
+   * set here and taken off again in `prepareInstance`, and a callback the set ran between saw it).
    */
   let attributes: Array<[string, string]> | undefined;
   let marker: string | undefined;
@@ -246,8 +251,8 @@ const buildInstance = (tag: string, attrString: string, enclosing: ShadowRootShi
     for (let read = grammar.exec(attrString); read !== null; read = grammar.exec(attrString)) {
       const name = asciiLower(read[1]!);
       const value = decodeEntities(read[2] ?? read[3] ?? read[4] ?? '');
-      if (marker === undefined && name === INSTANCE_ATTRIBUTE) marker = value;
-      attributes.push([name, value]);
+      if (name === INSTANCE_ATTRIBUTE) marker ??= value;
+      else attributes.push([name, value]);
     }
   }
   const pending = marker === undefined ? undefined : pendingInstances.get(marker);
@@ -262,9 +267,14 @@ const buildInstance = (tag: string, attrString: string, enclosing: ShadowRootShi
   /**
    * Unregistered HERE, and only when picked up: a marker is an attribute, so a copy of it can sit on
    * another tag, and unregistering whatever marker an element carries let that copy rob the instance
-   * it names of its pickup — rebuilt from the tag, without what the parent gave it.
+   * it names of its pickup — rebuilt from the tag, without what the parent gave it. Its marker comes off in the same
+   * step, before any component code runs (the attribute callbacks below are the first): an instance that threw there
+   * kept its marker while no longer pending, and nothing at the render's end took it off.
    */
-  if (element === pending) pendingInstances.delete(marker!);
+  if (element === pending) {
+    pendingInstances.delete(marker!);
+    element.removeAttribute(INSTANCE_ATTRIBUTE);
+  }
   element.localName = tag;
   /**
    * Where the instance sits: the server renders each one detached, so this is what its `getRootNode()` answers (a
@@ -300,7 +310,6 @@ const prepareInstance = (
   children: string | undefined
 ): string => {
   element._rendered = true;
-  element.removeAttribute(INSTANCE_ATTRIBUTE);
   if (props)
     for (const [name, value] of Object.entries(props)) {
       /** `__proto__` would REPLACE the element's prototype — `JSON.parse` makes it an ordinary own key. */
@@ -608,7 +617,7 @@ const renderModule = async (
   failures.length = 0;
   beginHoisting();
   resetPendingDefinitions();
-  pendingInstances.clear();
+  clearPending();
   /**
    * **Generated ids restart at each render** (2026-11-21): the hooks that give elements ids count through one record
    * shared by every copy of the library (`Symbol.for('vera.uid')`), which in a server lives as long as the process, so
@@ -657,6 +666,7 @@ const renderModule = async (
         console.warn(ssrWarning(`<${tag}>`, 'ssr-timeout', PROSE['ssr-timeout']!(String(timeout ?? DEFAULT_TIMEOUT), list(timedOut), list(waits))));
     }
     staticRender = false;
+    clearPending();
     /**
      * No tag is left rendering: a component that threw leaves its own tag current (the catch above names it from that),
      * and the NEXT render's module, imported before that render begins, hoisted a sheet it adopts at module scope under
@@ -743,5 +753,17 @@ export const renderToString = (url: string | URL, options?: SsrRenderOptions): P
 export const renderToStringAsync = (url: string | URL, options?: SsrRenderOptions): Promise<SsrRenderResult> =>
   takeTurn(() => renderModule(url, options, true));
 
-export { registry, serializeTemplate };
+/**
+ * **`serializeTemplate` on its own** (2026-11-25): the flattener, no component scan. A component tag a template hands
+ * properties to is stamped for the scan that renders it, and nothing scans this output, so the stamps it made are
+ * released before it returns: no instance waits in the pending map for a render that will never pick it up, and the
+ * markup carries no per-process name. The server's own render calls the serializer directly, stamps kept.
+ */
+const serializeAlone = (template: SsrTemplate, depth = 0): string => {
+  const since = stampCount();
+  const markup = serializeTemplate(template, depth);
+  return stampCount() === since ? markup : releaseSince(since, markup);
+};
+
+export { registry, serializeAlone as serializeTemplate };
 export type { SsrRenderOptions, SsrRenderResult };

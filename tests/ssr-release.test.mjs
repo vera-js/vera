@@ -34,6 +34,14 @@ test('a survivor is reported with what holds it (CONTROL for the evidence every 
   assert.ok(r.named, `its path names the planted holder (${JSON.stringify(r)})`);
 });
 
+test('the render\'s marker records keep nothing alive: a light host that stored stamped text, a prepared child never placed', () => {
+  const r = measure('marker');
+  controls(r);
+  assert.equal(r.rendered, 4, `CONTROL: two renders made two hosts and two prepared children (${JSON.stringify(r)})`);
+  if (isProduction) assert.equal(r.stamped, true, `CONTROL: production's host stored stamped text (${JSON.stringify(r)})`);
+  assert.equal(r.alive, 0, `none of them survives its render (${JSON.stringify(r)})`);
+});
+
 test('200 server renders against a module-scope store leave no component alive', () => {
   const r = measure('sync');
   controls(r);

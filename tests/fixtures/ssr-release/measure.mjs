@@ -10,6 +10,17 @@ const droppedRef = (() => new WeakRef({ dropped: true }))();
 const gc = async () => { for (let i = 0; i < 6; i++) { global.gc(); await new Promise((r) => setImmediate(r)); } };
 const url = (f) => new URL(`./${f}`, import.meta.url);
 const out = { mode };
+/**
+ * `marker`: the render's marker records (the pending map, the recorded holders) keep nothing alive past the render
+ * that made them. Two renders of a page whose light host stores stamped text and whose prepared child is never placed.
+ */
+if (mode === 'marker') {
+  for (let i = 0; i < 2; i++) await renderToString(url('marker-held.mjs'));
+  await gc();
+  const refs = globalThis.__markerRefs ?? [];
+  console.log(JSON.stringify({ mode, kept: keptRef.deref() !== undefined, droppedDied: droppedRef.deref() === undefined, rendered: refs.length, stamped: globalThis.__markerStamped === true, alive: refs.filter((r) => r.deref() !== undefined).length }));
+  process.exit(0);
+}
 if (mode === 'sync' || mode === 'overlap' || mode === 'async-hook' || mode === 'define-sync' || mode === 'define-props' || mode === 'define-async') {
   let markup = '';
   if (mode === 'sync' || mode === 'define-sync' || mode === 'define-props') for (let i = 0; i < N; i++) { markup = (await renderToString(url(mode === 'sync' ? 'comp.mjs' : mode === 'define-props' ? 'comp-define-props.mjs' : 'comp-define.mjs'))).html; if (i % 50 === 49) await new Promise((r) => setImmediate(r)); }

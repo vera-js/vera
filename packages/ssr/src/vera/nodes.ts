@@ -42,6 +42,20 @@ export const pendingInstances = new Map<string, ElementShim>();
 let instanceCount = 0;
 
 /**
+ * **Everywhere a marker lives besides the pending instances** (2026-11-25), and never empty while one is pending (the
+ * first stamp records its node): a container whose stored
+ * markup holds one (the serializer's stamped open tag, written into a light host, a copy of it, a template's raw text),
+ * and a node parsed out of such markup, which carries the marker as an attribute but is not the pending instance.
+ * Recorded as the markup is stored (`storeMarkup`) and as it is parsed, only while it is not empty, so a render that
+ * stamps nothing never touches it; stripped and emptied as each render begins and ends (`clearPending`). Its size is
+ * the one question every read asks ("is a marker live"), one read as the pending map's size was: asking both cost a
+ * 50 KB read about 3-5% more, and asking through a function about 13% (measured, Node, 2026-11-25). Shared for the
+ * reason `pendingInstances` is. Empty between renders unless work a render left behind stamps after it (a timer
+ * appending a prepared child); reads hide that marker, and the next render's start strips it.
+ */
+const marked = new Set<ContainerShim>();
+
+/**
  * One `ElementInternals` per element, as `attachInternals` guarantees. Kept here rather than in a field: only a custom
  * element that calls `attachInternals` ever has one.
  */
@@ -290,7 +304,7 @@ const serializeEntry = (entry: EntryShim): string =>
 const namedNodeMap = (element: ElementShim): NamedNodeMapShim => {
   const all = [...element._attributes];
   const list = (
-    (pendingInstances.size === 0 ? all : all.filter(([name]) => shown(name))).map(([name, value]): AttributeShim => ({
+    (element._attributes.has(INSTANCE_ATTRIBUTE) ? all.filter(([name]) => shown(name)) : all).map(([name, value]): AttributeShim => ({
       name,
       value,
       localName: name,
@@ -407,7 +421,7 @@ const equalNodes = (a: DuckNode, b: DuckNode | null | undefined): boolean => {
   const mine = a._attributes ?? new Map();
   const theirs = b._attributes ?? new Map();
   /** The render's instance marker is not an attribute to code reading the DOM (see `unmarked`), so it does not count here. */
-  const hidden = pendingInstances.size === 0 ? 0 : Number(mine.has(INSTANCE_ATTRIBUTE)) - Number(theirs.has(INSTANCE_ATTRIBUTE));
+  const hidden = Number(mine.has(INSTANCE_ATTRIBUTE)) - Number(theirs.has(INSTANCE_ATTRIBUTE));
   if (mine.size - theirs.size !== hidden) return false;
   for (const [name, value] of mine) if (name !== INSTANCE_ATTRIBUTE && theirs.get(name) !== value) return false;
   const ours = nodesOf(a as ContainerShim);
@@ -476,6 +490,7 @@ export const parseChunks = (container: ContainerShim): void => {
       continue;
     }
     for (const node of parsed) if (typeof node !== 'string') node._parent = container;
+    if (marked.has(container)) recordParsed(parsed);
     entries.push(...parsed);
     gained = true;
   }
@@ -993,7 +1008,7 @@ export class ContainerShim extends NodeBaseShim {
       this._replaceWithText(RCDATA_ELEMENTS.has(name) ? decode(data) : data);
       return;
     }
-    this._entries = text === '' ? [] : [text];
+    this._entries = text === '' ? [] : [storeMarkup(this, text)];
     /** New markup has not been looked at yet, whatever was true of the markup it replaced. */
     this._parsed = false;
   }
@@ -1021,6 +1036,8 @@ export class ContainerShim extends NodeBaseShim {
     if (node.nodeType === 11) {
       incoming = (node as FragmentShim)._entries;
       (node as FragmentShim)._entries = [];
+      /** A fragment's stored markup moves here, and with it whatever marker it holds. */
+      if (marked.has(node as FragmentShim)) marked.add(this);
     } else incoming = isNode(node) ? [node] : [(node as unknown as DuckNode)?.innerHTML ?? ''];
     for (const entry of incoming)
       if (isNode(entry)) entry._parent = this;
@@ -1506,6 +1523,7 @@ export class ContainerShim extends NodeBaseShim {
 
 /** A deep clone's children: markup chunks as they are, nodes cloned deep and re-parented to `to`. */
 const cloneEntries = (from: ContainerShim, to: ContainerShim): void => {
+  if (marked.has(from)) marked.add(to);
   for (const entry of from._entries) {
     if (typeof entry === 'string') to._entries.push(entry);
     else {
@@ -2275,7 +2293,7 @@ export class ElementShim extends ContainerShim {
   }
   getAttributeNames(): string[] {
     const names = [...this._attributes.keys()];
-    return pendingInstances.size === 0 ? names : names.filter(shown);
+    return this._attributes.has(INSTANCE_ATTRIBUTE) ? names.filter(shown) : names;
   }
 
   /**
@@ -2441,7 +2459,7 @@ export class ElementShim extends ContainerShim {
     this.removeAttribute(name);
   }
   hasAttributes(): boolean {
-    return this._attributes.size > (pendingInstances.size !== 0 && this._attributes.has(INSTANCE_ATTRIBUTE) ? 1 : 0);
+    return this._attributes.size > Number(this._attributes.has(INSTANCE_ATTRIBUTE));
   }
   getAttributeNode(name: string): AttributeNodeShim | null {
     return this.hasAttribute(name) ? { name, value: this.getAttribute(name) } : null;
@@ -2502,8 +2520,8 @@ export class ElementShim extends ContainerShim {
   insertAdjacentHTML(position: string, markup: unknown): void {
     const where = asciiLower(`${position}`);
     if (where === 'afterbegin' || where === 'beforeend') {
-      if (where === 'afterbegin') this._entries.unshift(`${markup}`);
-      else this._entries.push(`${markup}`);
+      if (where === 'afterbegin') this._entries.unshift(storeMarkup(this, `${markup}`));
+      else this._entries.push(storeMarkup(this, `${markup}`));
       /** New markup has not been looked at yet. */
       this._parsed = false;
     }
@@ -2521,7 +2539,7 @@ export class ElementShim extends ContainerShim {
           'NoModificationAllowedError'
         );
       const index = parent._entries.indexOf(this);
-      parent._entries.splice(where === 'beforebegin' ? index : index + 1, 0, `${markup}`);
+      parent._entries.splice(where === 'beforebegin' ? index : index + 1, 0, storeMarkup(parent, `${markup}`));
       parent._parsed = false;
     }
   }
@@ -2548,7 +2566,7 @@ export class ElementShim extends ContainerShim {
   set outerHTML(markup: unknown) {
     const parent = this._parent;
     if (!parent) return;
-    parent._entries.splice(parent._entries.indexOf(this), 1, `${markup}`);
+    parent._entries.splice(parent._entries.indexOf(this), 1, storeMarkup(parent, `${markup}`));
     parent._parsed = false;
     this._parent = null;
   }
@@ -2642,8 +2660,14 @@ export class ElementShim extends ContainerShim {
    */
   cloneNode(deep: boolean = false): ElementShim {
     const copy = createElement(this.localName, this._ns);
-    for (const [name, value] of this._attributes) copy.setAttribute(name, value);
-    copy._sourceOpenTag = this._sourceOpenTag;
+    /**
+     * A copy is never the prepared instance (2026-11-24): it carried the marker, so a clone kept past its render showed
+     * the per-process name, and inside one it was a second node claiming the original's pickup. Skipped as it is
+     * copied, never set and removed, so a component's attribute callback never sees it, and a marked element's copy
+     * drops the source text the marker was parsed in, as a written element does. `importNode` clones through here.
+     */
+    for (const [name, value] of this._attributes) if (name !== INSTANCE_ATTRIBUTE) copy.setAttribute(name, value);
+    copy._sourceOpenTag = this._attributes.has(INSTANCE_ATTRIBUTE) ? null : this._sourceOpenTag;
     copy._sourceCloseTag = this._sourceCloseTag;
     if (!deep) return copy;
     cloneEntries(this, copy);
@@ -2759,6 +2783,7 @@ const templateElement = (): typeof ElementShim =>
       if (this._content === undefined) {
         const content = new FragmentShim();
         if (this._raw) content._entries.push(this._raw);
+        if (marked.has(this)) marked.add(content);
         this._raw = undefined;
         this._content = content;
       }
@@ -2772,12 +2797,13 @@ const templateElement = (): typeof ElementShim =>
     }
     /** `[LegacyNullToEmptyString]`, as every element's; the element constructor writes `''` here first. */
     override set innerHTML(markup: unknown) {
-      if (this._content === undefined) this._raw = markup === null ? '' : `${markup}`;
+      if (this._content === undefined) this._raw = storeMarkup(this, markup === null ? '' : `${markup}`);
       else this._content.innerHTML = markup;
     }
     override cloneNode(deep: boolean = false): ElementShim {
       const copy = super.cloneNode(deep);
       if (deep) {
+        /** A recorded template's copy is already recorded: `super.cloneNode` ran `cloneEntries`, which records it. */
         if (this._content === undefined) copy._raw = this._raw;
         else cloneEntries(this._content, (copy as unknown as { content: FragmentShim }).content);
       }
@@ -2832,9 +2858,54 @@ const MARKERS = new RegExp(` ${INSTANCE_ATTRIBUTE}="\\d+"`, 'g');
  * the render's own handle, and a component that read a child's `outerHTML` or `getAttributeNames()` and wrote it out
  * (a show-source or debug component) served the per-process name whose secrecy keeps injected markup from claiming a
  * prepared instance. A browser's element has no such attribute either. The render's own reads take `markedHTML`, and
- * the page's end sweep is this too. Nothing to strip while no instance is pending, the case of most reads.
+ * the page's end sweep is this too. Only while a marker is live (`marked` is not empty): a render's end takes every
+ * marker off wherever it was stored (`clearPending`), so between renders no string holds one and a read is the plain
+ * one. Asking
+ * the markup instead (`includes` on every read) cost a 50 KB read about 1 µs where it had cost nothing, and a page
+ * render about 4.5% (measured, Node, 2026-11-25).
  */
-export const unmarked = (markup: string): string => (pendingInstances.size === 0 ? markup : markup.replaceAll(MARKERS, ''));
+export const unmarked = (markup: string): string => (marked.size === 0 ? markup : markup.replaceAll(MARKERS, ''));
+/**
+ * **Every string a container stores as markup passes here** (2026-11-25), so a stamped marker is recorded where it
+ * lands and the render's end can take it off; `tests/ssr-marker-stores.test.mjs` refuses a markup store that bypasses
+ * it. Outside a render that stamps, one size read.
+ */
+const storeMarkup = (container: ContainerShim, markup: string): string => {
+  if (marked.size !== 0 && markup.includes(INSTANCE_ATTRIBUTE)) marked.add(container);
+  return markup;
+};
+/** A recorded holder without its markers: its stored markup, its raw text, its own attribute. */
+const strip = (holder: ContainerShim): void => {
+  const entries = holder._entries;
+  let changed = false;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (typeof entry === 'string' && entry.includes(INSTANCE_ATTRIBUTE)) {
+      entries[i] = entry.replaceAll(MARKERS, '');
+      changed = true;
+    }
+  }
+  /** New text has not been looked at, as every markup write says. */
+  if (changed) holder._parsed = false;
+  const raw = (holder as unknown as { _raw?: string })._raw;
+  if (typeof raw === 'string' && raw.includes(INSTANCE_ATTRIBUTE)) (holder as unknown as { _raw: string })._raw = raw.replaceAll(MARKERS, '');
+  if ((holder as ElementShim)._attributes?.has(INSTANCE_ATTRIBUTE)) (holder as ElementShim).removeAttribute(INSTANCE_ATTRIBUTE);
+};
+/**
+ * The nodes a parse of recorded markup made: each that carries the marker, or holds marked text, is recorded too, so
+ * one detached and kept past the render is still found at its end.
+ */
+const recordParsed = (nodes: ReadonlyArray<EntryShim>): void => {
+  for (const node of nodes) {
+    if (typeof node === 'string' || node.nodeType !== 1) continue;
+    const element = node as ElementShim;
+    if (element._attributes.has(INSTANCE_ATTRIBUTE)) marked.add(element);
+    for (const entry of element._entries) if (typeof entry === 'string' && entry.includes(INSTANCE_ATTRIBUTE)) marked.add(element);
+    const raw = (element as unknown as { _raw?: string })._raw;
+    if (typeof raw === 'string' && raw.includes(INSTANCE_ATTRIBUTE)) marked.add(element);
+    recordParsed(element._entries);
+  }
+};
 /** An attribute name code reading the DOM sees: every one but the instance marker. */
 const shown = (name: string): boolean => name !== INSTANCE_ATTRIBUTE;
 
@@ -2842,8 +2913,11 @@ const shown = (name: string): boolean => name !== INSTANCE_ATTRIBUTE;
  * Marks `node` as a prepared instance and returns its id, so the nested-component scan renders THIS
  * instance rather than a fresh copy built from its markup. Two callers, one discipline:
  * `appendChild` below, for an element a component built itself, and the template serializer, for a
- * component tag whose property bindings it is delivering — both stamp the node (so `prepareInstance`
- * can unregister it by the attribute) and both rely on the unguessable name above.
+ * component tag whose property bindings it is delivering — both stamp the node (so the scan's pickup
+ * can unregister it by the attribute) and both rely on the unguessable name above. The first stamp of a render also
+ * records its node in `marked`, which is all the one-read gate needs (a marker is live), and the render's end strips
+ * every pending instance itself; recording each of them cost a page stamping 100 children about 2% of its cold
+ * renders (measured, Node, 2026-11-25).
  *
  * @returns the instance id, for the caller that writes markup itself
  */
@@ -2851,7 +2925,45 @@ export const markPending = (node: ElementShim): string => {
   const id = String(++instanceCount);
   node.setAttribute(INSTANCE_ATTRIBUTE, id);
   pendingInstances.set(id, node);
+  if (marked.size === 0) marked.add(node);
   return id;
+};
+
+/** How many instance ids have been handed out, so a caller can tell which stamps one call made (see `releaseSince`). */
+export const stampCount = (): number => instanceCount;
+
+/**
+ * **The stamps made after `since` are released**: each instance comes off the pending map and loses its marker, and
+ * the markup that carried them comes back without them. For `serializeTemplate` called on its own: nothing scans its
+ * output, so a stamp there could never be picked up, and it carried the per-process name to whoever holds the markup.
+ * The markup loses every marker, not only those ids: the only stamps a lone call's output can hold are its own, since
+ * code reading the DOM gets unmarked text and a value interpolated into a template is escaped.
+ */
+export const releaseSince = (since: number, markup: string): string => {
+  for (let id = since + 1; id <= instanceCount; id++) {
+    const key = String(id);
+    const node = pendingInstances.get(key);
+    if (node !== undefined) {
+      node.removeAttribute(INSTANCE_ATTRIBUTE);
+      pendingInstances.delete(key);
+    }
+  }
+  return markup.replaceAll(MARKERS, '');
+};
+
+/**
+ * **Every marker this render made comes off, and the records empty**, as a render begins and as it ends (2026-11-24,
+ * 2026-11-25): each pending instance loses its marker, and each recorded holder (see `marked`) its stored marked
+ * text, raw text and attribute; nothing recorded means nothing pending either, so nothing to do. An instance left pending past its render was claimed by a later render's scan when that
+ * render placed it, serving the earlier request's data in the later page, and the map kept every such node alive;
+ * marked text left in a light host, a copy or a parsed node showed the name to a later render.
+ */
+export const clearPending = (): void => {
+  if (marked.size === 0) return;
+  for (const node of pendingInstances.values()) node.removeAttribute(INSTANCE_ATTRIBUTE);
+  for (const holder of marked) strip(holder);
+  pendingInstances.clear();
+  marked.clear();
 };
 
 /**
