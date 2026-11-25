@@ -16,6 +16,7 @@ export const iconDemo = {
     },
     {
       title: 'Labeled: a meaningful image',
+      note: 'The label is the name a screen reader speaks (role="img", aria-label="Settings"); nothing extra is drawn',
       markup:
         '<span style="font-size:28px"><vera-icon label="Settings"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></vera-icon></span>',
     },

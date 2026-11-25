@@ -9,11 +9,11 @@ const TABS =
   '<div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div>';
 const PANELS =
   '<section data-value="overview"><p>A light, fast component library.</p></section>' +
-  '<section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section>' +
+  '<section data-value="specs"><p>Dimensions, weight and materials, with a two-year warranty.</p><button type="button">Compare</button></section>' +
   '<section data-value="reviews"><p>No reviews yet.</p></section>';
 
 export const tabsDemo = {
-  ask: 'Judge the behavior: click a tab, move with the arrow keys and Home/End, watch the indicator slide, and use find-in-page (Ctrl+F) for "reviews". Does the indicator keep up with a tab that changes size?',
+  ask: 'Judge the behavior: click a tab, move with the arrow keys and Home/End, watch the indicator slide, and use find-in-page (Ctrl+F) for "warranty". Does the indicator keep up with a tab that changes size?',
   states: [
     {
       title: 'Your own buttons and sections',
@@ -33,7 +33,7 @@ export const tabsDemo = {
     },
     {
       title: 'Not findable',
-      note: 'Inactive panels are plain hidden: find-in-page does not reach them',
+      note: 'Inactive panels are plain hidden. Try find-in-page (Ctrl+F) for "warranty": in the tabs above it opens Specs; here it finds nothing',
       markup: `<vera-tabs findable="false">${TABS}${PANELS}</vera-tabs>`,
     },
     {

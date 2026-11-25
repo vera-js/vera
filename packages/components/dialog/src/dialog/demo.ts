@@ -24,7 +24,10 @@ export const dialogDemo = {
       title: 'Dismissible sheet',
       note: 'placement="end" and dismiss="outside": docked to the end edge; a press outside closes it.',
       markup:
-        '<vera-dialog placement="end" dismiss="outside"><button slot="trigger">Filters</button><dialog aria-label="Filters"><p data-vera-part="title">Filters</p><p>Narrow the list.</p></dialog></vera-dialog>',
+        '<vera-dialog placement="end" dismiss="outside"><button slot="trigger">Filters</button><dialog aria-label="Filters"><p data-vera-part="title">Filters</p>' +
+        '<fieldset><legend>Status</legend><label><input type="checkbox" name="status" value="open" checked> Open</label><label><input type="checkbox" name="status" value="review"> In review</label><label><input type="checkbox" name="status" value="done"> Done</label></fieldset>' +
+        '<fieldset><legend>Sort by</legend><label><input type="radio" name="sort" value="new" checked> Newest</label><label><input type="radio" name="sort" value="old"> Oldest</label></fieldset>' +
+        '<form method="dialog"><button value="apply">Show results</button></form></dialog></vera-dialog>',
     },
     {
       title: 'Open at load',
