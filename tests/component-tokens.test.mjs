@@ -129,6 +129,13 @@ test('CONTROL: the shared tokens are read from tokens.ts, all twelve', () => {
   assert.ok(components.length >= 9, `CONTROL: ${components.length} components`);
 });
 
+test('CONTROL: every component has look sources, and the moved ones read the tokens (the scan reads the right files)', () => {
+  for (const name of components) assert.ok(lookFiles(name).length >= 1, `${name}: no look sources found under src`);
+  const reads = components.filter((name) => !NOT_YET.includes(name)).reduce((sum, name) => sum + readNames(lookFiles(name)).length, 0);
+  assert.ok(reads >= 20, `only ${reads} token reads across the moved components: the scan is reading the wrong files`);
+  assert.ok(lookFiles('select').length >= 4, `select: ${lookFiles('select').length} look sources (it has four or more)`);
+});
+
 test('CONTROL: breaches() names a wrong default, an unknown token, and a raw color; passes a shared read and an own token', () => {
   const accent = tokens.get('accent');
   const files = [
