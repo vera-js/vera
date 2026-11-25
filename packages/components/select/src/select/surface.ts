@@ -221,7 +221,7 @@ export const selectSurface = {
     {
       name: 'menu',
       description:
-        'The dropdown container. Carries data-state. On engines with CSS anchor positioning it is a top-layer popover anchored to the trigger (never clipped by overflow, flips when near the viewport edge where @position-try exists); elsewhere, and beside a slotted trigger, it is the in-host absolute menu.',
+        'The dropdown container. Carries data-state. On engines with CSS anchor positioning it is a top-layer popover anchored to the trigger (never clipped by overflow; it opens above when the room below is short and above is larger, chosen at each open, and caps itself at the room on that side); elsewhere, and beside a slotted trigger, it is the in-host absolute menu.',
     },
     { name: 'search', description: 'The filter input. Present only when searchable/creatable/remote.' },
     {

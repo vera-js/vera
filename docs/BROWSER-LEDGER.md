@@ -388,18 +388,19 @@ from another machine, or after that is undone, has a variable changed.
   tablist's own `::after` anchored to the selected tab, with no measurement; it slides on Chromium and WebKit and jumps
   on Firefox, and the README says so. (Playwright 1.65.1, Windows 11, headless, 2026-11-23;
   `tests/browser/tabs-anchor.test.js`, whose Firefox row pins the jump.)
-- **A fixed popover placed by `top: anchor(bottom)` flips on a scrolled page though it fits; placed by `position-area`
-  it does not.** A `position: fixed` top-layer popover anchored to a trigger in the scrolled document, `top:
-  calc(anchor(bottom) + 4px); left: anchor(left); position-try-fallbacks: flip-block`, the trigger mid-viewport with
-  room below: Chromium 159 (headless and headed) and WebKit opened it ABOVE the trigger, and kept it there. Chromium's
-  first layout after `showPopover()` read the computed `top` as 9213px at `scrollY` 9001, as if the page were not
-  scrolled; a frame later it read 212px, still the flipped place. With fallbacks set to `none` the same box sat below
-  the trigger and fit. Re-setting `position-try-fallbacks` after the open moved WebKit's below and left Chromium's
-  above. Firefox 159 placed it below either way. `position-area: block-end span-inline-end` with the same fallback opened
-  below on the same scrolled page in Chromium and WebKit (menu's placement). Near the top of a page, where the scroll
-  is small, the `anchor()` form opened down too, so the behavior looked random. Playwright 1.65, Windows 11,
-  2026-11-25. Consequence: `<vera-select>`'s list is placed by `position-area`, like `<vera-menu>`'s; a browser row
-  opens it on a scrolled page, reopens it, and holds the flip near the viewport's bottom as its control.
+- **`position-try-fallbacks: flip-block` opens a fixed popover above its trigger on a scrolled page though it fits
+  below.** A `position: fixed` top-layer popover (`<vera-select>`'s list, 74px tall) anchored to a trigger mid-viewport
+  with 384px free below, the page scrolled 2828px and the scroll painted before the click: Chromium 159 and WebKit
+  opened it ABOVE the trigger on the first frame, and kept it there on every reopen; Firefox 159 opened it below.
+  Placed by `top: calc(anchor(bottom) + 4px)` and by `position-area: block-end span-inline-end` alike. With
+  fallbacks set to `none` it sat below. A probe that scrolled and clicked in one animation-frame callback, then read
+  the layout at once, saw it open below in every engine, and was taken for a fix once; scrolled and clicked in one
+  task, the first read put the box at 2924px (the flipped place plus the scroll, as if unscrolled). Near the top of a
+  page it opened down, so the behavior looked random. Playwright 1.65, Windows 11, headless, 2026-11-25.
+  Consequence: `<vera-select>` has no position-try fallback; the element chooses the side once at the open from one
+  rect of the trigger (above only when below is short of what the list needs and above is larger) and caps the list at
+  its side's room. A browser row paints the scroll, opens, reopens, and holds a trigger near the viewport's bottom
+  opening above as its control.
 - **`scrollbar-gutter: stable` on a page that never scrolled moves its centered content.** Locking a modal's page with
   `html { overflow: hidden; scrollbar-gutter: stable }`: on Chromium 159 headed with classic scrollbars, a short page's
   centered content moved 7.6 px at open (the gutter appeared), and a scrolling page's did not move (the control: without

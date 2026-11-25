@@ -13,7 +13,7 @@ import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { styles } from '@verajs/styles';
 import '@vera-components/select';
-import { until } from './until.js';
+import { frames, until } from './until.js';
 
 wire([renderer, styles]);
 
@@ -48,7 +48,7 @@ const withStyle = async (css, run) => {
 it('the default select paints: the trigger takes the stylesheet inside the shadow root', async () => {
   const element = await mount();
   const trigger = element.shadowRoot.querySelector('[part="trigger"]');
-  expect(getComputedStyle(trigger).borderTopLeftRadius).to.equal('6px'); // --vera-radius fallback
+  expect(getComputedStyle(trigger).borderTopLeftRadius).to.equal('8px'); // the shared --vera-radius default
   element.remove();
 });
 
@@ -124,7 +124,7 @@ it('an extreme radius token makes a pill trigger, never a lens menu — the cap 
 it('light mode hoists a scoped sheet: styled inside the tag, inert outside it', async () => {
   const element = await mount((el) => el.setAttribute('light', ''));
   const trigger = element.querySelector('[part="trigger"]');
-  expect(getComputedStyle(trigger).borderTopLeftRadius).to.equal('6px', 'styled with no shadow root');
+  expect(getComputedStyle(trigger).borderTopLeftRadius).to.equal('8px', 'styled with no shadow root');
 
   /** The same part attribute outside the component must take nothing from our sheet. */
   const stray = document.createElement('div');
@@ -266,10 +266,11 @@ it('the anchor tier: the menu rides the top layer and escapes an overflow:hidden
 });
 
 /**
- * **On a scrolled page the list opens below a trigger with room below, and again when reopened.** Placed by
- * `top: anchor(bottom)`, it opened ABOVE in Chromium 159 and WebKit whenever the page was scrolled (the flip judged as if
- * unscrolled at the open, and kept); near the top of a page it opened down, so it looked random. CONTROL: a trigger near
- * the viewport's bottom still flips, so the fallback is alive, not removed.
+ * **On a scrolled page the list opens below a trigger with room below, and again when reopened.** With the engine's
+ * `flip-block` fallback choosing the side, it opened ABOVE in Chromium 159 and WebKit whenever the page was scrolled
+ * (placed by `top: anchor(bottom)` and by `position-area` alike); near the top of a page it opened down, so it looked
+ * random. The scroll is rendered before each open, as a user's is: scrolled and clicked in one task, the row read a
+ * different layout than any user gets. CONTROL: a trigger near the viewport's bottom still opens above.
  */
 it('on a scrolled page the list opens below a trigger with room below, reopened too; near the bottom it flips', async function () {
   if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
@@ -290,14 +291,9 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
   const open = async () => {
     trigger.click();
     await until(() => menu.matches(':popover-open'), 'the menu to open', 2000);
-    /** Settled: the open's slide has ended (two reads a frame apart agree). */
-    let last = NaN;
-    await until(() => {
-      const top = menu.getBoundingClientRect().top;
-      const same = top === last;
-      last = top;
-      return same;
-    }, 'the menu to settle (two reads a frame apart agree)', 2000);
+    /** Settled: the open's slide has ended (no transition on the menu still running). */
+    await frames(1);
+    await until(() => menu.getAnimations().every((a) => a.playState !== 'running'), 'the menu to settle (its slide ended)', 2000);
   };
   const close = async () => {
     element.close();
@@ -305,6 +301,7 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
   };
   try {
     place(Math.round(innerHeight * 0.3));
+    await frames(2);
     expect(window.scrollY).to.be.greaterThan(2000, 'CONTROL: the page is scrolled');
     await open();
     expect(menu.getBoundingClientRect().top).to.be.at.least(trigger.getBoundingClientRect().bottom - 1, 'opened below the trigger');
@@ -313,10 +310,50 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
     expect(menu.getBoundingClientRect().top).to.be.at.least(trigger.getBoundingClientRect().bottom - 1, 'reopened below the trigger');
     await close();
     place(innerHeight - trigger.getBoundingClientRect().height - 24);
+    await frames(2);
     await open();
     expect(menu.getBoundingClientRect().bottom).to.be.at.most(trigger.getBoundingClientRect().top + 1, 'CONTROL: near the bottom it flips above');
     await close();
   } finally {
+    window.scrollTo(0, 0);
+    for (const node of [spacer, element, tail]) node.remove();
+  }
+});
+
+/**
+ * **Opening a select that has a value leaves the page where it was.** The open revealed the selected row with
+ * `scrollIntoView`, which scrolls every ancestor: on a scrolled page, at the open's first layout, it scrolled the page
+ * away (to the bottom, on the components page). CONTROL: the list itself does scroll to show a row past its end.
+ */
+it('opening a select with a value on a scrolled page does not scroll the page; the list scrolls to its row', async function () {
+  if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
+    this.skip();
+    return;
+  }
+  const many = Array.from({ length: 40 }, (_, i) => ({ label: `Flavor ${i}`, value: `f${i}` }));
+  const spacer = document.body.appendChild(document.createElement('div'));
+  spacer.style.blockSize = '3000px';
+  const element = document.createElement('vera-select');
+  document.body.appendChild(element);
+  const tail = document.body.appendChild(document.createElement('div'));
+  tail.style.blockSize = '3000px';
+  element.options = many;
+  element.value = 'f35';
+  await frame();
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  const list = element.shadowRoot.querySelector('[part="list"]');
+  try {
+    window.scrollBy(0, trigger.getBoundingClientRect().top - Math.round(innerHeight * 0.3));
+    await frames(2);
+    const before = window.scrollY;
+    expect(before).to.be.greaterThan(2000, 'CONTROL: the page is scrolled');
+    trigger.click();
+    await until(() => element.shadowRoot.querySelector('[part="menu"]').matches(':popover-open'), 'the menu to open', 2000);
+    await frames(4);
+    expect(window.scrollY).to.equal(before, 'the page did not move');
+    expect(list.scrollTop).to.be.greaterThan(0, 'CONTROL: the list scrolled to the selected row, past its end');
+  } finally {
+    element.close();
     window.scrollTo(0, 0);
     for (const node of [spacer, element, tail]) node.remove();
   }
@@ -473,10 +510,9 @@ it('P4 — the menu is viewport-aware in SIZE: a short viewport squeezes it, nev
   if (!CSS.supports('position-area: block-end')) return;
   /**
    * Top-layer content does not scroll with the page, so a menu taller than the viewport strands
-   * its overflow rows unreachable. The squeeze rung (position-area + a 100% cap in
-   * @position-try) shrinks the menu into the available area and lets the list scroll — measured
-   * identical on stable Chrome, Playwright Chromium, Firefox and WebKit. Inset-pair rungs are
-   * inert on all four engines; position-area is the shape that participates.
+   * its overflow rows unreachable. The size cap (position-area + a 100% cap on the chosen
+   * side; position-area makes 100% that side's room) shrinks the menu into the available area and
+   * lets the list scroll.
    */
   await setViewport({ width: 700, height: 240 });
   try {

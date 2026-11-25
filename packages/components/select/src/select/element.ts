@@ -98,8 +98,41 @@ const ANCHOR_TIER =
   typeof CSS !== 'undefined' &&
   typeof CSS.supports === 'function' &&
   CSS.supports('top: anchor(bottom)') &&
+  CSS.supports('position-area: block-end') &&
   typeof HTMLElement !== 'undefined' &&
   'showPopover' in HTMLElement.prototype;
+
+/**
+ * Which side of its trigger the list opens on, chosen once at the open: above only when the room below is short of
+ * what the list needs and the room above is larger, as a native select does. The engine's own `flip-block` fallback
+ * chose wrong on a scrolled page in Chromium 159 and WebKit (Playwright, 2026-11-25: opened above a trigger with 384px
+ * free below, on every open after the scroll was painted, under `top: anchor(bottom)` and `position-area` alike;
+ * Firefox chose right), and an engine keeps a fallback it chose while it still fits. One rect read per open.
+ */
+const openSide = (menu: HTMLElement, trigger: Element | null): 'top' | 'bottom' => {
+  if (!trigger) return 'bottom';
+  const { top, bottom } = trigger.getBoundingClientRect();
+  const list = menu.querySelector('[part="list"]');
+  /** What the list needs: the menu as laid out below, plus whatever of its list is scrolled out of sight there. */
+  const need = menu.offsetHeight + (list ? list.scrollHeight - list.clientHeight : 0) + 8;
+  const below = innerHeight - bottom;
+  return below < need && top > below ? 'top' : 'bottom';
+};
+
+/**
+ * Scrolls the list just enough to show `row`, and nothing else. `scrollIntoView({ block: 'nearest' })` scrolls every
+ * ancestor, the page included: opening a select with a value scrolled the page to the bottom (Brian, 2026-11-25,
+ * Chromium), because at the open the list's first layout can sit far from where it ends up. The gap between the two
+ * rects is the same wherever the list sits.
+ */
+const reveal = (row: Element | null): void => {
+  const list = row?.closest('[part="list"]');
+  if (!row || !list) return;
+  const r = row.getBoundingClientRect();
+  const l = list.getBoundingClientRect();
+  if (r.top < l.top) list.scrollTop -= l.top - r.top;
+  else if (r.bottom > l.bottom) list.scrollTop += r.bottom - l.bottom;
+};
 
 const INTERNAL = new WeakMap<VeraSelect, Internal>();
 
@@ -666,8 +699,11 @@ export class VeraSelect extends HTMLElement {
           if (ANCHOR_TIER && !entry.slottedTrigger && menu?.hasAttribute('popover')) {
             clearTimeout(entry.hideTimer);
             try {
-              if (next === 'open') menu.showPopover?.();
-              else
+              if (next === 'open') {
+                menu.removeAttribute('data-side');
+                menu.showPopover?.();
+                menu.setAttribute('data-side', openSide(menu, root.querySelector?.('[part="trigger"]') ?? null));
+              } else
                 entry.hideTimer = setTimeout(() => {
                   try {
                     menu.hidePopover?.();
@@ -826,14 +862,14 @@ export class VeraSelect extends HTMLElement {
           const search =
             (slotted(this, 'search').find((node) => node.nodeType === 1) as HTMLElement | undefined) ??
             (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
-          search?.focus?.();
+          /** No scroll: at the open the list may not be placed yet, and focusing into it scrolled the page there. */
+          search?.focus?.({ preventScroll: true });
         });
       }, { owner: this });
 
-      /** Keyboard travel keeps the active row visible. Guarded: jsdom has no scrollIntoView. */
+      /** Keyboard travel, and the open, keep the active row visible: inside the list only, never the page. */
       effect(() => {
-        if (state.open && state.active >= 0)
-          root.querySelector?.('[part="option"][data-active]')?.scrollIntoView?.({ block: 'nearest' });
+        if (state.open && state.active >= 0) reveal(root.querySelector?.('[part="option"][data-active]') ?? null);
       }, { owner: this });
 
       /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */

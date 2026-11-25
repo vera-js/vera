@@ -43,9 +43,8 @@ import { ACCENT, BORDER, DANGER, FG, FG_MUTED, FOCUS, RADIUS, SHADOW, SURFACE } 
  * position:absolute means the always-rendered box costs no layout.
  *
  * THE ANCHOR TIER (SELECT-V2 §4): where the engine has CSS anchor positioning, the menu is a
- * top-layer popover anchored to the trigger — killing the overflow-clipping bug class — with
- * flip-when-clipped via position-try-fallbacks where supported (ignored elsewhere; those
- * engines keep today's non-flipping behavior, which is what they have now). Everything below
+ * top-layer popover anchored to the trigger — killing the overflow-clipping bug class — on the
+ * side the element chose at the open (data-side). Everything below
  * this block is the everywhere-fallback: it is not a second implementation, it is the current
  * one, kept. The popover attribute itself is applied by the element only on this tier — a
  * popover attribute on a non-anchor engine would UA-hide the menu display:none.
@@ -76,11 +75,9 @@ import { ACCENT, BORDER, DANGER, FG, FG_MUTED, FOCUS, RADIUS, SHADOW, SURFACE } 
  * rows and the search input were left at the UA #000, invisible on a dark --vera-surface (1.21:1,
  * axe). Set at each surface, descendants inherit.
  *
- * THE SQUEEZE RUNG: viewport-aware SIZE, not just position — below at natural size, flipped above
- * at natural size, then (only when neither side fits) shrink into the below-area and scroll.
- * position-area makes the containing block the region under the anchor, so the 100% cap IS the
- * available space. @position-try rungs with INSET PAIRS are inert on all four engine builds
- * (probed twice); position-area rungs participate. Nested @supports keeps plain flip elsewhere.
+ * THE SIZE CAP: viewport-aware SIZE, not just position — at natural size on the chosen side, and
+ * when that side is short, shrunk into it and scrolled. position-area makes the containing block
+ * the region on that side of the anchor, so the 100% cap IS the available space.
  *
  * VISIBILITY IS DIRECTION-SPLIT: the closed-state rule carries visibility in its transition (holds
  * the fade); the base does not (opening flips it instantly). A transitioning visibility left the
@@ -249,14 +246,15 @@ export const SELECT_STYLES = /* css */ `
       padding: 0;
       box-sizing: border-box;
       /*
-       * Below the trigger, from its inline start, by position-area (menu's placement). Placed by top: anchor(bottom)
-       * and left: anchor(left) instead, the list opened ABOVE a trigger with room below on any scrolled page, in
-       * Chromium 159 and WebKit (Playwright, 2026-11-25): at the open the flip-block fallback was judged as if the page
-       * were not scrolled (Chromium's first layout read top 9213px at scrollY 9001), and the engine kept it. Near the top
-       * of a page it opened down, which is why it looked random. Firefox placed it right either way.
+       * Below the trigger, from its inline start; above it when the element chose data-side="top" at the open. No
+       * position-try fallback: flip-block opened the list ABOVE a trigger with room below on any scrolled page in
+       * Chromium 159 and WebKit (Playwright, 2026-11-25), and an engine keeps a fallback it chose while it still fits.
+       * The list's cap is the room on its side (under position-area, 100% is that region), so a long list scrolls
+       * within the viewport instead of leaving it.
        */
       position-area: block-end span-inline-end;
       margin-block: 4px;
+      max-block-size: min(360px, 70vh, calc(100% - 8px));
       /*
        * At least the trigger's width, wider when an option needs it, like a native select's list (a list only as wide
        * as a short trigger wrapped every description), and never past the viewport.
@@ -265,7 +263,9 @@ export const SELECT_STYLES = /* css */ `
       inline-size: max-content;
       max-inline-size: min(28rem, calc(100vw - 16px));
       margin-inline: 0;
-      position-try-fallbacks: flip-block;
+    }
+    :where([part='menu'][popover][data-side='top']) {
+      position-area: block-start span-inline-end;
     }
     :where([part='menu'][popover]:popover-open) {
       @starting-style {
@@ -273,15 +273,13 @@ export const SELECT_STYLES = /* css */ `
         translate: 0 -6px;
       }
     }
-    @supports (position-area: block-end) {
-      :where([part='menu'][popover]) {
-        position-try-fallbacks: flip-block, --_vera-select-squeeze;
-      }
-      @position-try --_vera-select-squeeze {
-        inset: auto;
-        position-area: block-end span-inline-end;
-        max-block-size: calc(100% - 12px);
-        margin-block: 4px;
+    /* Above the trigger the list slides in from below, toward the trigger, as it does from above when below it. */
+    :where([part='menu'][popover][data-side='top'][data-state='closed']) {
+      translate: 0 6px;
+    }
+    :where([part='menu'][popover][data-side='top']:popover-open) {
+      @starting-style {
+        translate: 0 6px;
       }
     }
   }
