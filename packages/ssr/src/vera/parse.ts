@@ -25,8 +25,11 @@ import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_EL
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
 import { RAW_TEXT_TAGS, TEXT_ONLY_TAGS, rawTextCloserAt as closerAt } from './tokenizer.js';
 
-/** The entity spellings this package emits, plus the handful every document uses. */
-const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+/**
+ * The entity spellings this package emits, plus the handful every document uses. A Map, not a plain object: an object
+ * answers for `Object.prototype`'s names too, so `&constructor;` decoded to a function's source text.
+ */
+const NAMED = new Map<string, string>([['amp', '&'], ['lt', '<'], ['gt', '>'], ['quot', '"'], ['apos', "'"], ['nbsp', ' ']]);
 /** A numeric reference decodes without its `;` too, in text and in attribute values alike; a named one here never does. */
 const ENTITY = /&(?:#(\d+);?|#[xX]([0-9a-fA-F]+);?|([a-zA-Z]+);)/g;
 
@@ -44,7 +47,7 @@ export const decode = (text: string): string =>
           ? decodeCodePoint(Number(decimal))
           : hex
             ? decodeCodePoint(parseInt(hex, 16))
-            : /** Neither number matched, so the name did. */ (NAMED[name!] ?? match)
+            : /** Neither number matched, so the name did. */ (NAMED.get(name!) ?? match)
       )
     : text;
 
