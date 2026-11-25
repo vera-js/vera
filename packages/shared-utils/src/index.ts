@@ -4,6 +4,7 @@ export * as SHARED from './diagnostics.js';
 export * from './markup-grammar.js';
 export * from './namespaces.js';
 export * from './own-sheet.js';
+export * from './tokens.js';
 export * from './define-checks.js';
 export * from './dev-values.js';
 export * from './utils.js';

@@ -1,0 +1,40 @@
+/**
+ * **The shared look's tokens, one constant each: the `var(--vera-<name>, <default>)` a component's sheet writes.** Every
+ * component reads the same twelve custom properties with the same defaults, so a page with one component looks
+ * finished and matches a page with all of them, and an app restyles every component by setting a few of them (the
+ * accent, the radius, the surface) on `:root`.
+ *
+ * A naming contract, not a runtime: components are independent bundles, and each inlines only the constants its sheet
+ * uses (each is a string constant the minifier folds into the sheet; a record plus a helper would carry every token
+ * into every bundle). `tests/component-tokens.test.mjs` holds every sheet to these exact defaults.
+ *
+ * Colors default by `light-dark(<light>, <dark>)`: the page's `color-scheme` picks one (`:root { color-scheme: light
+ * dark }` follows the system). With no `color-scheme` the light value is used, so a component is never invisible, only
+ * light. The look's floor is therefore the engines with `light-dark()` (Chromium 123, Firefox 120, Safari 17.5): below
+ * it a token with no value set is unset (Brian, 2026-11-25). Our hosts never set `color-scheme`: that is the app's.
+ */
+
+/** Page-level background a control sits on. */
+export const BG = 'var(--vera-bg,light-dark(#fff,#0c0c10))';
+/** Raised surfaces: lists, dialogs, inputs. */
+export const SURFACE = 'var(--vera-surface,light-dark(#fff,#17171c))';
+/** Text. */
+export const FG = 'var(--vera-fg,light-dark(#0f0f14,#f2f2f5))';
+/** Secondary text: placeholders, hints, idle tabs. */
+export const FG_MUTED = 'var(--vera-fg-muted,light-dark(#5f5f6b,#a1a1aa))';
+/** Hairlines and control borders. */
+export const BORDER = 'var(--vera-border,light-dark(#e4e4ea,#2e2e37))';
+/** Hover and active-option fill. */
+export const HOVER = 'var(--vera-hover,light-dark(#f2f2f6,#202028))';
+/** Selection, indicators, the primary action. */
+export const ACCENT = 'var(--vera-accent,light-dark(oklch(.56 .22 280),oklch(.72 .16 280)))';
+/** Text and icons on the accent. */
+export const ACCENT_FG = 'var(--vera-accent-fg,light-dark(#fff,#0c0c10))';
+/** The focus ring: the accent, softened, drawn 3px outside the control. Follows the accent an app sets. */
+export const FOCUS = `var(--vera-focus,color-mix(in oklch,${ACCENT} 60%,transparent))`;
+/** Errors. */
+export const DANGER = 'var(--vera-danger,light-dark(#c4321c,#ff7a66))';
+/** Corners; a pill keeps its own 999px. */
+export const RADIUS = 'var(--vera-radius,10px)';
+/** Raised surfaces' shadow: two soft layers, deeper in the dark. */
+export const SHADOW = 'var(--vera-shadow,0 1px 2px light-dark(rgb(0 0 0/.05),rgb(0 0 0/.4)),0 8px 24px -8px light-dark(rgb(0 0 0/.14),rgb(0 0 0/.6)))';
