@@ -31,6 +31,8 @@ import { fsPath } from '../scripts/fs-path.mjs';
 
 /** Name -> what to use instead, so the failure carries the fix rather than just the complaint. */
 const REMOVED = {
+  /** Select's create-row text override (2026-11-25): the shared look derives it from the accent and the text color. */
+  '--vera-accent-strong': '--vera-accent (the create row mixes it toward --vera-fg)',
   'deep: false': 'signal(value) for a value held as it is; a store is always deep',
   setRenderer: 'wire(renderer)',
   connectInserts: 'wire([router]) — the router is handed core’s registry',

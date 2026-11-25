@@ -262,11 +262,8 @@ export const selectSurface = {
     '--vera-fg',
     '--vera-fg-muted',
     '--vera-accent',
-    '--vera-accent-strong',
     '--vera-radius',
     '--vera-focus',
-    /** The menu shadow's mix base — added when the last raw color left the stylesheet (the `#000`
-     *  in the box-shadow's color-mix), completing the README's every-color-is-a-token claim. */
     '--vera-shadow',
   ],
 } as const satisfies ComponentSurface;

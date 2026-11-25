@@ -192,8 +192,8 @@ it('axe: a selected row that is also the active row (checkmark on the highlight 
   audit('selected+active', { value: 'a', open: true }));
 
 /**
- * Dark mode is consumer-set tokens (the sheet ships light fallbacks). The derived
- * --vera-accent-strong mixes toward --vera-fg, so it must stay above the contrast floor when a
+ * Dark tokens set by the consumer. The create row's accent text is the accent mixed 20% toward
+ * --vera-fg, so it must stay above the contrast floor when a
  * consumer flips surface/fg dark and uses a light accent - a plain darken regressed this to
  * 3.7:1. The highlighted create row is the state that exercises accent-on-tint text.
  */

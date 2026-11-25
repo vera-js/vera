@@ -19,6 +19,8 @@
  * Selectors target `[part="…"]` directly: the part attribute doubles as the light-DOM styling
  * hook, so there is one name per node, not a part name and a class name to keep in lockstep.
  */
+import { ACCENT, BORDER, FG, FG_MUTED, FOCUS, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
+
 /**
  * IN-SHEET COMMENTARY, RELOCATED — a comment inside a template literal is STRING DATA to
  * the minifier and ships in every bundle (measured; the reclaim is in the commit). The
@@ -94,12 +96,12 @@ export const SELECT_STYLES = /* css */ `
   :host {
     display: block;
     position: relative;
-    color: var(--vera-fg, #18181b);
+    color: ${FG};
   }
   :where(:scope) {
     display: block;
     position: relative;
-    color: var(--vera-fg, #18181b);
+    color: ${FG};
   }
 
   :where([part='trigger']) {
@@ -110,10 +112,10 @@ export const SELECT_STYLES = /* css */ `
     min-block-size: 30px;
     padding: 4px 28px 4px 9px;
     box-sizing: border-box;
-    border: 1px solid var(--vera-border, #d4d4d8);
-    border-radius: var(--vera-radius, 6px);
-    background: var(--vera-surface, #fff);
-    color: var(--vera-fg, #18181b);
+    border: 1px solid ${BORDER};
+    border-radius: ${RADIUS};
+    background: ${SURFACE};
+    color: ${FG};
     font: inherit;
     text-align: start;
     cursor: pointer;
@@ -123,7 +125,7 @@ export const SELECT_STYLES = /* css */ `
     cursor: default;
   }
   :where([part='trigger']):focus-visible {
-    outline: 2px solid var(--vera-focus, #7c3aed66);
+    outline: 3px solid ${FOCUS};
     outline-offset: 1px;
   }
   :where([part='trigger'])::after {
@@ -133,8 +135,8 @@ export const SELECT_STYLES = /* css */ `
     inset-block-start: 50%;
     inline-size: 7px;
     block-size: 7px;
-    border-inline-end: 1.5px solid var(--vera-fg-muted, #71717a);
-    border-block-end: 1.5px solid var(--vera-fg-muted, #71717a);
+    border-inline-end: 1.5px solid ${FG_MUTED};
+    border-block-end: 1.5px solid ${FG_MUTED};
     transform: translateY(-70%) scaleY(1) rotate(45deg);
     pointer-events: none;
   }
@@ -154,7 +156,7 @@ export const SELECT_STYLES = /* css */ `
     gap: 4px;
     padding: 1px 4px 1px 8px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--vera-accent, #7c3aed) 14%, transparent);
+    background: color-mix(in srgb, ${ACCENT} 14%, transparent);
     font-size: 0.92em;
   }
   :where([part='pill-icon']) {
@@ -176,7 +178,7 @@ export const SELECT_STYLES = /* css */ `
     cursor: pointer;
   }
   :where([part='pill-remove']):hover {
-    background: color-mix(in srgb, var(--vera-accent, #7c3aed) 25%, transparent);
+    background: color-mix(in srgb, ${ACCENT} 25%, transparent);
   }
   /** \`clearable\`'s control: at the trigger's end, before the chevron's reserved space; the pill ✕'s look. */
   :where([part='clear']) {
@@ -190,17 +192,17 @@ export const SELECT_STYLES = /* css */ `
     border-radius: 999px;
     padding: 0;
     background: transparent;
-    color: var(--vera-fg-muted, #71717a);
+    color: ${FG_MUTED};
     font-size: 10px;
     cursor: pointer;
   }
   :where([part='clear']):hover {
-    background: color-mix(in srgb, var(--vera-accent, #7c3aed) 25%, transparent);
-    color: var(--vera-fg, #18181b);
+    background: color-mix(in srgb, ${ACCENT} 25%, transparent);
+    color: ${FG};
   }
   :where([part='value']:empty)::before {
     content: attr(data-placeholder);
-    color: var(--vera-fg-muted, #71717a);
+    color: ${FG_MUTED};
   }
 
   :where([part='menu']) {
@@ -212,11 +214,11 @@ export const SELECT_STYLES = /* css */ `
     flex-direction: column;
     /* Room for a group or two with descriptions before anything scrolls (Brian, 2026-11-25: short lists showed a scrollbar). */
     max-block-size: min(360px, 70vh);
-    border: 1px solid var(--vera-border, #d4d4d8);
-    border-radius: min(var(--vera-radius, 6px), 14px);
-    background: var(--vera-surface, #fff);
-    color: var(--vera-fg, #18181b);
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--vera-shadow, #000) 18%, transparent);
+    border: 1px solid ${BORDER};
+    border-radius: min(${RADIUS}, 14px);
+    background: ${SURFACE};
+    color: ${FG};
+    box-shadow: ${SHADOW};
     overflow: hidden;
   }
   :where([part='menu'][data-state='closed']) {
@@ -293,7 +295,7 @@ export const SELECT_STYLES = /* css */ `
   :where([part='search']) {
     padding: 7px 9px;
     border: 0;
-    border-block-end: 1px solid var(--vera-border, #d4d4d8);
+    border-block-end: 1px solid ${BORDER};
     background: transparent;
     color: inherit;
     font: inherit;
@@ -311,14 +313,14 @@ export const SELECT_STYLES = /* css */ `
     align-items: center;
     gap: 7px;
     padding: 6px 8px;
-    border-radius: min(calc(var(--vera-radius, 6px) - 2px), 8px);
+    border-radius: min(calc(${RADIUS} - 2px), 8px);
     cursor: pointer;
   }
   :where([part='option-icon']) {
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    color: var(--vera-fg-muted, #71717a);
+    color: ${FG_MUTED};
   }
   :where([part='option-label']) {
     display: flex;
@@ -327,7 +329,7 @@ export const SELECT_STYLES = /* css */ `
   }
   :where([part='option-description']) {
     font-size: 0.85em;
-    color: var(--vera-fg-muted, #71717a);
+    color: ${FG_MUTED};
   }
   :where([part='group']) {
     display: contents;
@@ -338,7 +340,7 @@ export const SELECT_STYLES = /* css */ `
     font-size: 0.78em;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--vera-fg-muted, #71717a);
+    color: ${FG_MUTED};
   }
   :where([part='status']) {
     position: absolute;
@@ -349,7 +351,7 @@ export const SELECT_STYLES = /* css */ `
     white-space: nowrap;
   }
   :where([part='option'][data-active]) {
-    background: color-mix(in srgb, var(--vera-accent, #7c3aed) 16%, transparent);
+    background: color-mix(in srgb, ${ACCENT} 16%, transparent);
   }
   :where([part='option'][aria-disabled='true']) {
     opacity: 0.45;
@@ -360,7 +362,7 @@ export const SELECT_STYLES = /* css */ `
     inline-size: 0;
     margin-inline-end: -7px;
     scale: 0;
-    color: var(--vera-accent, #7c3aed);
+    color: ${ACCENT};
   }
   :where([part='option'][aria-selected='true'])::before {
     inline-size: 14px;
@@ -371,12 +373,12 @@ export const SELECT_STYLES = /* css */ `
     content: none;
   }
   :where([part='option'][data-create]) {
-    color: var(--vera-accent-strong, color-mix(in srgb, var(--vera-accent, #7c3aed), var(--vera-fg, #18181b) 20%));
+    color: color-mix(in oklch, ${ACCENT}, ${FG} 20%);
   }
   :where([part='empty']) {
     margin: 0;
     padding: 8px 10px;
-    color: var(--vera-fg-muted, #71717a);
+    color: ${FG_MUTED};
   }
   :where([part='empty'][data-state='hidden']) {
     display: none;
@@ -384,8 +386,8 @@ export const SELECT_STYLES = /* css */ `
   :where([part='overflow']) {
     margin: 0;
     padding: 6px 10px;
-    border-block-start: 1px solid var(--vera-border, #d4d4d8);
-    color: var(--vera-fg-muted, #71717a);
+    border-block-start: 1px solid ${BORDER};
+    color: ${FG_MUTED};
     font-size: 0.85em;
   }
   :where([part='overflow'][data-state='hidden']) {
