@@ -16,6 +16,8 @@
  * every engine; the **exit** runs where the engine can transition `display` and `overlay`, and is instant elsewhere
  * (Firefox). Reduced motion: no animation.
  */
+import { BORDER, FG, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
+
 export const SHEET = '_$veraDialog$';
 /** The document's sheet: the scroll lock. */
 export const LOCK_SHEET = '_$veraDialogLock$';
@@ -32,9 +34,9 @@ export const LOCK =
 export const LOOK =
   `${DIALOG}{overscroll-behavior:contain}` +
   `${look(D)}{box-sizing:border-box;max-inline-size:min(32rem,calc(100vw - 32px));max-block-size:calc(100dvh - 32px);` +
-  'padding:24px;border:1px solid var(--vera-border,#d4d4d8);border-radius:var(--vera-radius,6px);' +
-  'background:var(--vera-bg,#fff);color:var(--vera-fg,#18181b);box-shadow:0 16px 48px rgb(0 0 0/.18)}' +
-  `${look(`${D}::backdrop`)}{background:rgb(0 0 0/.4)}` +
+  `padding:24px;border:1px solid ${BORDER};border-radius:calc(${RADIUS} + 4px);` +
+  `background:${SURFACE};color:${FG};box-shadow:${SHADOW}}` +
+  `${look(`${D}::backdrop`)}{background:var(--vera-dialog-backdrop,rgb(0 0 0/.45));backdrop-filter:blur(2px)}` +
   `${at('end')},${at('start')}{margin-block:0;max-block-size:none;block-size:100dvh;border-radius:0}` +
   `${at('end')}{margin-inline:auto 0}` +
   `${at('start')}{margin-inline:0 auto}` +

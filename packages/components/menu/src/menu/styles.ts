@@ -10,6 +10,8 @@
  * centered placement. Entry and exit fade under `prefers-reduced-motion: no-preference` (`@starting-style`; the exit is
  * instant where `display` cannot transition). Forced colors: the focused item is `Highlight`.
  */
+import { BORDER, FG, FG_MUTED, HOVER, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
+
 export const SHEET = '_$veraMenu$';
 
 const MENU = ':where([data-vera-part="menu"][data-vera-menu])';
@@ -24,18 +26,18 @@ export const PLACE =
 
 export const LOOK =
   PLACE +
-  `${look(MENU)}{min-inline-size:10rem;padding:4px;border:1px solid var(--vera-border,#d4d4d8);border-radius:var(--vera-radius,6px);` +
-  'background:var(--vera-bg,#fff);color:var(--vera-fg,#18181b);box-shadow:0 8px 24px rgb(0 0 0/.12);font:inherit}' +
+  `${look(MENU)}{min-inline-size:10rem;padding:4px;border:1px solid ${BORDER};border-radius:${RADIUS};` +
+  `background:${SURFACE};color:${FG};box-shadow:${SHADOW};font:inherit}` +
   `${look(MENU)}:focus{outline:none}` +
   `${look(ITEM)}{display:flex;align-items:center;gap:8px;inline-size:100%;box-sizing:border-box;padding:6px 8px;border:0;` +
-  'border-radius:calc(var(--vera-radius,6px) - 2px);background:none;color:inherit;font:inherit;text-align:start;text-decoration:none;cursor:default}' +
-  `${look(`${ITEM}:focus`)}{outline:none;background:var(--vera-hover,#f4f4f5)}` +
+  `border-radius:calc(${RADIUS} - 4px);background:none;color:inherit;font:inherit;text-align:start;text-decoration:none;cursor:default}` +
+  `${look(`${ITEM}:focus`)}{outline:none;background:${HOVER}}` +
   `${look(`${ITEM}:is(:disabled,[aria-disabled="true"])`)}{opacity:.5}` +
-  `${look(`${ITEM} :where(kbd,vera-kbd)`)}{margin-inline-start:auto;color:var(--vera-fg-muted,#71717a);font-size:.85em}` +
+  `${look(`${ITEM} :where(kbd,vera-kbd)`)}{margin-inline-start:auto;color:${FG_MUTED};font-size:.85em}` +
   `${look(`${ITEM}[aria-checked]::before`)}{content:"";inline-size:1em;text-align:center}` +
   `${look(`${ITEM}[aria-checked="true"]::before`)}{content:"\\2713"}` +
   `${look(`${ITEM}[role="menuitemradio"][aria-checked="true"]::before`)}{content:"\\2022"}` +
-  `${look(`${MENU} :where(hr)`)}{margin:4px 0;border:0;border-block-start:1px solid var(--vera-border,#d4d4d8)}` +
+  `${look(`${MENU} :where(hr)`)}{margin:4px 0;border:0;border-block-start:1px solid ${BORDER}}` +
   '@media (prefers-reduced-motion:no-preference){' +
   `${look(MENU)}{transition:opacity 120ms ease,display 120ms allow-discrete,overlay 120ms allow-discrete}` +
   `${look(`${MENU}:not(:popover-open)`)}{opacity:0}` +

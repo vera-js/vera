@@ -31,5 +31,5 @@ export const dialogSurface = {
   ],
   states: [],
   customStates: [],
-  tokens: ['--vera-border', '--vera-radius', '--vera-bg', '--vera-fg'],
+  tokens: ['--vera-border', '--vera-radius', '--vera-surface', '--vera-fg', '--vera-shadow', '--vera-dialog-backdrop'],
 } as const satisfies ComponentSurface;

@@ -8,8 +8,11 @@
  * - every read of a shared token through a literal `var(--vera-<name>, <default>)` carries exactly tokens.ts's default
  *   (the simplest way to hold that is to write the constant: `${ACCENT}`), so two components can never disagree on
  *   what an unset accent looks like;
- * - no raw color (hex, rgb()/hsl()/oklch()/oklab()/color(), a color name) outside a shared default: a theme value is a
- *   token. System colors (Canvas, CanvasText, Highlight…) are forced colors' own and pass.
+ * - no raw color (hex, rgb()/hsl()/oklch()/oklab()/color(), a color name) outside a token's default, shared or the
+ *   component's own (`var(--vera-dialog-backdrop, rgb(0 0 0/.45))`): a theme value is a token. System colors (Canvas,
+ *   CanvasText, Highlight…) are forced colors' own and pass;
+ * - its surface's `tokens` lists exactly the custom properties its look reads (the shared constants it imports, and
+ *   any name it writes), so the manifest tells an app every name it can set.
  *
  * A component not yet moved onto the tokens is listed in NOT_YET, by name, and skipped; a listed component that already
  * passes is refused, so the list only shrinks.
@@ -18,7 +21,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { withoutComments } from './source-comments.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -62,7 +65,11 @@ export const breaches = (component, files, tokens) => {
     }
     for (const read of tokenReads(raw)) {
       const shared = tokens.get(read.name);
-      if (shared === undefined) continue;
+      if (shared === undefined) {
+        /** A component's own token: its default may be a raw color (it is still a token), so it leaves the scan. */
+        if (read.name.startsWith(`${component}-`)) rest = rest.split(read.whole).join('');
+        continue;
+      }
       if (shared !== null && read.whole !== shared) out.push(`${file}: ${read.whole} is not the shared ${shared}`);
       rest = rest.split(read.whole).join('');
     }
@@ -73,8 +80,23 @@ export const breaches = (component, files, tokens) => {
   return out;
 };
 
+/** Each token constant's name in tokens.ts (`ACCENT`) → its custom property (`--vera-accent`). */
+const constants = new Map(
+  [...readFileSync(TOKENS_SOURCE, 'utf8').matchAll(/export const ([A-Z_]+) = ['`]var\(--vera-([a-z-]+),/g)].map(([, constant, name]) => [constant, `--vera-${name}`]),
+);
+/** The custom properties a component's look reads: the token constants it imports from shared-utils, and every name it writes. */
+export const readNames = (files) => {
+  const names = new Set();
+  for (const [, text] of files) {
+    for (const [, list] of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*'@verajs\/shared-utils'/g))
+      for (const item of list.split(',').map((s) => s.trim())) if (constants.has(item)) names.add(constants.get(item));
+    for (const [name] of text.matchAll(/--vera-[a-z][a-z0-9-]*/g)) names.add(name);
+  }
+  return [...names].sort();
+};
+
 /** Components whose look has not moved onto the tokens yet (W106/W108). A name leaves this list in its look's commit. */
-const NOT_YET = ['dialog', 'field', 'icon', 'input', 'kbd', 'menu', 'select', 'spinner'];
+const NOT_YET = ['field', 'icon', 'input', 'kbd', 'select', 'spinner'];
 
 /** Each component's look sources: every .ts under src except its demo and surface (data) and diagnostics (prose). */
 const lookFiles = (name) => {
@@ -105,7 +127,7 @@ test('CONTROL: breaches() names a wrong default, an unknown token, and a raw col
     ['a.ts', `x{color:var(--vera-accent,#7c3aed)}`],
     ['b.ts', `x{color:var(--vera-brand,red)}`],
     ['c.ts', `x{color:#123456}`],
-    ['d.ts', `x{color:${accent};inline-size:var(--vera-demo-size,1em);outline-color:Highlight}`],
+    ['d.ts', `x{color:${accent};inline-size:var(--vera-demo-size,1em);outline-color:Highlight;background:var(--vera-demo-scrim,rgb(0 0 0/.4))}`],
   ];
   assert.deepEqual(breaches('demo', files, tokens), [
     `a.ts: var(--vera-accent,#7c3aed) is not the shared ${accent}`,
@@ -116,11 +138,15 @@ test('CONTROL: breaches() names a wrong default, an unknown token, and a raw col
 });
 
 for (const name of components)
-  test(`${name}: its look reads the shared tokens with the shared defaults, and no raw color`, (t) => {
+  test(`${name}: its look reads the shared tokens with the shared defaults, and no raw color`, async (t) => {
     const found = breaches(name, lookFiles(name), tokens);
     if (NOT_YET.includes(name)) {
       assert.notDeepEqual(found, [], `${name} is in NOT_YET but already on the tokens: take it off the list`);
       return t.skip(`not yet on the tokens (${found.length} to move)`);
     }
     assert.deepEqual(found, [], `${name}: move these onto packages/shared-utils/src/tokens.ts`);
+    const src = join(ROOT, 'packages/components', name, 'src');
+    const folder = readdirSync(src).find((entry) => existsSync(join(src, entry, 'surface.ts')));
+    const surface = Object.values(await import(pathToFileURL(join(src, folder, 'surface.ts')).href))[0];
+    assert.deepEqual([...surface.tokens].sort(), readNames(lookFiles(name)), `${name}: its surface's tokens list is not what its look reads`);
   });

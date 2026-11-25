@@ -32,5 +32,5 @@ export const menuSurface = {
   ],
   states: [],
   customStates: [],
-  tokens: ['--vera-border', '--vera-radius', '--vera-bg', '--vera-fg', '--vera-fg-muted', '--vera-hover'],
+  tokens: ['--vera-border', '--vera-radius', '--vera-surface', '--vera-fg', '--vera-fg-muted', '--vera-hover', '--vera-shadow'],
 } as const satisfies ComponentSurface;
