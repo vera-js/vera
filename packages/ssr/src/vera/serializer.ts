@@ -255,13 +255,13 @@ type Plan = {
   readonly texts: boolean[];
   readonly elementPositions: boolean[];
   readonly elements: number[];
-  /** Sparse: set for each ATTRIBUTE slot only. */
+  /** Per slot (dense, `undefined` but at an ATTRIBUTE slot). */
   readonly groups: Array<Group | undefined>;
-  /** Sparse, like `groups`: set for each ATTRIBUTE slot, and read only there. */
+  /** Per slot (dense, `''` but at an ATTRIBUTE slot, the only place they are read), like `groups`. */
   readonly leads: string[];
   readonly decodedLeads: string[];
-  /** Sparse: set for each COMPONENT_PROP slot only. */
-  readonly urls: Array<boolean | undefined>;
+  /** Per slot (dense, `false` but at a COMPONENT_PROP slot whose property is a URL sink). */
+  readonly urls: boolean[];
   /** Sparse, read only at a `JOINED` slot: its value's statics (see `closeJoin`); `undefined` for a plan with none. */
   readonly joins: ReadonlyArray<readonly string[] | undefined> | undefined;
   /** Per slot (dense, 0 for every slot that is no style hole): when a style value may skip `styleHole` — see `compile`. */
@@ -1043,21 +1043,35 @@ const compile = (strings: unknown, depth: number): Plan | null => {
     else if (escaped !== strings) return filed(strings, depth, compile(escaped, depth)!);
   }
   /**
-   * Dense, so the render loop reads a value at every binding: both are filled sparsely above, and a hole read falls
+   * Dense, so the render loop reads a value at every binding: each is filled sparsely above, and a hole read falls
    * through to the prototype chain on every child binding of every render — measured at about 3% of a server render.
-   * Built in a loop, not `Array.from` with a callback, which cost compile about a fifth of its time (2026-11-20).
+   * The attribute and property tables are read only at their own kinds' slots, but a holey array is a slower kind
+   * wherever it is read, and a hot function holds none (2026-11-25). Built in a loop, not `Array.from` with a callback,
+   * which cost compile about a fifth of its time (2026-11-20).
    */
   const denseDepths: number[] = [];
   const denseTexts: boolean[] = [];
+  const denseGroups: Array<Group | undefined> = [];
+  const denseLeads: string[] = [];
+  const denseDecodedLeads: string[] = [];
+  const denseUrls: boolean[] = [];
   for (let i = 0; i < kinds.length; i++) {
     denseDepths.push(depths[i] ?? 0);
     denseTexts.push(texts[i] === true);
+    denseGroups.push(groups[i]);
+    denseLeads.push(leads[i] ?? '');
+    denseDecodedLeads.push(decodedLeads[i] ?? '');
+    denseUrls.push(urls[i] === true);
   }
   const plan: Plan = {
     parts, kinds, names, strip, owners, raws,
     depths: denseDepths,
     texts: denseTexts,
-    elementPositions, elements, groups, leads, decodedLeads, urls, joins, styleTails, tagBacks,
+    groups: denseGroups,
+    leads: denseLeads,
+    decodedLeads: denseDecodedLeads,
+    urls: denseUrls,
+    elementPositions, elements, joins, styleTails, tagBacks,
   };
   return filed(strings, depth, plan);
 };
