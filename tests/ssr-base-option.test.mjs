@@ -3,6 +3,11 @@
  * `/srv/components/` has nothing to resolve against: the containment check threw `TypeError: Invalid URL` from inside
  * the package, naming neither the option nor what it wants. A string that is not an absolute URL is now refused as an
  * option (`ssr-option`), saying what to pass; a URL, or its string, works as before.
+ *
+ * **A URL that holds no directory is refused the same way** (2026-11-25). The check was `URL.canParse(value)`, but the
+ * bound resolves `.` against the value: a Windows path (`C:\dir\` reads as the scheme `c:`), a `mailto:` or a `data:` URL
+ * parses, has an opaque path, and threw `Invalid URL` from the bound. So the rows below hold one of each, as a string and
+ * as a URL, beside the paths.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,11 +20,12 @@ const components = new URL('./tests/fixtures/ssr/', pathToFileURL(process.cwd() 
 const page = new URL('content-ssr.js', components);
 
 test('a path is refused as the option, saying what base wants', async () => {
-  for (const base of [fileURLToPath(components), 'tests/fixtures/ssr/']) {
+  const opaque = ['C:\\projects\\x\\', 'mailto:a@b', 'data:text/plain,x'];
+  for (const base of [fileURLToPath(components), 'tests/fixtures/ssr/', ...opaque, ...opaque.map((text) => new URL(text))]) {
     await assert.rejects(
       () => renderToString(page, { tag: 'content-page', base }),
       (error) => error instanceof TypeError && /\(ssr-option\)/.test(error.message) && /base/.test(error.message) && /file: URL/.test(error.message),
-      base
+      String(base)
     );
   }
 });

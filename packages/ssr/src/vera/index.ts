@@ -477,12 +477,14 @@ const CHECKS: Array<{ name: Checked; valid: (value: unknown) => boolean; expecte
   /**
    * `base` is a directory URL, absolute (2026-11-23): its message offered "a path string", but a path such as
    * `'/srv/components/'` has no URL to resolve against, so the bound threw `Invalid URL` from inside the check. A `file:`
-   * URL is a directory on disk (`pathToFileURL(dir)`).
+   * URL is a directory on disk (`pathToFileURL(dir)`). The check asks what the bound does, whether `.` resolves against
+   * the value (2026-11-25): a URL with an opaque path parses but holds no directory, so `C:\dir\` (read as the scheme
+   * `c:`), `mailto:` and `data:` passed `URL.canParse` and the bound threw `Invalid URL` (Windows, and every engine).
    */
   {
     name: 'base',
-    valid: (v) => v === undefined || tagged(v, 'URL') || (typeof v === 'string' && URL.canParse(v)),
-    expected: 'a URL or an absolute URL string (for a directory on disk, a file: URL)',
+    valid: (v) => v === undefined || ((tagged(v, 'URL') || typeof v === 'string') && URL.canParse('.', String(v))),
+    expected: 'a directory URL or its string (for a directory on disk, a file: URL)',
   },
   { name: 'location', valid: (v) => v === undefined || isUrl(v), expected: 'a URL or a path string' },
   { name: 'static', valid: (v) => typeof v === 'boolean', expected: 'true or false' },
