@@ -259,6 +259,7 @@ export const selectSurface = {
   tokens: [
     '--vera-surface',
     '--vera-border',
+    '--vera-border-control',
     '--vera-fg',
     '--vera-fg-muted',
     '--vera-accent',

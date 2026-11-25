@@ -3,7 +3,7 @@
  * elegant... completely customizable"; the contract is `packages/shared-utils/src/tokens.ts`). Read from each
  * component's source, comments stripped:
  *
- * - every `--vera-*` name is one of the shared twelve, a component's own (`--vera-<component>-…`), or private
+ * - every `--vera-*` name is one of the shared thirteen, a component's own (`--vera-<component>-…`), or private
  *   (`--_vera-…`): a thirteenth token is a contract change, made in tokens.ts first;
  * - every read of a shared token through a literal `var(--vera-<name>, <default>)` carries exactly tokens.ts's default
  *   (the simplest way to hold that is to write the constant: `${ACCENT}`), so two components can never disagree on
@@ -124,8 +124,8 @@ const lookFiles = (name) => {
 const components = readdirSync(join(ROOT, 'packages/components')).filter((name) => existsSync(join(ROOT, 'packages/components', name, 'src')));
 const tokens = sharedTokens(readFileSync(TOKENS_SOURCE, 'utf8'));
 
-test('CONTROL: the shared tokens are read from tokens.ts, all twelve', () => {
-  assert.deepEqual([...tokens.keys()].sort(), ['accent', 'accent-fg', 'bg', 'border', 'danger', 'fg', 'fg-muted', 'focus', 'hover', 'radius', 'shadow', 'surface']);
+test('CONTROL: the shared tokens are read from tokens.ts, all thirteen', () => {
+  assert.deepEqual([...tokens.keys()].sort(), ['accent', 'accent-fg', 'bg', 'border', 'border-control', 'danger', 'fg', 'fg-muted', 'focus', 'hover', 'radius', 'shadow', 'surface']);
   assert.ok(components.length >= 9, `CONTROL: ${components.length} components`);
 });
 

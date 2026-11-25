@@ -1,6 +1,6 @@
 /**
  * **The shared look's tokens, one constant each: the `var(--vera-<name>, <default>)` a component's sheet writes.** Every
- * component reads the same twelve custom properties with the same defaults, so a page with one component looks
+ * component reads the same thirteen custom properties with the same defaults, so a page with one component looks
  * finished and matches a page with all of them, and an app restyles every component by setting a few of them (the
  * accent, the radius, the surface) on `:root`.
  *
@@ -25,6 +25,12 @@ export const FG_MUTED = 'var(--vera-fg-muted,light-dark(#5f5f6b,#a1a1aa))';
 /** Hairlines and control borders. */
 export const BORDER = 'var(--vera-border,light-dark(#e4e4ea,#2e2e37))';
 /** Hover and active-option fill. */
+/**
+ * A control's own boundary (an input's box, a select's trigger): 3:1 against SURFACE and BG in both schemes, as WCAG
+ * 1.4.11 asks of the edge that shows where a control is (#8a8a96 on #fff 3.41; #686874 on #17171c 3.25, on #0c0c10
+ * 3.55). BORDER stays the quiet divider for surfaces and rules, which need no contrast (1.27/1.33).
+ */
+export const BORDER_CONTROL = 'var(--vera-border-control,light-dark(#8a8a96,#686874))';
 export const HOVER = 'var(--vera-hover,light-dark(#f2f2f6,#202028))';
 /** Selection, indicators, the primary action. */
 export const ACCENT = 'var(--vera-accent,light-dark(oklch(.56 .22 280),oklch(.72 .16 280)))';

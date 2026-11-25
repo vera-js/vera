@@ -19,7 +19,7 @@
  * Selectors target `[part="…"]` directly: the part attribute doubles as the light-DOM styling
  * hook, so there is one name per node, not a part name and a class name to keep in lockstep.
  */
-import { ACCENT, BORDER, DANGER, FG, FG_MUTED, FOCUS, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
+import { ACCENT, BORDER, BORDER_CONTROL, DANGER, FG, FG_MUTED, FOCUS, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
 
 /**
  * IN-SHEET COMMENTARY, RELOCATED — a comment inside a template literal is STRING DATA to
@@ -110,7 +110,7 @@ export const SELECT_STYLES = /* css */ `
     min-block-size: 2.25em;
     padding: 4px 28px 4px 10px;
     box-sizing: border-box;
-    border: 1px solid ${BORDER};
+    border: 1px solid ${BORDER_CONTROL};
     border-radius: ${RADIUS};
     background: ${SURFACE};
     color: ${FG};
