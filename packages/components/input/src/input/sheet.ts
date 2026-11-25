@@ -112,8 +112,7 @@ const BOX =
   `${boxWhen(':is(input[aria-invalid="true"],input:user-invalid)')}{border-color:${DANGER}}` +
   `${boxWhen('input:disabled')}{opacity:.5;cursor:not-allowed}` +
   `${inner}[type="number"]{appearance:textfield}` +
-  `${inner}[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;appearance:none;margin:0}` +
-  `${inner}[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}` +
+  `${inner}[type="number"]::-webkit-inner-spin-button{appearance:none;margin:0}` +
   `@media (prefers-reduced-motion:reduce){${box()}{transition:none}}` +
   `@media (forced-colors:active){${box(':focus-within')}{outline-color:Highlight}}`;
 
@@ -128,9 +127,8 @@ export const LOOK =
   'border:.125em solid color-mix(in srgb,currentColor 25%,transparent);border-block-start-color:currentColor;' +
   'border-radius:50%;animation:vera-input-turn .8s linear infinite}' +
   `${part('stepper')}{display:contents}` +
-  `${stepPart('step-down')},${stepPart('step-up')}{display:block;flex:none;box-sizing:border-box;` +
-  `inline-size:1.5em;block-size:1.5em;border-radius:calc(${RADIUS} * .5);line-height:1;cursor:pointer;user-select:none;` +
-  '-webkit-user-select:none;touch-action:none}' +
+  `${stepPart('step-down')},${stepPart('step-up')}{display:block;flex:none;inline-size:1.5em;block-size:1.5em;` +
+  `border-radius:calc(${RADIUS} * .5);cursor:pointer;touch-action:none}` +
   `${stepPart('step-down')}:hover,${stepPart('step-up')}:hover{background-color:${HOVER}}` +
   `${stepPart('step-down')}{background:${BAR} center/.625em .125em no-repeat}` +
   `${stepPart('step-up')}{background:${BAR} center/.625em .125em no-repeat,${BAR} center/.125em .625em no-repeat}` +

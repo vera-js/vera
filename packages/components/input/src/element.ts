@@ -235,6 +235,17 @@ const step = (input: HTMLInputElement, direction: 1 | -1): boolean => {
   return true;
 };
 
+/** The events that end a press on the stepper. */
+const PRESS_ENDS = ['pointerup', 'pointercancel', 'lostpointercapture'];
+
+/** A stepper span: its part name and the mark every part this element writes carries. */
+const ourSpan = (doc: Document, name: string): HTMLSpanElement => {
+  const span = doc.createElement('span');
+  span.setAttribute('data-vera-part', name);
+  span.setAttribute('data-vera-input', '');
+  return span;
+};
+
 /**
  * **The stepper, on a number input**: under the look the engine's own spin buttons are hidden (they drew a box inside
  * the box), and two parts beside the input, `step-down` and `step-up`, step it. They are a pointer's way only: the input
@@ -249,15 +260,10 @@ const step = (input: HTMLInputElement, direction: 1 | -1): boolean => {
 const stepping = (input: HTMLInputElement): (() => void) => {
   const doc = input.ownerDocument;
   const win = doc.defaultView;
-  const holder = doc.createElement('span');
-  holder.setAttribute('data-vera-part', 'stepper');
-  holder.setAttribute('data-vera-input', '');
+  const holder = ourSpan(doc, 'stepper');
   holder.setAttribute('aria-hidden', 'true');
-  const down = doc.createElement('span');
-  const up = doc.createElement('span');
-  down.setAttribute('data-vera-part', 'step-down');
-  up.setAttribute('data-vera-part', 'step-up');
-  for (const part of [down, up]) part.setAttribute('data-vera-input', '');
+  const down = ourSpan(doc, 'step-down');
+  const up = ourSpan(doc, 'step-up');
   holder.append(down, up);
   let timer = 0;
   let stepped = false;
@@ -282,12 +288,12 @@ const stepping = (input: HTMLInputElement): (() => void) => {
   };
   input.after(holder);
   holder.addEventListener('pointerdown', onDown);
-  for (const end of ['pointerup', 'pointercancel', 'lostpointercapture']) holder.addEventListener(end, stop);
+  for (const end of PRESS_ENDS) holder.addEventListener(end, stop);
   input.addEventListener('blur', stop);
   return () => {
     stop();
     holder.removeEventListener('pointerdown', onDown);
-    for (const end of ['pointerup', 'pointercancel', 'lostpointercapture']) holder.removeEventListener(end, stop);
+    for (const end of PRESS_ENDS) holder.removeEventListener(end, stop);
     input.removeEventListener('blur', stop);
     holder.remove();
   };
