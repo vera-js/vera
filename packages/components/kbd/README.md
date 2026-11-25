@@ -50,9 +50,10 @@ component styles) leaves every symbol silent: Apple's modifiers and named keys, 
 
 ## The look
 
-Each key is a keycap: a hairline border with a heavier one below, its corners `--vera-radius` and its border
-`--vera-border` (both shared tokens; without them, colors mixed from `currentColor`, so a dark page needs nothing).
-Every length is in `em` (the borders keep a 1px and 2px floor, so the depth survives pixel rounding), so a key follows
+Each key is a keycap: a hairline border with a heavier one below, its border `--vera-border` (a shared token; without
+it, a mix of `currentColor`, so a key takes the color of the text it sits in and a dark page needs nothing) and its
+corners a share of the shared `--vera-radius` (.35 of it, 3.5px by default, so one token rounds every component).
+Every other length is in `em` (the borders keep a 1px and 2px floor, so the depth survives pixel rounding), so a key follows
 the text around it at any size, and a key is an inline box, so in running
 text it never pushes its line apart. The combo takes the page's font, not the browser's `monospace` for `<kbd>`; one
 rule of your own brings mono keycaps back, since every rule is at zero specificity (`:where`). Forced colors keep the

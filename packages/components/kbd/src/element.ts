@@ -12,7 +12,7 @@
  * rule before any script ran. It renders words (`platform="windows"` spells Meta as Win), and the client re-spells once.
  */
 import { effect, html, isServer, signal } from '@verajs/core';
-import { adoptOwnSheet, diagnostic, quoted } from '@verajs/shared-utils';
+import { adoptOwnSheet, diagnostic, quoted, RADIUS } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 import { platformOf, spellKeys, type Platform } from './kbd/spell.js';
 
@@ -46,9 +46,11 @@ const own = (name: string): string =>
  * **The look**, in the same sheet as the words, so one root adopts one sheet. Every length is in `em`, so a key follows
  * the text around it at any size (a browser row: a 20px parent's key is 1.25 times a 16px one's). The combo takes the
  * page's font: an engine's own `kbd` rule is `monospace`, which also shrinks the text under the generic-monospace size
- * quirk. A key is a keycap: a hairline border, a heavier one below, the shared `--vera-border` and `--vera-radius`
- * tokens, and colors mixed from `currentColor` without them, so a dark page needs no extra rule; forced colors replace
- * all of it with the system's. Zero specificity, so a page's own rule wins (one rule gives mono keycaps back).
+ * quirk. A key is a keycap: a hairline border, a heavier one below, the shared `--vera-border` token, and colors mixed
+ * from `currentColor` without it, so a key follows the color of the text it sits in (an error's red, a button's
+ * label), which two schemes could not; forced colors replace all of it with the system's. Its corners are a share of
+ * the shared `--vera-radius` (.35 of it: 3.5px by default), so one token rounds every component and a 13px keycap is
+ * never a pill. Zero specificity, so a page's own rule wins (one rule gives mono keycaps back).
  *
  * The borders alone have a floor, 1px and 2px: an engine rounds a border to whole device pixels, so at body size
  * .0625em and .125em both drew 1px and the keycap lost its depth (a browser row). Longhands, not the `border`
@@ -71,7 +73,7 @@ const LOOK =
   'font-family:inherit;font-size:.85em;color:inherit;' +
   'border-style:solid;border-width:max(.0625em,1px);border-block-end-width:max(.125em,2px);' +
   'border-color:var(--vera-border,color-mix(in srgb,currentColor 30%,transparent));' +
-  'border-radius:var(--vera-radius,.25em);background:color-mix(in srgb,currentColor 6%,transparent)}' +
+  `border-radius:calc(${RADIUS} * .35);background:color-mix(in srgb,currentColor 6%,transparent)}` +
   `${own('combo')} ${own('key')}{margin-inline:.1em}`;
 
 const PLATFORMS: readonly string[] = ['apple', 'windows', 'other'];
