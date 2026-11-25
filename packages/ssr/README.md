@@ -183,6 +183,12 @@ container stays before it, a node the component appends to its own root stays af
 survive every re-render. So `children` reach a light-DOM component and are still there after it
 renders.
 
+**The page is written top-down, in one pass.** A component's markup is written before its children
+are built, so a write a descendant makes during its own setup to state an ancestor rendered (a shared
+`signal()`, a store) is in the descendant's markup and not the ancestor's. In a browser the ancestor
+re-renders on that write, so the served page changes once it runs there. Settle shared state before
+the ancestor renders: in its setup, or before `renderToString`.
+
 ## Nested components
 
 After a component renders, its markup is scanned for tags the registry knows, and each is rendered in
