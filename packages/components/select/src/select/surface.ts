@@ -264,6 +264,7 @@ export const selectSurface = {
     '--vera-accent',
     '--vera-radius',
     '--vera-focus',
+    '--vera-danger',
     '--vera-shadow',
   ],
 } as const satisfies ComponentSurface;

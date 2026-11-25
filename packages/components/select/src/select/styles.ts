@@ -19,7 +19,7 @@
  * Selectors target `[part="…"]` directly: the part attribute doubles as the light-DOM styling
  * hook, so there is one name per node, not a part name and a class name to keep in lockstep.
  */
-import { ACCENT, BORDER, FG, FG_MUTED, FOCUS, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
+import { ACCENT, BORDER, DANGER, FG, FG_MUTED, FOCUS, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
 
 /**
  * IN-SHEET COMMENTARY, RELOCATED — a comment inside a template literal is STRING DATA to
@@ -109,8 +109,9 @@ export const SELECT_STYLES = /* css */ `
     align-items: center;
     gap: 6px;
     inline-size: 100%;
-    min-block-size: 30px;
-    padding: 4px 28px 4px 9px;
+    /* Input's box height, so a select and an input side by side in a form line up. */
+    min-block-size: 2.25em;
+    padding: 4px 28px 4px 10px;
     box-sizing: border-box;
     border: 1px solid ${BORDER};
     border-radius: ${RADIUS};
@@ -123,6 +124,14 @@ export const SELECT_STYLES = /* css */ `
   :where([part='trigger'][aria-disabled='true']) {
     opacity: 0.55;
     cursor: default;
+  }
+  /*
+   * Invalid: a field that shows an error marks its control aria-invalid (@vera-hooks/labeled), here the host; the
+   * trigger, the select's visible boundary, takes the danger color. Shadow mode reads the host, light mode the scope.
+   */
+  :host([aria-invalid='true']) :where([part='trigger']),
+  :where(:scope[aria-invalid='true']) :where([part='trigger']) {
+    border-color: ${DANGER};
   }
   :where([part='trigger']):focus-visible {
     outline: 2px solid ${FOCUS};

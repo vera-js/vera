@@ -322,6 +322,26 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
   }
 });
 
+it('marked aria-invalid (a field showing an error), the trigger takes the danger color, in shadow and light mode', async () => {
+  for (const light of [false, true]) {
+    const element = document.createElement('vera-select');
+    if (light) element.setAttribute('light', '');
+    element.style.setProperty('--vera-danger', 'rgb(200, 0, 0)');
+    element.style.setProperty('--vera-border', 'rgb(0, 0, 200)');
+    document.body.appendChild(element);
+    element.options = OPTIONS;
+    await frame();
+    const trigger = (element.shadowRoot ?? element).querySelector('[part="trigger"]');
+    try {
+      expect(getComputedStyle(trigger).borderTopColor).to.equal('rgb(0, 0, 200)', `CONTROL (${light ? 'light' : 'shadow'}): valid, the border token`);
+      element.setAttribute('aria-invalid', 'true');
+      await until(() => getComputedStyle(trigger).borderTopColor === 'rgb(200, 0, 0)', () => `the ${light ? 'light' : 'shadow'} trigger to take the danger color (it is ${getComputedStyle(trigger).borderTopColor})`, 2000);
+    } finally {
+      element.remove();
+    }
+  }
+});
+
 it('the list grows past a narrow trigger to fit a long option, up to its cap', async function () {
   if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
     this.skip();

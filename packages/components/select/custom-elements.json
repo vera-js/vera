@@ -452,6 +452,9 @@
               "name": "--vera-focus"
             },
             {
+              "name": "--vera-danger"
+            },
+            {
               "name": "--vera-shadow"
             }
           ],
