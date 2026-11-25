@@ -297,7 +297,7 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
       const same = top === last;
       last = top;
       return same;
-    }, () => `the menu to settle (top ${menu.getBoundingClientRect().top})`, 2000);
+    }, 'the menu to settle (two reads a frame apart agree)', 2000);
   };
   const close = async () => {
     element.close();
@@ -335,7 +335,7 @@ it('marked aria-invalid (a field showing an error), the trigger takes the danger
     try {
       expect(getComputedStyle(trigger).borderTopColor).to.equal('rgb(0, 0, 200)', `CONTROL (${light ? 'light' : 'shadow'}): valid, the border token`);
       element.setAttribute('aria-invalid', 'true');
-      await until(() => getComputedStyle(trigger).borderTopColor === 'rgb(200, 0, 0)', () => `the ${light ? 'light' : 'shadow'} trigger to take the danger color (it is ${getComputedStyle(trigger).borderTopColor})`, 2000);
+      await until(() => getComputedStyle(trigger).borderTopColor === 'rgb(200, 0, 0)', `the ${light ? 'light' : 'shadow'} trigger to take the danger color`, 2000);
     } finally {
       element.remove();
     }
