@@ -12,6 +12,7 @@ import { renderer } from '../../packages/renderer/dist/development/vera-renderer
 import '../../packages/components/input/dist/development/vera-input.js';
 import { defineAs } from '../../packages/components/input/dist/development/vera-input-element.js';
 import { ON } from './engine.js';
+import { until } from './until.js';
 
 wire([renderer]);
 defineAs('my-input');
@@ -185,7 +186,8 @@ describe('vera-input', () => {
         const wrap = await mount(`<label>q <${tag} clearable><input value="x"></${tag}></label>`);
         const clear = wrap.querySelector('[data-vera-part="clear"]');
         expect(glyph(clear), tag).to.include('\u00d7');
-        expect(getComputedStyle(clear).display, tag).to.equal('inline-grid');
+        // A grid: the button's inline-grid is blockified, as every item of the box (an inline-flex host) is.
+        expect(getComputedStyle(clear).display, tag).to.equal('grid');
         wrap.querySelector('input').value = '';
         wrap.querySelector('input').dispatchEvent(new Event('input', { bubbles: true }));
         expect(clear.hidden, tag).to.equal(true);
@@ -444,17 +446,22 @@ describe('vera-input: the box', () => {
     wrap.remove();
   });
 
-  it('the border is --vera-danger on aria-invalid="true" and once the user has left a required input empty (CONTROL: valid it is not)', async () => {
-    const wrap = await mount('<div style="--vera-danger: rgb(1, 2, 3)"><vera-input><input aria-invalid="true"></vera-input><vera-input><input required></vera-input><vera-input><input></vera-input><button>after</button></div>');
-    const [marked, required, valid] = wrap.querySelectorAll('vera-input');
+  /**
+   * `:user-invalid` needs a change the user committed: typing and deleting back to the initial value commits none
+   * (Chromium kept the box valid that way), so the user types a value that is not an email and leaves the field.
+   */
+  it('the border is --vera-danger on aria-invalid="true" and once the user has left an invalid value (CONTROL: before, and valid, it is not)', async () => {
+    const wrap = await mount('<div style="--vera-danger: rgb(1, 2, 3)"><vera-input><input aria-invalid="true"></vera-input><vera-input><input type="email"></vera-input><vera-input><input></vera-input><button>after</button></div>');
+    const [marked, email, valid] = wrap.querySelectorAll('vera-input');
     expect(style(marked).borderTopColor, `${ON}: aria-invalid`).to.equal('rgb(1, 2, 3)');
     expect(style(valid).borderTopColor, 'CONTROL: a valid box is not the danger color').to.not.equal('rgb(1, 2, 3)');
-    expect(style(required).borderTopColor, 'CONTROL: required but untouched is not yet invalid to the user').to.not.equal('rgb(1, 2, 3)');
-    required.querySelector('input').focus();
-    await sendKeys({ type: 'a' });
-    await sendKeys({ press: 'Backspace' });
+    expect(style(email).borderTopColor, 'CONTROL: untouched, it is not yet invalid to the user').to.not.equal('rgb(1, 2, 3)');
+    email.querySelector('input').focus();
+    await sendKeys({ type: 'x' });
+    expect(email.querySelector('input').validity.typeMismatch, 'CONTROL: the value is invalid').to.equal(true);
     wrap.querySelector('button').focus();
-    expect(style(required).borderTopColor, `${ON}: left empty by the user (:user-invalid)`).to.equal('rgb(1, 2, 3)');
+    // The border color transitions (150ms), so the computed color is read once it has arrived, not mid-way.
+    await until(() => style(email).borderTopColor === 'rgb(1, 2, 3)', `${ON}: an invalid value the user left (:user-invalid) turns the border`, 2000);
     wrap.remove();
   });
 

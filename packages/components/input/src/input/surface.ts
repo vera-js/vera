@@ -50,5 +50,5 @@ export const inputSurface = {
   ],
   states: [],
   customStates: [],
-  tokens: ['--vera-radius', '--vera-focus'],
+  tokens: ['--vera-border', '--vera-danger', '--vera-fg', '--vera-fg-muted', '--vera-focus', '--vera-radius', '--vera-surface'],
 } as const satisfies ComponentSurface;
