@@ -55,10 +55,25 @@ const inner = `${box()} input[data-vera-input]:not([data-vera-look="none"])`;
 
 /**
  * A step part, inside the stepper: keyed under the stepper part, so the host's or the stepper's `data-vera-look="none"`
- * drops both halves with it.
+ * drops both halves with it. The stepper is `display: contents` and each part a plain block, so the two are flex items
+ * of the box: with the stepper an inline flex box and each part a grid centering a glyph, 200 number inputs' creation
+ * read 2.3ms more (headed Chromium), and with the parts written this way their rules read within noise of none at all.
  */
 const stepPart = (name: string, more = ''): string =>
   `${part('stepper')}>:where([data-vera-part="${name}"][data-vera-input]:not([data-vera-look="none"])${more})`;
+
+/**
+ * A step part while its input is disabled or read-only: a sibling test from the input, not a `:has()` on the box,
+ * which every step part asked of its box at creation (4.7ms over 200 number inputs, headed Chromium).
+ */
+const stepOff = (name: string): string =>
+  `:where(:not([data-vera-look="none"])>input[data-vera-input]:is(:disabled,:read-only)~[data-vera-part="stepper"][data-vera-input]>[data-vera-part="${name}"][data-vera-input])`;
+
+/**
+ * A step glyph's bar, in the text color. The glyphs are backgrounds, not generated text: a `::before` glyph on each
+ * part cost 10.6ms over 200 number inputs (headed Chromium), a box and a shaped run per part.
+ */
+const BAR = 'linear-gradient(currentColor,currentColor)';
 
 const BUTTON =
   'display:inline-grid;place-items:center;box-sizing:border-box;inline-size:1.5em;block-size:1.5em;margin:0;padding:0;' +
@@ -112,14 +127,14 @@ export const LOOK =
   `${part('loading', ':not([hidden])')}{display:inline-block;box-sizing:border-box;inline-size:1em;block-size:1em;` +
   'border:.125em solid color-mix(in srgb,currentColor 25%,transparent);border-block-start-color:currentColor;' +
   'border-radius:50%;animation:vera-input-turn .8s linear infinite}' +
-  `${part('stepper', ':not([hidden])')}{display:inline-flex;flex:none;gap:.125em}` +
-  `${stepPart('step-down')},${stepPart('step-up')}{display:inline-grid;place-items:center;box-sizing:border-box;` +
+  `${part('stepper')}{display:contents}` +
+  `${stepPart('step-down')},${stepPart('step-up')}{display:block;flex:none;box-sizing:border-box;` +
   `inline-size:1.5em;block-size:1.5em;border-radius:calc(${RADIUS} * .5);line-height:1;cursor:pointer;user-select:none;` +
   '-webkit-user-select:none;touch-action:none}' +
-  `${stepPart('step-down')}:hover,${stepPart('step-up')}:hover{background:${HOVER}}` +
-  `${stepPart('step-down')}::before{content:"\\2212" / ""}` +
-  `${stepPart('step-up')}::before{content:"+" / ""}` +
-  `${boxWhen('input:is(:disabled,:read-only)')} ${stepPart('step-down')},${boxWhen('input:is(:disabled,:read-only)')} ${stepPart('step-up')}{cursor:inherit;background:transparent}` +
+  `${stepPart('step-down')}:hover,${stepPart('step-up')}:hover{background-color:${HOVER}}` +
+  `${stepPart('step-down')}{background:${BAR} center/.625em .125em no-repeat}` +
+  `${stepPart('step-up')}{background:${BAR} center/.625em .125em no-repeat,${BAR} center/.125em .625em no-repeat}` +
+  `${stepOff('step-down')},${stepOff('step-up')}{cursor:inherit;background-color:transparent}` +
   `${part('caps-lock', ':not([hidden])')}{display:inline-block;font-size:.875em}` +
   `${served('', ':has(~[data-vera-part="clear"][data-vera-input])')}::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}` +
   '@keyframes vera-input-turn{to{transform:rotate(1turn)}}' +

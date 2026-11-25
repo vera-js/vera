@@ -243,7 +243,8 @@ const step = (input: HTMLInputElement, direction: 1 | -1): boolean => {
  * the native spinner does; `change` fires once, when the press ends (the native spinner fires `input` per step and
  * `change` on release). The repeat stops on release, cancel, lost capture or the input's blur. A disabled or read-only
  * input steps nothing. Side by side, each a 1.5em square: 24px on a 16px page, the WCAG 2.5.8 target, inside the box's
- * height. Returns the release.
+ * height. The listeners are the stepper's own, four for both halves, the half read from the press's target. Returns
+ * the release.
  */
 const stepping = (input: HTMLInputElement): (() => void) => {
   const doc = input.ownerDocument;
@@ -269,9 +270,9 @@ const stepping = (input: HTMLInputElement): (() => void) => {
   };
   const onDown = (event: PointerEvent): void => {
     event.preventDefault();
-    if (input.disabled || input.readOnly || event.button !== 0) return;
-    const direction = event.currentTarget === up ? 1 : -1;
-    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    const direction = event.target === up ? 1 : event.target === down ? -1 : 0;
+    if (direction === 0 || input.disabled || input.readOnly || event.button !== 0) return;
+    (event.target as Element).setPointerCapture?.(event.pointerId);
     stepped = step(input, direction);
     const again = (): void => {
       if (step(input, direction)) stepped = true;
@@ -280,17 +281,13 @@ const stepping = (input: HTMLInputElement): (() => void) => {
     timer = win?.setTimeout(again, HOLD_FIRST) ?? 0;
   };
   input.after(holder);
-  for (const part of [down, up]) {
-    part.addEventListener('pointerdown', onDown);
-    for (const end of ['pointerup', 'pointercancel', 'lostpointercapture']) part.addEventListener(end, stop);
-  }
+  holder.addEventListener('pointerdown', onDown);
+  for (const end of ['pointerup', 'pointercancel', 'lostpointercapture']) holder.addEventListener(end, stop);
   input.addEventListener('blur', stop);
   return () => {
     stop();
-    for (const part of [down, up]) {
-      part.removeEventListener('pointerdown', onDown);
-      for (const end of ['pointerup', 'pointercancel', 'lostpointercapture']) part.removeEventListener(end, stop);
-    }
+    holder.removeEventListener('pointerdown', onDown);
+    for (const end of ['pointerup', 'pointercancel', 'lostpointercapture']) holder.removeEventListener(end, stop);
     input.removeEventListener('blur', stop);
     holder.remove();
   };

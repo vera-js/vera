@@ -642,6 +642,18 @@ describe('vera-input: the stepper, on a number input', () => {
     wrap.remove();
   });
 
+  it('each step part draws its glyph in the text color, one bar for step-down and two for step-up; the parts of an off input take its cursor (CONTROL: look none draws none)', async () => {
+    const wrap = await mount('<vera-input><input type="number"></vera-input><vera-input><input type="number" disabled></vera-input><vera-input data-vera-look="none"><input type="number"></vera-input>');
+    const [on, off, none] = wrap.querySelectorAll('vera-input');
+    const bars = (host, name) => (style(host.querySelector(`[data-vera-part="${name}"]`)).backgroundImage.match(/gradient/g) ?? []).length;
+    expect(bars(none, 'step-up'), 'CONTROL: look none draws no glyph').to.equal(0);
+    expect(bars(on, 'step-down'), `${ON}: step-down, one bar`).to.equal(1);
+    expect(bars(on, 'step-up'), `${ON}: step-up, two bars`).to.equal(2);
+    expect(style(on.querySelector('[data-vera-part="step-up"]')).cursor, 'CONTROL: an enabled part is a pointer').to.equal('pointer');
+    expect(style(off.querySelector('[data-vera-part="step-up"]')).cursor, `${ON}: a disabled input's part takes the box's cursor`).to.equal('not-allowed');
+    wrap.remove();
+  });
+
   it('the stepper is aria-hidden and never focused: the keyboard steps the input itself', async () => {
     const wrap = await mount('<label>n <vera-input><input type="number" value="1"></vera-input></label>');
     const stepper = wrap.querySelector('[data-vera-part="stepper"]');
