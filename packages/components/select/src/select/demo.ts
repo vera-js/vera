@@ -2,8 +2,7 @@ import type { ComponentDemo } from '@verajs/shared-types';
 
 /**
  * **<vera-select>'s states, as the preview page shows them** (`ComponentDemo`: the page is generated from this, and
- * `tests/component-demos.test.mjs` holds it to the surface). Select is the older component, before the design system
- * pass: its look will be redone, so the ask is about behavior.
+ * `tests/component-demos.test.mjs` holds it to the surface).
  */
 const FLAVORS =
   '<optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup>' +
@@ -11,7 +10,7 @@ const FLAVORS =
   '<option value="strawberry" data-group="Modern">Strawberry</option>';
 
 export const selectDemo = {
-  ask: "Its look will be redone in the design pass, so judge the behavior: open it, move with the arrow keys, type a letter to jump, search, pick several. Does anything feel slower or stranger than a native select?",
+  ask: "Open it near the top and the bottom of the window, and scroll while it is open: the list stays on screen, below or above. Move with the arrow keys, type a letter to jump, search, pick several. Does anything feel slower or stranger than a native select?",
   states: [
     {
       title: 'Single, required, with groups, an icon and a description',
