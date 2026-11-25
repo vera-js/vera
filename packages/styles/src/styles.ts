@@ -76,6 +76,9 @@ const forLightDom = (css: string): string =>
     .replace(/(^|[^\\]):host\(([^()[]*(?:(?:\[[^\]]*\]|\([^()[]*(?:(?:\[[^\]]*\]|\([^()[]*(?:\[[^\]]*\][^()[]*)*\))[^()[]*)*\))[^()[]*)*)\)(?=[^{};]*\{)/g, (_, before, inner) => `${before}:scope${inner.trim()}`)
     .replace(/(^|[^\\]):host\b(?!-)(?=[^{};]*\{)/g, (_, before) => `${before}:scope`);
 
+/** Where a class keeps its light-DOM block once built: `[scope support, tag, scoped text, its escaped copy]` (see below). */
+const SCOPED = '_$veraScoped$';
+
 /**
  * The roots (documents and shadow roots) a component class has hoisted its light-DOM styles into, kept **on the class**
  * and read as an OWN property:
@@ -240,21 +243,35 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   if (owner[HOISTED].get(root) === doc) return;
   owner[HOISTED].set(root, doc);
 
-  const raw = list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n');
-  const cssText = forLightDom(raw);
   const supported = !!view && typeof view.CSSScopeRule === 'function';
+  /** The styles' source, for the development checks below only: production builds it once, in the class's copy. */
+  const raw = __DEV__ ? list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n') : '';
   /** Development: a light-DOM component's styles went global for want of `@scope`, once per page. */
   if (__DEV__ && !supported) warnOnce('styles', `<${element.localName}>`, 'no-scope', __DEV__ && (() => PROSE['no-scope'](element.localName)));
   /** Development: `::slotted()` only ever matches inside a shadow root — in light DOM an ordinary selector reaches it. */
   if (__DEV__ && /::slotted\s*\(/.test(withoutText(raw)))
     console.warn(diagnostic('styles', `<${element.localName}>`, 'slotted-light', __DEV__ && PROSE['slotted-light']()));
   /**
-   * The tag as a selector: a custom element name may hold `.`, which CSS reads as a class: `@scope (x-a.b)` scoped
-   * nothing of `<x-a.b>` and styled a stray `<x-a class="b">` (Chromium, Firefox, WebKit, 2026-11-23). Every ASCII
-   * character outside an identifier is escaped, by hand (no `CSS.escape` on a server), so a name rule that allows more
-   * punctuation needs no second fix; the server serves this same text, so the client still finds its copy.
+   * **Built once per class** (2026-11-25), kept on the class as an own property like `HOISTED`: the scoped text and its
+   * escaped copy, rebuilt only if scope support or the tag differs (a constructor defined under two names, in two
+   * registries, scopes each name). A class keeps the first styles it was given, as its adopted sheet and its hoisted
+   * roots already do. Building both for every instance made the light hoist 15-19% slower than a per-class copy
+   * (measured, Chromium, client and served, cold and steady, 2026-11-25).
    */
-  const scoped = supported ? `@scope (${element.localName.replace(/[^\w\-\x80-\uffff]/g, '\\$&')}) {\n${cssText}\n}` : cssText;
+  const memo = owner as unknown as Record<string, [boolean, string, string, string]>;
+  let known = Object.prototype.hasOwnProperty.call(memo, SCOPED) ? memo[SCOPED] : undefined;
+  if (known === undefined || known[0] !== supported || known[1] !== element.localName) {
+    const cssText = forLightDom(list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n'));
+    /**
+     * The tag as a selector: a custom element name may hold `.`, which CSS reads as a class: `@scope (x-a.b)` scoped
+     * nothing of `<x-a.b>` and styled a stray `<x-a class="b">` (Chromium, Firefox, WebKit, 2026-11-23). Every ASCII
+     * character outside an identifier is escaped, by hand (no `CSS.escape` on a server), so a name rule that allows
+     * more punctuation needs no second fix; the server serves this same text, so the client still finds its copy.
+     */
+    const text = supported ? `@scope (${element.localName.replace(/[^\w\-\x80-\uffff]/g, '\\$&')}) {\n${cssText}\n}` : cssText;
+    memo[SCOPED] = known = [supported, element.localName, text, escapeStyleText(text)];
+  }
+  const scoped = known[2];
   /**
    * **The server's copy of this block in this shadow root** (`@verajs/ssr` serves it as `data-vm-sheet="light"`, with
    * this exact text, among the `<style>` elements that open the root), replaced by the adopted sheet in the same task, so
@@ -264,7 +281,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
    */
   let served: Element | null = null;
   if (root !== doc) {
-    const text = escapeStyleText(scoped);
+    const text = known[3];
     for (let child = (root as ShadowRoot).firstElementChild; child !== null && child.localName === 'style'; child = child.nextElementSibling)
       if (child.getAttribute('data-vm-sheet') === 'light' && child.textContent === text) {
         served = child;
@@ -292,7 +309,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     served?.remove();
   } else if (served === null) {
     const styleElement = doc.createElement('style');
-    styleElement.textContent = escapeStyleText(scoped);
+    styleElement.textContent = known[3];
     (root === doc ? doc.head : root).appendChild(styleElement);
   }
 };
