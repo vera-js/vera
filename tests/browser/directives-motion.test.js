@@ -279,6 +279,8 @@ it('transition-mode play: the compositor animates, reverses from current, and li
   expect(t.hasAttribute('data-vm-on'), 'entered: one attribute flip IS the driver').to.equal(true);
   const mid = atFraction(fade, 0.5, () => opacityOf(t));
   expect(mid > 0.25 && mid < 0.75, `the transition PASSES THROUGH the mid-range — animated, not snapped (${mid} at half)`).to.equal(true);
+  // 0.7 is the markup's own keyframe ('70% -12px'), the dip's lowest point, not a fraction tuned to an easing: it
+  // moves only if that keyframe does.
   const y = atFraction(dip, 0.7, () => new DOMMatrix(getComputedStyle(o).transform).m42);
   expect(y < -2, `the synthesized linear() carried the dip PAST the resting value (translateY ${y} at 70%)`).to.equal(true);
   await until(() => Math.abs(opacityOf(t) - 0.9) < 0.02, 'and landed on the authored end', 3000);
