@@ -56,9 +56,12 @@ const BUTTON =
 
 /**
  * The box's rules. Its font size is the scale (`md` the page's, `sm` and `lg` around it), and the input inherits it, so
- * the text, the box and the parts (sized in `em`) move together. The ring is the shared focus ring on the box while the
- * input inside shows focus; the input's own outline goes only by a rule that ALSO needs `:has()`, so an engine without
- * `:has()` (Firefox 120, under the look's floor by one release) drops both and keeps its native ring, never neither.
+ * the text, the box and the parts (sized in `em`) move together. The ring is the shared focus ring on the box while
+ * focus is anywhere in it (`:focus-within`: the input, and the clear and reveal buttons too, chosen: the focus is in the
+ * control), and the input's own outline goes. Not `:has(input:focus-visible)`: the box's focus and outline rules asked
+ * through `:has()` cost creation 5-14% over the look-less input (headed Chromium, 200 inputs, four runs), and with
+ * `:focus-within` the look reads within noise of it (+0.3%, -2.5%). The two state rules below keep `:has()`: they
+ * measured within noise.
  * The border turns `--vera-danger` on a control marked `aria-invalid="true"` or one the user has left invalid
  * (`:user-invalid`, which matches only once the user has committed a change); one rule, the two inside `:is()`, which
  * forgives a selector it does not know (`:has()` does not), so an engine without `:user-invalid` keeps the other. Inside `<vera-field>` the field sets the border token while it shows an error, so
@@ -73,12 +76,12 @@ const BOX =
   `${box('[data-vera-input-host="lg"]')}{font-size:1.125em}` +
   `${box()} ${served('')}{flex:1;min-inline-size:0;margin:0;padding:.5em 0;border:0;background:transparent;color:inherit;font:inherit}` +
   `${box()} ${served('')}::placeholder{color:${FG_MUTED};opacity:1}` +
-  `${boxWhen('input')} ${served('')}{outline:0}` +
-  `${boxWhen('input:focus-visible')}{outline:2px solid ${FOCUS};outline-offset:2px}` +
+  `${box()} ${served('')}{outline:0}` +
+  `${box(':focus-within')}{outline:2px solid ${FOCUS};outline-offset:2px}` +
   `${boxWhen(':is(input[aria-invalid="true"],input:user-invalid)')}{border-color:${DANGER}}` +
   `${boxWhen('input:disabled')}{opacity:.5;cursor:not-allowed}` +
   `@media (prefers-reduced-motion:reduce){${box()}{transition:none}}` +
-  `@media (forced-colors:active){${boxWhen('input:focus-visible')}{outline-color:Highlight}}`;
+  `@media (forced-colors:active){${box(':focus-within')}{outline-color:Highlight}}`;
 
 export const LOOK =
   BOX +

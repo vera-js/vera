@@ -444,6 +444,10 @@ describe('vera-input: the box', () => {
     wrap.querySelector('button').focus();
     expect(style(host).outlineStyle, `${ON}: the ring goes with the focus`).to.equal('none');
     wrap.remove();
+    const clearable = await mount('<vera-input clearable><input value="x"></vera-input>');
+    clearable.querySelector('[data-vera-part="clear"]').focus();
+    expect(style(clearable.querySelector('vera-input')).outlineStyle, `${ON}: focus on the clear button rings the box too`).to.equal('solid');
+    clearable.remove();
   });
 
   /**

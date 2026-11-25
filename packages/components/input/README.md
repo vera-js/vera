@@ -85,7 +85,8 @@ only visual.
 
 - **The box is the element**: a hairline border, rounded corners, the surface and text colors, 2.25em tall (36px on a
   16px page), with your input borderless inside it and the clear, reveal and loading parts beside it, inside the
-  border. Focus draws one ring around the box; the border turns to the danger color on an input marked
+  border. Focus anywhere in the box (the input, or the clear and reveal buttons, by mouse too) draws one ring around
+  it; the border turns to the danger color on an input marked
   `aria-invalid="true"` or one the user has left invalid. A disabled input dims the box.
 - The clear and reveal buttons draw their glyphs (× and ● / ○) as generated content with empty alt text: each button
   is named by its label, never by its glyph. The loading mark is a small turning ring in
