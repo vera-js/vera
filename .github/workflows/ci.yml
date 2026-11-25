@@ -76,6 +76,11 @@ jobs:
       # A version bumped on main without its tag means the release was cut wrong. Verification
       # only — this never writes, and it tolerates a dirty tree so it is safe in CI.
       - run: node scripts/tag-release.mjs --check
+      # Every package this commit's release would publish can publish through Trusted Publishing (its latest registry
+      # version came from the trusted publisher; a package never published is published by hand first). Here, not only
+      # in the local gate, because release.yml publishes only after CI succeeds on the same commit: a red here stops a
+      # release before any package publishes, instead of after the first ones did. Reads the public registry.
+      - run: node scripts/check-publishers.mjs
       - run: node scripts/sync-size-claims.mjs --check
       # diagnostics.json is what turns a rejection CODE into a docs page and into a full sentence
       # in Vera Studio's inspector, which runs a production bundle where the prose has folded away.

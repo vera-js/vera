@@ -23,6 +23,7 @@ canonicalCwd();
 const steps = [
   ['sync-packages', 'npm', ['run', 'check']],
   ['tag-release', 'node', ['scripts/tag-release.mjs', '--check']],
+  ['publishers', 'node', ['scripts/check-publishers.mjs']],
   /**
    * **Before `typecheck`, because `typecheck`'s last pass reads generated files.**
    *
