@@ -1,6 +1,6 @@
 /**
  * **`examples/components/`**: the page the server builds holds a plate for every component package that has a
- * `demo.ts`, a state cell for each of its states, and an import map whose every target is a built file in this repo,
+ * `demo.ts`, a state card for each of its states, and an import map whose every target is a built file in this repo,
  * with no template marker left. Against the built tree (the page serves `dist/` bytes as written).
  */
 import { test } from 'node:test';
@@ -14,7 +14,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const html = await componentsPage(root);
 const demos = await componentDemos(root);
 
-test('every component package with a demo.ts has its plate, and its states each a cell', () => {
+test('every component package with a demo.ts has its plate, and its states each a card', () => {
   const withDemo = readdirSync(join(root, 'packages/components')).filter((name) => {
     const src = join(root, 'packages/components', name, 'src');
     return existsSync(src) && readdirSync(src).some((folder) => existsSync(join(src, folder, 'demo.ts')));
@@ -27,7 +27,7 @@ test('every component package with a demo.ts has its plate, and its states each 
     /** To the next plate (or the end of main): a state's markup may hold sections of its own (tabs' panels). */
     const next = html.indexOf('<section class="plate"', at + 1);
     const plate = html.slice(at, next === -1 ? html.indexOf('</main>', at) : next);
-    assert.equal(plate.split('<div class="cell').length - 1, demo.states.length, `${name}: one cell per state`);
+    assert.equal(plate.split('<article class="card').length - 1, demo.states.length, `${name}: one card per state`);
   }
 });
 
@@ -42,6 +42,6 @@ test('the import map names every component and the core modules, and each target
 });
 
 test('no template marker is left, and the page loads the components it shows', () => {
-  assert.doesNotMatch(html, /<!--(IMPORTMAP|PLATES)-->|\/\*COMPONENTS\*\/\[\]/);
+  assert.doesNotMatch(html, /<!--(GENERATED|IMPORTMAP|NAV|COUNT|FIRST|PLATES)-->|\/\*(WIRING|COMPONENTS)\*\//);
   assert.ok(html.includes(JSON.stringify(demos.map(({ name }) => name))), 'the loader list is the plates');
 });

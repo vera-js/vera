@@ -69,7 +69,7 @@
               "name": "--vera-radius"
             },
             {
-              "name": "--vera-bg"
+              "name": "--vera-surface"
             },
             {
               "name": "--vera-fg"
@@ -79,6 +79,9 @@
             },
             {
               "name": "--vera-hover"
+            },
+            {
+              "name": "--vera-shadow"
             }
           ],
           "vera-states": [],

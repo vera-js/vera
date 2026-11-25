@@ -7,7 +7,7 @@
  *   (`--_vera-…`): a thirteenth token is a contract change, made in tokens.ts first;
  * - every read of a shared token through a literal `var(--vera-<name>, <default>)` carries exactly tokens.ts's default
  *   (the simplest way to hold that is to write the constant: `${ACCENT}`), so two components can never disagree on
- *   what an unset accent looks like;
+ *   what an unset accent looks like, or a mix of `currentColor` alone, for a part that follows its text's color;
  * - no raw color (hex, rgb()/hsl()/oklch()/oklab()/color(), a color name) outside a token's default, shared or the
  *   component's own (`var(--vera-dialog-backdrop, rgb(0 0 0/.45))`): a theme value is a token. System colors (Canvas,
  *   CanvasText, Highlight…) are forced colors' own and pass;
@@ -54,6 +54,13 @@ export const tokenReads = (text) => {
 const RAW_COLOR =
   /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|oklch|oklab|lab|lch|color)\(|\b(?:red|blue|green|black|white|gray|grey|orange|purple|pink|yellow|cyan|magenta|silver|maroon|navy|teal|olive|aqua|fuchsia|lime)\b(?=\s*[;)\s!,])/;
 
+/**
+ * The one other default a shared token may have: a mix of `currentColor` (kbd's key border, spinner's track), so the
+ * part follows ANY text it sits in (a key in a red error, a spinner on an accent button), which two schemes cannot. An
+ * app's token still wins; only the default differs. Nothing but `currentColor` and `transparent` may be mixed.
+ */
+const FOLLOWS_TEXT = /^var\(--vera-[a-z-]+,color-mix\(in [a-z]+,currentColor [0-9.]+%,transparent\)\)$/i;
+
 /** What a component's sources break, as readable lines (empty: it is on the tokens). */
 export const breaches = (component, files, tokens) => {
   const out = [];
@@ -70,7 +77,8 @@ export const breaches = (component, files, tokens) => {
         if (read.name.startsWith(`${component}-`)) rest = rest.split(read.whole).join('');
         continue;
       }
-      if (shared !== null && read.whole !== shared) out.push(`${file}: ${read.whole} is not the shared ${shared}`);
+      if (shared !== null && read.whole !== shared && !FOLLOWS_TEXT.test(read.whole))
+        out.push(`${file}: ${read.whole} is not the shared ${shared}`);
       rest = rest.split(read.whole).join('');
     }
     for (const value of tokens.values()) if (value !== null) rest = rest.split(value).join('');
@@ -96,7 +104,7 @@ export const readNames = (files) => {
 };
 
 /** Components whose look has not moved onto the tokens yet (W106/W108). A name leaves this list in its look's commit. */
-const NOT_YET = ['field', 'icon', 'input', 'kbd', 'spinner'];
+const NOT_YET = ['input', 'kbd'];
 
 /** Each component's look sources: every .ts under src except its demo and surface (data) and diagnostics (prose). */
 const lookFiles = (name) => {
@@ -128,12 +136,15 @@ test('CONTROL: breaches() names a wrong default, an unknown token, and a raw col
     ['b.ts', `x{color:var(--vera-brand,red)}`],
     ['c.ts', `x{color:#123456}`],
     ['d.ts', `x{color:${accent};inline-size:var(--vera-demo-size,1em);outline-color:Highlight;background:var(--vera-demo-scrim,rgb(0 0 0/.4))}`],
+    ['e.ts', 'x{border-color:var(--vera-border, color-mix(in srgb, currentColor 30%, transparent))}'],
+    ['f.ts', 'x{border-color:var(--vera-border,color-mix(in srgb,currentColor 30%,#fff))}'],
   ];
   assert.deepEqual(breaches('demo', files, tokens), [
     `a.ts: var(--vera-accent,#7c3aed) is not the shared ${accent}`,
     'b.ts: --vera-brand is not a shared token nor demo\'s own',
     'b.ts: a raw color "red" outside a shared token',
     'c.ts: a raw color "#123456" outside a shared token',
+    `f.ts: var(--vera-border,color-mix(in srgb,currentColor 30%,#fff)) is not the shared ${tokens.get('border')}`,
   ]);
 });
 

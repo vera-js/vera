@@ -65,10 +65,16 @@
               "name": "--vera-radius"
             },
             {
-              "name": "--vera-bg"
+              "name": "--vera-surface"
             },
             {
               "name": "--vera-fg"
+            },
+            {
+              "name": "--vera-shadow"
+            },
+            {
+              "name": "--vera-dialog-backdrop"
             }
           ],
           "vera-states": [],

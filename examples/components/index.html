@@ -6,37 +6,132 @@
 <title>Vera components</title>
 <!-- Generated from template.html and each package's demo.ts by scripts/build-components-page.mjs: edit those, then run it. -->
 <style>
-/* A proof sheet: each component pulled as a plate, its states side by side on a quiet stage. */
-:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0b0d0c);--ink:light-dark(#0b0b10,#eef2ef);--mute:light-dark(#5a5f66,#9aa39e);
-  --line:light-dark(#e6e8ea,#1f2422);--stage:light-dark(#f6f7f8,#121614);--accent:#00a862;--mist:light-dark(#eafaf2,#0d1f16)}
-*{box-sizing:border-box;min-width:0}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,sans-serif;overflow-x:clip}
-h1,h2{font-weight:600;line-height:1.1;text-wrap:balance;margin:0}
-h1{font-size:clamp(30px,5vw,44px)}h2{font-size:26px}
-.band{padding:clamp(28px,4vw,56px) max(5vw,16px)}
-.top{background:var(--mist);border-bottom:1px solid var(--line)}
-.top p{max-width:68ch;margin:14px 0 0;color:var(--mute)}
-nav{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
-nav a{color:var(--ink)}
-.plate{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:clamp(20px,4vw,48px);max-width:1240px;margin:0 auto;
-  padding-block:clamp(28px,4vw,48px);border-bottom:1px solid var(--line)}
-.plate .ask{margin:12px 0 0;color:var(--mute);font-size:15px}
-.plate .pkg{display:block;margin-top:10px;font-size:13px;color:var(--mute)}
-.stage{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.cell{background:var(--stage);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;min-height:120px}
-.cell .show{flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;font-size:17px}
-.cell .say{font-size:13px;color:var(--mute)}
-.cell h3{font:500 15px/1.3 system-ui,sans-serif;margin:0}
-.reach{margin:14px 0 0;font-size:13px;color:var(--mute)}
-.wide{grid-column:1/-1}
-button.act{font:inherit;font-size:15px;min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
-button.act:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-vera-field input,vera-field textarea{font:inherit;font-size:16px;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
-vera-field label{font-weight:500}
-vera-field small{display:block;font-size:13px;color:var(--mute)}
-vera-field [data-vera-part=error]{color:#c4321c}
-svg.glyph{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-@media(max-width:760px){.plate{grid-template-columns:minmax(0,1fr)}}
+/*
+ * The page's own look, and the theme every component reads: the --vera-* tokens set here on :root are the same ones
+ * the controls in the bar change, so what you see when you pick an accent or a radius is what an app gets by setting
+ * them itself.
+ */
+:root {
+  color-scheme: light dark;
+  --vera-accent: oklch(0.56 0.22 280);
+  --vera-radius: 10px;
+  --vera-bg: light-dark(#ffffff, #0c0c10);
+  --vera-surface: light-dark(#ffffff, #15151b);
+  --vera-fg: light-dark(#0f0f14, #f2f2f5);
+  --vera-fg-muted: light-dark(#5f5f6b, #9d9daa);
+  --vera-border: light-dark(#e4e4ea, #2a2a33);
+  --vera-hover: light-dark(#f2f2f6, #1d1d24);
+  --vera-focus: color-mix(in oklch, var(--vera-accent) 55%, transparent);
+  --vera-shadow: light-dark(0 1px 2px rgb(0 0 0 / .06), 0 1px 2px rgb(0 0 0 / .5));
+
+  --page: light-dark(#fafafb, #09090c);
+  --card: var(--vera-surface);
+  --stage: light-dark(#f6f6f9, #111116);
+  --dot: light-dark(#dcdce4, #22222b);
+  --glow: color-mix(in oklch, var(--vera-accent) 18%, transparent);
+  --ink: var(--vera-fg);
+  --mute: var(--vera-fg-muted);
+  --line: var(--vera-border);
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
+}
+:root[data-scheme="light"] { color-scheme: light }
+:root[data-scheme="dark"] { color-scheme: dark }
+* { box-sizing: border-box; min-width: 0 }
+html { scroll-behavior: smooth; scroll-padding-top: 84px }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.6 var(--font); -webkit-font-smoothing: antialiased; overflow-x: clip }
+a { color: inherit }
+code, pre { font-family: var(--mono) }
+:focus-visible { outline: 2px solid var(--vera-accent); outline-offset: 2px }
+
+/* The bar */
+.bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 20px; padding: 12px max(4vw, 16px);
+  background: color-mix(in oklch, var(--page) 78%, transparent); backdrop-filter: saturate(1.6) blur(14px);
+  border-bottom: 1px solid color-mix(in oklch, var(--line) 70%, transparent) }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; text-decoration: none; font-size: 16px }
+.mark { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--vera-accent), color-mix(in oklch, var(--vera-accent) 45%, #ff6bd6));
+  box-shadow: 0 4px 14px var(--glow) }
+.controls { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--stage); border: 1px solid var(--line) }
+.seg button { font: inherit; font-size: 13px; border: 0; background: none; color: var(--mute); padding: 4px 12px; border-radius: 999px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--vera-shadow), 0 0 0 1px var(--line) }
+.swatches { display: inline-flex; gap: 6px }
+.swatches button { width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .12) }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--c) }
+.radius { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mute) }
+.radius input { width: 90px; accent-color: var(--vera-accent) }
+
+/* The hero */
+.hero { position: relative; padding: clamp(56px, 9vw, 120px) max(4vw, 16px) clamp(40px, 6vw, 72px); text-align: center; overflow: hidden }
+.hero::before { content: ""; position: absolute; inset: -40% 10% auto; height: 520px; background: radial-gradient(closest-side, var(--glow), transparent); pointer-events: none }
+.hero::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 20%, transparent 70%); pointer-events: none; opacity: .7 }
+.hero > * { position: relative; z-index: 1 }
+.eyebrow { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--mute); padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card) }
+.eyebrow b { color: var(--vera-accent); font-weight: 600 }
+h1 { margin: 22px auto 0; max-width: 16ch; font-size: clamp(38px, 6.4vw, 72px); line-height: 1.02; letter-spacing: -.035em; font-weight: 700; text-wrap: balance }
+h1 em { font-style: normal; background: linear-gradient(120deg, var(--vera-accent), color-mix(in oklch, var(--vera-accent) 40%, #ff6bd6)); -webkit-background-clip: text; background-clip: text; color: transparent }
+.sub { margin: 22px auto 0; max-width: 58ch; color: var(--mute); font-size: clamp(16px, 1.6vw, 19px); text-wrap: pretty }
+.cta { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap }
+.btn { font: inherit; font-weight: 550; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 20px; border-radius: 999px; text-decoration: none; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink) }
+.btn.primary { background: var(--ink); color: var(--page); border-color: transparent }
+.btn code { font-size: 13px }
+.facts { margin: 44px auto 0; display: flex; justify-content: center; gap: clamp(20px, 5vw, 64px); flex-wrap: wrap; color: var(--mute); font-size: 14px }
+.facts strong { display: block; color: var(--ink); font-size: 26px; letter-spacing: -.02em; font-weight: 650 }
+
+/* The layout */
+.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); max-width: 1280px; margin: 0 auto; padding: 0 max(4vw, 16px) 96px }
+.side { position: sticky; top: 84px; align-self: start; display: flex; flex-direction: column; gap: 2px; padding-top: 8px }
+.side .label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); margin: 0 0 8px 12px }
+.side a { text-decoration: none; padding: 7px 12px; border-radius: 8px; color: var(--mute); font-size: 14px }
+.side a:hover { background: var(--vera-hover); color: var(--ink) }
+.side a[aria-current="true"] { color: var(--ink); background: var(--vera-hover); font-weight: 550; box-shadow: inset 2px 0 0 var(--vera-accent) }
+
+/* A component */
+.plate { padding-top: 40px; margin-top: 24px; border-top: 1px solid var(--line) }
+.plate:first-child { border-top: 0; margin-top: 0; padding-top: 8px }
+.title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+h2 { margin: 0; font-size: 30px; letter-spacing: -.025em; font-weight: 680 }
+.pill { font-size: 12px; font-weight: 550; padding: 3px 10px; border-radius: 999px; color: var(--vera-accent); background: color-mix(in oklch, var(--vera-accent) 12%, transparent) }
+.lede { margin: 10px 0 0; font-size: 17px; max-width: 70ch; text-wrap: pretty }
+.try { margin: 10px 0 0; color: var(--mute); max-width: 75ch; font-size: 14px }
+.try strong { color: var(--ink); font-weight: 600; margin-right: 4px }
+.install { display: inline-block; margin-top: 14px; font-size: 13px; padding: 6px 12px; border-radius: 8px; background: var(--stage); border: 1px solid var(--line); color: var(--mute) }
+.install::before { content: "$ "; color: var(--vera-accent) }
+.grid { margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px }
+.card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px -12px rgb(0 0 0 / .08); transition: box-shadow .2s, border-color .2s }
+.card:hover { border-color: color-mix(in oklch, var(--vera-accent) 35%, var(--line)); box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 14px 32px -14px var(--glow) }
+.card.wide { grid-column: 1 / -1 }
+.preview { flex: 1; min-height: 150px; padding: 32px 24px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px;
+  background: var(--stage); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 16px 16px; font-size: 16px }
+.preview > * { max-width: 100% }
+.frame { width: 100%; height: 300px; border: 0; border-radius: 10px; background: transparent }
+.card footer { padding: 14px 18px 16px; border-top: 1px solid var(--line) }
+.card h3 { margin: 0; font-size: 14px; font-weight: 600 }
+.card footer p { margin: 4px 0 0; font-size: 13px; color: var(--mute) }
+.code { margin-top: 10px; position: relative }
+.code summary { font-size: 12px; color: var(--mute); cursor: pointer; width: fit-content; list-style: none; padding: 2px 0 }
+.code summary::before { content: "</> "; color: var(--vera-accent); font-family: var(--mono) }
+.code summary::-webkit-details-marker { display: none }
+.code pre { margin: 8px 0 0; padding: 14px; border-radius: 10px; background: light-dark(#0f0f14, #050507); color: #e6e6ef; font-size: 12.5px; line-height: 1.55; overflow: auto; max-height: 280px; white-space: pre-wrap; word-break: break-word }
+.copy { position: absolute; top: 34px; right: 8px; font: 500 12px var(--font); padding: 3px 10px; border-radius: 6px; border: 1px solid #ffffff24; background: #ffffff14; color: #e6e6ef; cursor: pointer }
+
+/* Form controls the demos bring as plain HTML get the same look the components use, so a state reads as a real app. */
+.preview :where(input:not([type=checkbox], [type=radio], [type=range]), textarea, select) { font: inherit; font-size: 15px; min-height: 40px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink) }
+.preview :where(textarea) { padding: 10px 12px; min-height: 84px }
+.preview :where(input, textarea, select):focus-visible { outline: 0; border-color: var(--vera-accent); box-shadow: 0 0 0 3px var(--vera-focus) }
+.preview :where(button:not([slot], [data-vera-part], [role=tab], [role=menuitem], [role=option])) { font: inherit; font-size: 14px; font-weight: 550; min-height: 38px; padding: 0 16px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink); cursor: pointer; box-shadow: var(--vera-shadow) }
+.preview :where(button[slot="trigger"]) { font: inherit; font-size: 14px; font-weight: 550; min-height: 38px; padding: 0 16px; border-radius: var(--vera-radius); border: 0; background: var(--vera-accent); color: #fff; cursor: pointer }
+.preview :where(label) { font-weight: 550; font-size: 14px }
+.preview :where(vera-field) { display: grid; gap: 6px; width: min(100%, 320px) }
+.preview :where(vera-field small) { font-size: 13px; color: var(--mute) }
+.preview :where(vera-field [data-vera-part=error]) { color: light-dark(#c4321c, #ff7a66) }
+dialog :where(input, textarea) { font: inherit; min-height: 38px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink) }
+
+.foot { text-align: center; color: var(--mute); font-size: 13px; padding: 40px 16px 56px; border-top: 1px solid var(--line) }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr) } .side { display: none } .controls .radius { display: none } }
 </style>
 <link rel="stylesheet" href="/packages/components/spinner/dist/preupgrade.css">
 <script type="importmap">{
@@ -66,158 +161,476 @@ svg.glyph{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stro
 }</script>
 </head>
 <body>
-<header class="band top">
-  <h1>Vera components</h1>
-  <p>Every component in this repo, running its production bundle through an import map, in the states it ships with. Each plate comes from the package's own <code>src/&lt;name&gt;/demo.ts</code>, so this page is always the current source and build.</p>
+<header class="bar">
+  <a class="brand" href="#top"><span class="mark" aria-hidden="true"></span>Vera</a>
+  <div class="controls" role="group" aria-label="Theme">
+    <div class="seg" role="group" aria-label="Color scheme" data-scheme-buttons>
+      <button type="button" data-scheme="system" aria-pressed="true">Auto</button><button type="button" data-scheme="light" aria-pressed="false">Light</button><button type="button" data-scheme="dark" aria-pressed="false">Dark</button>
+    </div>
+    <div class="swatches" role="group" aria-label="Accent color" data-accents>
+      <button type="button" style="--c:oklch(0.56 0.22 280)" data-accent="oklch(0.56 0.22 280)" aria-label="Violet" aria-pressed="true"></button>
+      <button type="button" style="--c:oklch(0.58 0.19 250)" data-accent="oklch(0.58 0.19 250)" aria-label="Blue" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.62 0.16 160)" data-accent="oklch(0.62 0.16 160)" aria-label="Emerald" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.62 0.21 15)" data-accent="oklch(0.62 0.21 15)" aria-label="Rose" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.72 0.16 65)" data-accent="oklch(0.72 0.16 65)" aria-label="Amber" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.35 0.01 280)" data-accent="oklch(0.35 0.01 280)" aria-label="Graphite" aria-pressed="false"></button>
+    </div>
+    <label class="radius">Radius <input type="range" min="0" max="20" value="10" data-radius></label>
+  </div>
 </header>
 
-<main class="band">
+<section class="hero" id="top">
+  <span class="eyebrow"><b>New</b> Web components over your own HTML</span>
+  <h1>Components that are <em>fast, tiny and yours</em></h1>
+  <p class="sub">Accessible, framework-free building blocks that wire the markup you already write. They work before the script loads, weigh a few kilobytes, and restyle with a handful of CSS variables. Try the controls up top.</p>
+  <div class="cta">
+    <a class="btn primary" href="#dialog">Browse components</a>
+    <button type="button" class="btn" data-copy-text="npm i @verajs/core @verajs/renderer"><code>npm i @verajs/core</code></button>
+  </div>
+  <div class="facts">
+    <span><strong>9</strong>components</span>
+    <span><strong data-total>…</strong>all of them, gzip</span>
+    <span><strong>0</strong>dependencies</span>
+  </div>
+</section>
+
+<div class="layout">
+  <nav class="side" aria-label="Components"><p class="label">Components</p><a href="#dialog">Dialog</a><a href="#field">Field</a><a href="#icon">Icon</a><a href="#input">Input</a><a href="#kbd">Kbd</a><a href="#menu">Menu</a><a href="#select">Select</a><a href="#spinner">Spinner</a><a href="#tabs">Tabs</a></nav>
+  <main>
   <section class="plate" id="dialog">
-    <div>
-      <h2>Dialog</h2>
-      <p class="ask">Judge the dialog open: its spacing, the backdrop, the form's buttons, the alert dialog's wording, and the end sheet sliding in. Try Escape, a press outside on the dismissible one, and the form's Save.</p>
-      <span class="pkg">@vera-components/dialog</span>
-    </div>
-    <div class="stage">
-      <div class="cell wide"><h3>Form dialog</h3><div class="show"><vera-dialog><button slot="trigger">Edit profile</button><dialog><h2>Edit profile</h2><form method="dialog"><label>Name <input name="name" autofocus></label><p><button value="cancel" formnovalidate>Cancel</button> <button value="save">Save</button></p></form></dialog></vera-dialog></div><span class="say">A heading names it; the form closes it with a returnValue.</span></div>
-      <div class="cell wide"><h3>Alert dialog</h3><div class="show"><vera-dialog><button slot="trigger">Delete…</button><dialog role="alertdialog"><h2>Delete this file?</h2><p data-vera-part="description">It cannot be restored.</p><form method="dialog"><button value="cancel" autofocus>Cancel</button> <button value="delete">Delete</button></form></dialog></vera-dialog></div><span class="say">role=&quot;alertdialog&quot;: never light-dismissed; autofocus on the least destructive action.</span></div>
-      <div class="cell"><h3>Dismissible sheet</h3><div class="show"><vera-dialog placement="end" dismiss="outside"><button slot="trigger">Filters</button><dialog aria-label="Filters"><p data-vera-part="title">Filters</p><p>Narrow the list.</p></dialog></vera-dialog></div><span class="say">placement=&quot;end&quot; and dismiss=&quot;outside&quot;: docked to the end edge; a press outside closes it.</span></div>
-      <div class="cell"><h3>Open at load</h3><div class="show"><vera-dialog open><dialog><h2>Welcome</h2><form method="dialog"><button autofocus>Start</button></form></dialog></vera-dialog></div><span class="say">The host's open: shown as a modal on connect.</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Dialog</h2><span class="pill" data-size="@vera-components/dialog">gzip …</span></div>
+      <p class="lede">A modal dialog over the author's own &lt;dialog&gt;: wired in place, opened by the platform's invokers or a trigger, named by its heading, light-dismissible on request, with a host open attribute that binds both ways and a CSS-only sheet placement.</p>
+      <p class="try"><strong>Try it</strong> Judge the dialog open: its spacing, the backdrop, the form's buttons, the alert dialog's wording, and the end sheet sliding in. Try Escape, a press outside on the dismissible one, and the form's Save.</p>
+      <code class="install">npm i @vera-components/dialog</code>
+    </header>
+    <div class="grid">
+      <article class="card wide">
+        <div class="preview"><vera-dialog><button slot="trigger">Edit profile</button><dialog><h2>Edit profile</h2><form method="dialog"><label>Name <input name="name" autofocus></label><p><button value="cancel" formnovalidate>Cancel</button> <button value="save">Save</button></p></form></dialog></vera-dialog></div>
+        <footer>
+          <h3>Form dialog</h3><p>A heading names it; the form closes it with a returnValue.</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-dialog&gt;&lt;button slot=&quot;trigger&quot;&gt;Edit profile&lt;/button&gt;&lt;dialog&gt;&lt;h2&gt;Edit profile&lt;/h2&gt;&lt;form method=&quot;dialog&quot;&gt;&lt;label&gt;Name &lt;input name=&quot;name&quot; autofocus&gt;&lt;/label&gt;&lt;p&gt;&lt;button value=&quot;cancel&quot; formnovalidate&gt;Cancel&lt;/button&gt; &lt;button value=&quot;save&quot;&gt;Save&lt;/button&gt;&lt;/p&gt;&lt;/form&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-dialog><button slot="trigger">Delete…</button><dialog role="alertdialog"><h2>Delete this file?</h2><p data-vera-part="description">It cannot be restored.</p><form method="dialog"><button value="cancel" autofocus>Cancel</button> <button value="delete">Delete</button></form></dialog></vera-dialog></div>
+        <footer>
+          <h3>Alert dialog</h3><p>role=&quot;alertdialog&quot;: never light-dismissed; autofocus on the least destructive action.</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-dialog&gt;&lt;button slot=&quot;trigger&quot;&gt;Delete…&lt;/button&gt;&lt;dialog role=&quot;alertdialog&quot;&gt;&lt;h2&gt;Delete this file?&lt;/h2&gt;&lt;p data-vera-part=&quot;description&quot;&gt;It cannot be restored.&lt;/p&gt;&lt;form method=&quot;dialog&quot;&gt;&lt;button value=&quot;cancel&quot; autofocus&gt;Cancel&lt;/button&gt; &lt;button value=&quot;delete&quot;&gt;Delete&lt;/button&gt;&lt;/form&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-dialog placement="end" dismiss="outside"><button slot="trigger">Filters</button><dialog aria-label="Filters"><p data-vera-part="title">Filters</p><p>Narrow the list.</p></dialog></vera-dialog></div>
+        <footer>
+          <h3>Dismissible sheet</h3><p>placement=&quot;end&quot; and dismiss=&quot;outside&quot;: docked to the end edge; a press outside closes it.</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-dialog placement=&quot;end&quot; dismiss=&quot;outside&quot;&gt;&lt;button slot=&quot;trigger&quot;&gt;Filters&lt;/button&gt;&lt;dialog aria-label=&quot;Filters&quot;&gt;&lt;p data-vera-part=&quot;title&quot;&gt;Filters&lt;/p&gt;&lt;p&gt;Narrow the list.&lt;/p&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><iframe class="frame" title="Open at load" srcdoc="&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}&lt;/style&gt;&lt;script type=&quot;importmap&quot;&gt;{&quot;imports&quot;:{&quot;@verajs/core&quot;:&quot;/packages/core/dist/vera.min.js&quot;,&quot;@verajs/renderer&quot;:&quot;/packages/renderer/dist/vera-renderer.min.js&quot;,&quot;@verajs/renderer/keyed&quot;:&quot;/packages/renderer/dist/vera-renderer-keyed.min.js&quot;,&quot;@verajs/renderer/slots&quot;:&quot;/packages/renderer/dist/vera-renderer-slots.min.js&quot;,&quot;@verajs/styles&quot;:&quot;/packages/styles/dist/vera-styles.min.js&quot;,&quot;@vera-components/dialog&quot;:&quot;/packages/components/dialog/dist/vera-dialog.min.js&quot;,&quot;@vera-components/field&quot;:&quot;/packages/components/field/dist/vera-field.min.js&quot;,&quot;@vera-components/icon&quot;:&quot;/packages/components/icon/dist/vera-icon.min.js&quot;,&quot;@vera-components/input&quot;:&quot;/packages/components/input/dist/vera-input.min.js&quot;,&quot;@vera-components/kbd&quot;:&quot;/packages/components/kbd/dist/vera-kbd.min.js&quot;,&quot;@vera-components/menu&quot;:&quot;/packages/components/menu/dist/vera-menu.min.js&quot;,&quot;@vera-components/select&quot;:&quot;/packages/components/select/dist/vera-select.min.js&quot;,&quot;@vera-components/spinner&quot;:&quot;/packages/components/spinner/dist/vera-spinner.min.js&quot;,&quot;@vera-components/tabs&quot;:&quot;/packages/components/tabs/dist/vera-tabs.min.js&quot;,&quot;@vera-hooks/announce&quot;:&quot;/packages/hooks/announce/dist/vera-announce.min.js&quot;,&quot;@vera-hooks/labeled&quot;:&quot;/packages/hooks/labeled/dist/vera-labeled.min.js&quot;,&quot;@vera-hooks/roving-focus&quot;:&quot;/packages/hooks/roving-focus/dist/vera-roving-focus.min.js&quot;,&quot;@vera-hooks/typeahead&quot;:&quot;/packages/hooks/typeahead/dist/vera-typeahead.min.js&quot;,&quot;@verajs/renderer/spread&quot;:&quot;/packages/renderer/dist/vera-renderer-spread.min.js&quot;,&quot;@vera-hooks/listbox&quot;:&quot;/packages/hooks/listbox/dist/vera-listbox.min.js&quot;,&quot;@vera-hooks/light-dismiss&quot;:&quot;/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js&quot;}}&lt;/script&gt;&lt;/head&gt;&lt;body&gt;&lt;vera-dialog open&gt;&lt;dialog&gt;&lt;h2&gt;Welcome&lt;/h2&gt;&lt;form method=&quot;dialog&quot;&gt;&lt;button autofocus&gt;Start&lt;/button&gt;&lt;/form&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;&lt;script type=&quot;module&quot;&gt;const{wire}=await import('@verajs/core');const{renderer}=await import('@verajs/renderer');const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);await import('@vera-components/dialog');&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div>
+        <footer>
+          <h3>Open at load</h3><p>The host's open: shown as a modal on connect (in a frame of its own here, since a modal makes the rest of its page inert).</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-dialog open&gt;&lt;dialog&gt;&lt;h2&gt;Welcome&lt;/h2&gt;&lt;form method=&quot;dialog&quot;&gt;&lt;button autofocus&gt;Start&lt;/button&gt;&lt;/form&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="field">
-    <div>
-      <h2>Field</h2>
-      <p class="ask">Label, hint and errors around your own control. An error appears only after you've tried (submit, or leave the field), never on first sight. Try leaving the email empty, then typing a bad address.</p>
-      <span class="pkg">@vera-components/field</span>
-    </div>
-    <div class="stage">
-      <div class="cell wide"><h3>Required email, with a hint and its errors</h3><div class="show"><form novalidate><vera-field><label>Work email</label><input type="email" required autocomplete="email"><small data-vera-part="hint">We'll send the invite here.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small><small data-vera-part="error" data-when="typeMismatch">That isn't an email address.</small></vera-field><button type="submit">Send invite</button></form></div></div>
-      <div class="cell wide"><h3>A character count, in your words</h3><div class="show"><vera-field count-message="{left} characters left" count-message-zero="No characters left" count-message-one="{left} character left" count-message-two="{left} characters left" count-message-few="{left} characters left" count-message-many="{left} characters left" count-message-other="{left} characters left" limit-message="That's the limit"><label>Bio</label><textarea maxlength="80"></textarea><small data-vera-part="count"></small></vera-field></div><span class="say">Spoken from 80% of the limit and at it: {left} in the plural form of the field's language</span></div>
-      <div class="cell"><h3>The control named, not first</h3><div class="show"><vera-field><label>Search</label><button type="button">Clear</button><input data-vera-part="control" type="search"></vera-field></div><span class="say">data-vera-part=&quot;control&quot; picks the control when it is not the first labelable element</span></div>
-      <div class="cell"><h3>The browser's own messages</h3><div class="show"><form novalidate><vera-field native-messages><label>Age</label><input type="number" min="18" required><small data-vera-part="error"></small></vera-field></form></div><span class="say">native-messages keeps the browser's own bubble on a failed submit; an empty error part shows the browser's message</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Field</h2><span class="pill" data-size="@vera-components/field">gzip …</span></div>
+      <p class="lede">Wires a form control the consumer writes to its label, hint, count and errors, and renders nothing itself. The control is the [data-vera-part=&quot;control&quot;] element, else the first labelable one; the &lt;label&gt; is pointed at it, the hint and count describe it, and the error that shows is chosen from the control's ValidityState once the user has tried (an edit and a blur, or a submit). A user's failed submit focuses the first invalid control in tree order, as native does, and the field cancels native bubbles unless native-messages is set. An error the server rendered (data-when=&quot;server&quot;) stands until the first edit. The count speaks once per crossing, in the consumer's words and the language's plural form.</p>
+      <p class="try"><strong>Try it</strong> Label, hint and errors around your own control. An error appears only after you've tried (submit, or leave the field), never on first sight. Try leaving the email empty, then typing a bad address.</p>
+      <code class="install">npm i @vera-components/field</code>
+    </header>
+    <div class="grid">
+      <article class="card wide">
+        <div class="preview"><form novalidate><vera-field><label>Work email</label><input type="email" required autocomplete="email"><small data-vera-part="hint">We'll send the invite here.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small><small data-vera-part="error" data-when="typeMismatch">That isn't an email address.</small></vera-field><button type="submit">Send invite</button></form></div>
+        <footer>
+          <h3>Required email, with a hint and its errors</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;form novalidate&gt;&lt;vera-field&gt;&lt;label&gt;Work email&lt;/label&gt;&lt;input type=&quot;email&quot; required autocomplete=&quot;email&quot;&gt;&lt;small data-vera-part=&quot;hint&quot;&gt;We'll send the invite here.&lt;/small&gt;&lt;small data-vera-part=&quot;error&quot; data-when=&quot;valueMissing&quot;&gt;Enter your email.&lt;/small&gt;&lt;small data-vera-part=&quot;error&quot; data-when=&quot;typeMismatch&quot;&gt;That isn't an email address.&lt;/small&gt;&lt;/vera-field&gt;&lt;button type=&quot;submit&quot;&gt;Send invite&lt;/button&gt;&lt;/form&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-field count-message="{left} characters left" count-message-zero="No characters left" count-message-one="{left} character left" count-message-two="{left} characters left" count-message-few="{left} characters left" count-message-many="{left} characters left" count-message-other="{left} characters left" limit-message="That's the limit"><label>Bio</label><textarea maxlength="80"></textarea><small data-vera-part="count"></small></vera-field></div>
+        <footer>
+          <h3>A character count, in your words</h3><p>Spoken from 80% of the limit and at it: {left} in the plural form of the field's language</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-field count-message=&quot;{left} characters left&quot; count-message-zero=&quot;No characters left&quot; count-message-one=&quot;{left} character left&quot; count-message-two=&quot;{left} characters left&quot; count-message-few=&quot;{left} characters left&quot; count-message-many=&quot;{left} characters left&quot; count-message-other=&quot;{left} characters left&quot; limit-message=&quot;That's the limit&quot;&gt;&lt;label&gt;Bio&lt;/label&gt;&lt;textarea maxlength=&quot;80&quot;&gt;&lt;/textarea&gt;&lt;small data-vera-part=&quot;count&quot;&gt;&lt;/small&gt;&lt;/vera-field&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-field><label>Search</label><button type="button">Clear</button><input data-vera-part="control" type="search"></vera-field></div>
+        <footer>
+          <h3>The control named, not first</h3><p>data-vera-part=&quot;control&quot; picks the control when it is not the first labelable element</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-field&gt;&lt;label&gt;Search&lt;/label&gt;&lt;button type=&quot;button&quot;&gt;Clear&lt;/button&gt;&lt;input data-vera-part=&quot;control&quot; type=&quot;search&quot;&gt;&lt;/vera-field&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><form novalidate><vera-field native-messages><label>Age</label><input type="number" min="18" required><small data-vera-part="error"></small></vera-field></form></div>
+        <footer>
+          <h3>The browser's own messages</h3><p>native-messages keeps the browser's own bubble on a failed submit; an empty error part shows the browser's message</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;form novalidate&gt;&lt;vera-field native-messages&gt;&lt;label&gt;Age&lt;/label&gt;&lt;input type=&quot;number&quot; min=&quot;18&quot; required&gt;&lt;small data-vera-part=&quot;error&quot;&gt;&lt;/small&gt;&lt;/vera-field&gt;&lt;/form&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="icon">
-    <div>
-      <h2>Icon</h2>
-      <p class="ask">Your own SVG, kept exactly as written, or a sprite reference. Decorative by default; a label makes it meaningful to a screen reader. Size and color follow the text.</p>
-      <span class="pkg">@vera-components/icon</span>
-    </div>
-    <div class="stage">
-      <div class="cell"><h3>Decorative, beside its text</h3><div class="show"><vera-icon><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></vera-icon> Saved</div></div>
-      <div class="cell wide"><h3>Labeled: a meaningful image</h3><div class="show"><span style="font-size:28px"><vera-icon label="Settings"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></vera-icon></span></div></div>
-      <div class="cell wide"><h3>From a sprite (src)</h3><div class="show"><svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="demo-star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol></svg><span style="font-size:24px;color:#00a862"><vera-icon src="#demo-star" label="Favorite"></vera-icon></span></div><span class="say">A same-origin reference, rendered as &lt;svg&gt;&lt;use&gt;</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Icon</h2><span class="pill" data-size="@vera-components/icon">gzip …</span></div>
+      <p class="lede">An icon: the consumer's own child &lt;svg&gt;, kept byte-identical, or a src rendered as &lt;svg&gt;&lt;use href&gt;. Decorative by default (the host gets aria-hidden=&quot;true&quot;); with a label the host gets role=&quot;img&quot; and aria-label instead. Only a relative src, or http(s) on the page's own origin, is rendered. Size, color and the RTL flip come from the styles layer, by CSS alone.</p>
+      <p class="try"><strong>Try it</strong> Your own SVG, kept exactly as written, or a sprite reference. Decorative by default; a label makes it meaningful to a screen reader. Size and color follow the text.</p>
+      <code class="install">npm i @vera-components/icon</code>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <div class="preview"><vera-icon><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></vera-icon> Saved</div>
+        <footer>
+          <h3>Decorative, beside its text</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-icon&gt;&lt;svg viewBox=&quot;0 0 24 24&quot; width=&quot;1em&quot; height=&quot;1em&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;&gt;&lt;path d=&quot;M5 12l5 5L20 7&quot;/&gt;&lt;/svg&gt;&lt;/vera-icon&gt; Saved</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><span style="font-size:28px"><vera-icon label="Settings"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></vera-icon></span></div>
+        <footer>
+          <h3>Labeled: a meaningful image</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;span style=&quot;font-size:28px&quot;&gt;&lt;vera-icon label=&quot;Settings&quot;&gt;&lt;svg viewBox=&quot;0 0 24 24&quot; width=&quot;1em&quot; height=&quot;1em&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;3&quot;/&gt;&lt;path d=&quot;M12 2v3M12 19v3M2 12h3M19 12h3&quot;/&gt;&lt;/svg&gt;&lt;/vera-icon&gt;&lt;/span&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="demo-star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol></svg><span style="font-size:24px;color:#00a862"><vera-icon src="#demo-star" label="Favorite"></vera-icon></span></div>
+        <footer>
+          <h3>From a sprite (src)</h3><p>A same-origin reference, rendered as &lt;svg&gt;&lt;use&gt;</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;svg width=&quot;0&quot; height=&quot;0&quot; style=&quot;position:absolute&quot; aria-hidden=&quot;true&quot;&gt;&lt;symbol id=&quot;demo-star&quot; viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linejoin=&quot;round&quot;/&gt;&lt;/symbol&gt;&lt;/svg&gt;&lt;span style=&quot;font-size:24px;color:#00a862&quot;&gt;&lt;vera-icon src=&quot;#demo-star&quot; label=&quot;Favorite&quot;&gt;&lt;/vera-icon&gt;&lt;/span&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="input">
-    <div>
-      <h2>Input</h2>
-      <p class="ask">Unthemed on purpose: only the glyphs and the loading ring are ours; the input's own border is the browser's, and theming is by tokens. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, and Escape on the search.</p>
-      <span class="pkg">@vera-components/input</span>
-    </div>
-    <div class="stage">
-      <div class="cell"><h3>Search, clearable</h3><div class="show"><label>Search <vera-input clearable clear-label="Clear search"><input type="search" name="q" value="vera"></vera-input></label></div><span class="say">Escape clears a search input</span></div>
-      <div class="cell"><h3>With a prefix and a suffix</h3><div class="show"><label>Amount <vera-input><span data-vera-part="prefix">$</span><input name="amount" inputmode="decimal" value="12"><span data-vera-part="suffix">.00</span></vera-input></label></div></div>
-      <div class="cell"><h3>Password, with reveal and a caps-lock hint</h3><div class="show"><label>Password <vera-input reveal reveal-label="Show password" caps-lock-hint caps-lock-message="Caps Lock is on"><input type="password" name="p" value="s3cret"></vera-input></label></div></div>
-      <div class="cell"><h3>Loading</h3><div class="show"><label>Email <vera-input loading><input type="email" name="e" value="a@b.c"></vera-input></label></div><span class="say">aria-busy on the input; nothing announced</span></div>
-      <div class="cell"><h3>The default input</h3><div class="show"><label>Default input <vera-input name="d" type="email" value="hello@example.com" placeholder="rendered by the element" autocomplete="email" clearable></vera-input></label></div><span class="say">No input written: the element renders one from name, type, value, placeholder and autocomplete, read once</span></div>
-      <div class="cell"><h3>Sizes</h3><div class="show"><label>Small <vera-input scale="sm"><input name="s"></vera-input></label> <label>Large <vera-input scale="lg"><input name="l"></vera-input></label></div><span class="say">scale: sm and lg around the page's font size (md)</span></div>
-      <div class="cell"><h3>Disabled by its fieldset</h3><div class="show"><fieldset disabled><legend>Off</legend><label>Disabled <vera-input clearable><input value="can't clear"></vera-input></label></fieldset></div></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Input</h2><span class="pill" data-size="@vera-components/input">gzip …</span></div>
+      <p class="lede">Wraps the user's own &lt;input&gt; (the form participant: autofill, validity, reset and disabled stay the platform's), with optional prefix and suffix parts of the user's. With no &lt;input&gt; inside it renders one, server-side too, from its name, type, value, placeholder and autocomplete, read once. Options add a clear button that keeps the input's undo history, a password reveal, a caps-lock hint (shown and announced), and a loading mark with aria-busy on the input. It never labels: put it in a &lt;label&gt; or a &lt;vera-field&gt;.</p>
+      <p class="try"><strong>Try it</strong> Unthemed on purpose: only the glyphs and the loading ring are ours; the input's own border is the browser's, and theming is by tokens. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, and Escape on the search.</p>
+      <code class="install">npm i @vera-components/input</code>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <div class="preview"><label>Search <vera-input clearable clear-label="Clear search"><input type="search" name="q" value="vera"></vera-input></label></div>
+        <footer>
+          <h3>Search, clearable</h3><p>Escape clears a search input</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Search &lt;vera-input clearable clear-label=&quot;Clear search&quot;&gt;&lt;input type=&quot;search&quot; name=&quot;q&quot; value=&quot;vera&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><label>Amount <vera-input><span data-vera-part="prefix">$</span><input name="amount" inputmode="decimal" value="12"><span data-vera-part="suffix">.00</span></vera-input></label></div>
+        <footer>
+          <h3>With a prefix and a suffix</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Amount &lt;vera-input&gt;&lt;span data-vera-part=&quot;prefix&quot;&gt;$&lt;/span&gt;&lt;input name=&quot;amount&quot; inputmode=&quot;decimal&quot; value=&quot;12&quot;&gt;&lt;span data-vera-part=&quot;suffix&quot;&gt;.00&lt;/span&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><label>Password <vera-input reveal reveal-label="Show password" caps-lock-hint caps-lock-message="Caps Lock is on"><input type="password" name="p" value="s3cret"></vera-input></label></div>
+        <footer>
+          <h3>Password, with reveal and a caps-lock hint</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Password &lt;vera-input reveal reveal-label=&quot;Show password&quot; caps-lock-hint caps-lock-message=&quot;Caps Lock is on&quot;&gt;&lt;input type=&quot;password&quot; name=&quot;p&quot; value=&quot;s3cret&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><label>Email <vera-input loading><input type="email" name="e" value="a@b.c"></vera-input></label></div>
+        <footer>
+          <h3>Loading</h3><p>aria-busy on the input; nothing announced</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Email &lt;vera-input loading&gt;&lt;input type=&quot;email&quot; name=&quot;e&quot; value=&quot;a@b.c&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><label>Default input <vera-input name="d" type="email" value="hello@example.com" placeholder="rendered by the element" autocomplete="email" clearable></vera-input></label></div>
+        <footer>
+          <h3>The default input</h3><p>No input written: the element renders one from name, type, value, placeholder and autocomplete, read once</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Default input &lt;vera-input name=&quot;d&quot; type=&quot;email&quot; value=&quot;hello@example.com&quot; placeholder=&quot;rendered by the element&quot; autocomplete=&quot;email&quot; clearable&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><label>Small <vera-input scale="sm"><input name="s"></vera-input></label> <label>Large <vera-input scale="lg"><input name="l"></vera-input></label></div>
+        <footer>
+          <h3>Sizes</h3><p>scale: sm and lg around the page's font size (md)</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Small &lt;vera-input scale=&quot;sm&quot;&gt;&lt;input name=&quot;s&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt; &lt;label&gt;Large &lt;vera-input scale=&quot;lg&quot;&gt;&lt;input name=&quot;l&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><fieldset disabled><legend>Off</legend><label>Disabled <vera-input clearable><input value="can't clear"></vera-input></label></fieldset></div>
+        <footer>
+          <h3>Disabled by its fieldset</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;fieldset disabled&gt;&lt;legend&gt;Off&lt;/legend&gt;&lt;label&gt;Disabled &lt;vera-input clearable&gt;&lt;input value=&quot;can't clear&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;&lt;/fieldset&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="kbd">
-    <div>
-      <h2>Kbd</h2>
-      <p class="ask">Do shortcuts read naturally in each platform's spelling? Apple's is ⇧⌘K with no separators, elsewhere Ctrl+Shift+K. Copying a shortcut copies exactly what is shown.</p>
-      <span class="pkg">@vera-components/kbd</span>
-    </div>
-    <div class="stage">
-      <div class="cell"><h3>Apple</h3><div class="show"><vera-kbd keys="Mod+K" platform="apple"></vera-kbd> <vera-kbd keys="Mod+Shift+P" platform="apple"></vera-kbd></div></div>
-      <div class="cell"><h3>Windows</h3><div class="show"><vera-kbd keys="Mod+K" platform="windows"></vera-kbd> <vera-kbd keys="Mod+Shift+P" platform="windows"></vera-kbd></div></div>
-      <div class="cell"><h3>The reader's own platform</h3><div class="show"><vera-kbd keys="Alt+ArrowUp"></vera-kbd> <vera-kbd keys="Escape"></vera-kbd></div></div>
-      <div class="cell wide"><h3>In running text</h3><div class="show"><p style="max-width: 22em">Search with <vera-kbd keys="Mod+K"></vera-kbd>, or press <vera-kbd keys="Shift+?"></vera-kbd> for every shortcut. Close any dialog with <vera-kbd keys="Escape"></vera-kbd> and go back with <vera-kbd keys="Alt+ArrowLeft"></vera-kbd>.</p></div><span class="say">a key never makes its line taller; the trade: the keycap paints about 2px into the next line at normal line height</span></div>
-      <div class="cell"><h3>Punctuation keys</h3><div class="show"><vera-kbd keys="Mod+/"></vera-kbd> <vera-kbd keys="Mod+,"></vera-kbd> <vera-kbd keys="Mod+."></vera-kbd></div><span class="say">each is spoken by name: Slash, Comma, Period</span></div>
-      <div class="cell"><h3>In right-to-left text</h3><div class="show"><p dir="rtl">לחץ <vera-kbd keys="Mod+Shift+K" platform="apple"></vera-kbd> כדי לחפש</p></div><span class="say">the shortcut keeps its left-to-right order; the sentence around it stays right to left</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Kbd</h2><span class="pill" data-size="@vera-components/kbd">gzip …</span></div>
+      <p class="lede">Shows a keyboard shortcut in the reader's platform's spelling: keys=&quot;Mod+Shift+K&quot; renders as ⇧⌘K on Apple devices and Ctrl+Shift+K elsewhere, as nested &lt;kbd&gt; elements, with each symbol's word given to assistive technology.</p>
+      <p class="try"><strong>Try it</strong> Do shortcuts read naturally in each platform's spelling? Apple's is ⇧⌘K with no separators, elsewhere Ctrl+Shift+K. Copying a shortcut copies exactly what is shown.</p>
+      <code class="install">npm i @vera-components/kbd</code>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <div class="preview"><vera-kbd keys="Mod+K" platform="apple"></vera-kbd> <vera-kbd keys="Mod+Shift+P" platform="apple"></vera-kbd></div>
+        <footer>
+          <h3>Apple</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-kbd keys=&quot;Mod+K&quot; platform=&quot;apple&quot;&gt;&lt;/vera-kbd&gt; &lt;vera-kbd keys=&quot;Mod+Shift+P&quot; platform=&quot;apple&quot;&gt;&lt;/vera-kbd&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-kbd keys="Mod+K" platform="windows"></vera-kbd> <vera-kbd keys="Mod+Shift+P" platform="windows"></vera-kbd></div>
+        <footer>
+          <h3>Windows</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-kbd keys=&quot;Mod+K&quot; platform=&quot;windows&quot;&gt;&lt;/vera-kbd&gt; &lt;vera-kbd keys=&quot;Mod+Shift+P&quot; platform=&quot;windows&quot;&gt;&lt;/vera-kbd&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-kbd keys="Alt+ArrowUp"></vera-kbd> <vera-kbd keys="Escape"></vera-kbd></div>
+        <footer>
+          <h3>The reader's own platform</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-kbd keys=&quot;Alt+ArrowUp&quot;&gt;&lt;/vera-kbd&gt; &lt;vera-kbd keys=&quot;Escape&quot;&gt;&lt;/vera-kbd&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><p style="max-width: 22em">Search with <vera-kbd keys="Mod+K"></vera-kbd>, or press <vera-kbd keys="Shift+?"></vera-kbd> for every shortcut. Close any dialog with <vera-kbd keys="Escape"></vera-kbd> and go back with <vera-kbd keys="Alt+ArrowLeft"></vera-kbd>.</p></div>
+        <footer>
+          <h3>In running text</h3><p>a key never makes its line taller; the trade: the keycap paints about 2px into the next line at normal line height</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;p style=&quot;max-width: 22em&quot;&gt;Search with &lt;vera-kbd keys=&quot;Mod+K&quot;&gt;&lt;/vera-kbd&gt;, or press &lt;vera-kbd keys=&quot;Shift+?&quot;&gt;&lt;/vera-kbd&gt; for every shortcut. Close any dialog with &lt;vera-kbd keys=&quot;Escape&quot;&gt;&lt;/vera-kbd&gt; and go back with &lt;vera-kbd keys=&quot;Alt+ArrowLeft&quot;&gt;&lt;/vera-kbd&gt;.&lt;/p&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-kbd keys="Mod+/"></vera-kbd> <vera-kbd keys="Mod+,"></vera-kbd> <vera-kbd keys="Mod+."></vera-kbd></div>
+        <footer>
+          <h3>Punctuation keys</h3><p>each is spoken by name: Slash, Comma, Period</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-kbd keys=&quot;Mod+/&quot;&gt;&lt;/vera-kbd&gt; &lt;vera-kbd keys=&quot;Mod+,&quot;&gt;&lt;/vera-kbd&gt; &lt;vera-kbd keys=&quot;Mod+.&quot;&gt;&lt;/vera-kbd&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><p dir="rtl">לחץ <vera-kbd keys="Mod+Shift+K" platform="apple"></vera-kbd> כדי לחפש</p></div>
+        <footer>
+          <h3>In right-to-left text</h3><p>the shortcut keeps its left-to-right order; the sentence around it stays right to left</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;p dir=&quot;rtl&quot;&gt;לחץ &lt;vera-kbd keys=&quot;Mod+Shift+K&quot; platform=&quot;apple&quot;&gt;&lt;/vera-kbd&gt; כדי לחפש&lt;/p&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="menu">
-    <div>
-      <h2>Menu</h2>
-      <p class="ask">Judge the menu open under its trigger: spacing, the focused item, a shown shortcut, a checked item, a separator, a disabled item. Try the keys (arrows, typing, Escape, Tab) and a right click in the context area.</p>
-      <span class="pkg">@vera-components/menu</span>
-    </div>
-    <div class="stage">
-      <div class="cell wide"><h3>Action menu</h3><div class="show"><vera-menu><button slot="trigger">Actions</button><div slot="menu"><button value="rename">Rename <kbd>F2</kbd></button><button value="copy">Copy <kbd>Ctrl+C</kbd></button><a href="#export">Export…</a><hr><button role="menuitemcheckbox" aria-checked="true" value="wrap">Word wrap</button><div role="group" aria-label="Sort"><button role="menuitemradio" aria-checked="true" value="name">Sort by name</button><button role="menuitemradio" aria-checked="false" value="date">Sort by date</button></div><hr><button value="delete" aria-disabled="true">Delete</button></div></vera-menu></div><span class="say">A shortcut, a link, a separator, a checkbox item, a radio group and an aria-disabled item.</span></div>
-      <div class="cell wide"><h3>Context menu</h3><div class="show"><vera-menu opener="context"><div slot="target" tabindex="0" style="padding:24px;border:1px dashed currentColor">Right click here</div><div slot="menu" aria-label="Area actions"><button value="cut">Cut</button><button value="copy">Copy</button><button value="paste">Paste</button></div></vera-menu></div><span class="say">Right click the area, or focus it and press Shift+F10.</span></div>
-      <div class="cell"><h3>Unstyled</h3><div class="show"><vera-menu data-vera-look="none"><button slot="trigger">Plain</button><div slot="menu"><button>One</button><button>Two</button></div></vera-menu></div><span class="say">data-vera-look=&quot;none&quot;: the placement stays, the look goes.</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Menu</h2><span class="pill" data-size="@vera-components/menu">gzip …</span></div>
+      <p class="lede">An action menu over the author's own markup: a trigger button and a slot=&quot;menu&quot; container of buttons, links, separators and groups, wired in place as a menu button and a popover menu placed by CSS anchor positioning. It opens from the keyboard or the pointer with focus by modality, moves by the arrows and typeahead, handles checkbox and radio items, fires a cancelable menuaction, and in context mode opens at the pointer over its target.</p>
+      <p class="try"><strong>Try it</strong> Judge the menu open under its trigger: spacing, the focused item, a shown shortcut, a checked item, a separator, a disabled item. Try the keys (arrows, typing, Escape, Tab) and a right click in the context area.</p>
+      <code class="install">npm i @vera-components/menu</code>
+    </header>
+    <div class="grid">
+      <article class="card wide">
+        <div class="preview"><vera-menu><button slot="trigger">Actions</button><div slot="menu"><button value="rename">Rename <kbd>F2</kbd></button><button value="copy">Copy <kbd>Ctrl+C</kbd></button><a href="#export">Export…</a><hr><button role="menuitemcheckbox" aria-checked="true" value="wrap">Word wrap</button><div role="group" aria-label="Sort"><button role="menuitemradio" aria-checked="true" value="name">Sort by name</button><button role="menuitemradio" aria-checked="false" value="date">Sort by date</button></div><hr><button value="delete" aria-disabled="true">Delete</button></div></vera-menu></div>
+        <footer>
+          <h3>Action menu</h3><p>A shortcut, a link, a separator, a checkbox item, a radio group and an aria-disabled item.</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-menu&gt;&lt;button slot=&quot;trigger&quot;&gt;Actions&lt;/button&gt;&lt;div slot=&quot;menu&quot;&gt;&lt;button value=&quot;rename&quot;&gt;Rename &lt;kbd&gt;F2&lt;/kbd&gt;&lt;/button&gt;&lt;button value=&quot;copy&quot;&gt;Copy &lt;kbd&gt;Ctrl+C&lt;/kbd&gt;&lt;/button&gt;&lt;a href=&quot;#export&quot;&gt;Export…&lt;/a&gt;&lt;hr&gt;&lt;button role=&quot;menuitemcheckbox&quot; aria-checked=&quot;true&quot; value=&quot;wrap&quot;&gt;Word wrap&lt;/button&gt;&lt;div role=&quot;group&quot; aria-label=&quot;Sort&quot;&gt;&lt;button role=&quot;menuitemradio&quot; aria-checked=&quot;true&quot; value=&quot;name&quot;&gt;Sort by name&lt;/button&gt;&lt;button role=&quot;menuitemradio&quot; aria-checked=&quot;false&quot; value=&quot;date&quot;&gt;Sort by date&lt;/button&gt;&lt;/div&gt;&lt;hr&gt;&lt;button value=&quot;delete&quot; aria-disabled=&quot;true&quot;&gt;Delete&lt;/button&gt;&lt;/div&gt;&lt;/vera-menu&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-menu opener="context"><div slot="target" tabindex="0" style="padding:24px;border:1px dashed currentColor">Right click here</div><div slot="menu" aria-label="Area actions"><button value="cut">Cut</button><button value="copy">Copy</button><button value="paste">Paste</button></div></vera-menu></div>
+        <footer>
+          <h3>Context menu</h3><p>Right click the area, or focus it and press Shift+F10.</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-menu opener=&quot;context&quot;&gt;&lt;div slot=&quot;target&quot; tabindex=&quot;0&quot; style=&quot;padding:24px;border:1px dashed currentColor&quot;&gt;Right click here&lt;/div&gt;&lt;div slot=&quot;menu&quot; aria-label=&quot;Area actions&quot;&gt;&lt;button value=&quot;cut&quot;&gt;Cut&lt;/button&gt;&lt;button value=&quot;copy&quot;&gt;Copy&lt;/button&gt;&lt;button value=&quot;paste&quot;&gt;Paste&lt;/button&gt;&lt;/div&gt;&lt;/vera-menu&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-menu data-vera-look="none"><button slot="trigger">Plain</button><div slot="menu"><button>One</button><button>Two</button></div></vera-menu></div>
+        <footer>
+          <h3>Unstyled</h3><p>data-vera-look=&quot;none&quot;: the placement stays, the look goes.</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-menu data-vera-look=&quot;none&quot;&gt;&lt;button slot=&quot;trigger&quot;&gt;Plain&lt;/button&gt;&lt;div slot=&quot;menu&quot;&gt;&lt;button&gt;One&lt;/button&gt;&lt;button&gt;Two&lt;/button&gt;&lt;/div&gt;&lt;/vera-menu&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="select">
-    <div>
-      <h2>Select</h2>
-      <p class="ask">Its look will be redone in the design pass, so judge the behavior: open it, move with the arrow keys, type a letter to jump, search, pick several. Does anything feel slower or stranger than a native select?</p>
-      <span class="pkg">@vera-components/select</span>
-    </div>
-    <div class="stage">
-      <div class="cell wide"><h3>Single, required, with groups, an icon and a description</h3><div class="show"><form><vera-select name="flavor" placeholder="Pick a flavor" required required-message="Pick a flavor first" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></form></div></div>
-      <div class="cell wide"><h3>An initial value</h3><div class="show"><vera-select name="flavor" value="chocolate" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div></div>
-      <div class="cell wide"><h3>Several, as chips, clearable</h3><div class="show"><vera-select multi clearable clear-message="Clear all" remove-message="Remove {label}" aria-label="Toppings"><vera-option value="sprinkles" selected><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><rect x="3" y="7" width="10" height="2" fill="currentColor"/></svg> Sprinkles</vera-option><option value="fudge" selected>Fudge</option><option value="nuts">Nuts</option></vera-select></div></div>
-      <div class="cell wide"><h3>Searchable, and creatable</h3><div class="show"><vera-select searchable creatable search-placeholder="Type a flavor" create-message="Add “{label}”" results-message="{count} flavors" empty-message="No flavor by that name" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div></div>
-      <div class="cell"><h3>Remote, loading, with an overflow line</h3><div class="show"><vera-select remote loading debounce="300" loading-message="Finding flavors…" overflow-message="1,250 more flavors" aria-label="Flavor"><option value="vanilla">Vanilla</option></vera-select></div><span class="say">The page owns filtering; edits emit the filter event</span></div>
-      <div class="cell wide"><h3>Disabled</h3><div class="show"><vera-select disabled aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div></div>
-      <div class="cell wide"><h3>In light DOM</h3><div class="show"><vera-select light aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div><span class="say">light: rendered into the page, styled by its scoped sheet</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Select</h2><span class="pill" data-size="@vera-components/select">gzip …</span></div>
+      <p class="lede">A single/multi select. Options author in plain HTML (&lt;option&gt;/&lt;optgroup&gt;, &lt;vera-option&gt; for rows with markup; `selected` seeds value and reset default; HTML seeds, the property wins) or via the options property. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated, searchable, creatable, remote-filterable.</p>
+      <p class="try"><strong>Try it</strong> Its look will be redone in the design pass, so judge the behavior: open it, move with the arrow keys, type a letter to jump, search, pick several. Does anything feel slower or stranger than a native select?</p>
+      <code class="install">npm i @vera-components/select</code>
+    </header>
+    <div class="grid">
+      <article class="card wide">
+        <div class="preview"><form><vera-select name="flavor" placeholder="Pick a flavor" required required-message="Pick a flavor first" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></form></div>
+        <footer>
+          <h3>Single, required, with groups, an icon and a description</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;form&gt;&lt;vera-select name=&quot;flavor&quot; placeholder=&quot;Pick a flavor&quot; required required-message=&quot;Pick a flavor first&quot; aria-label=&quot;Flavor&quot;&gt;&lt;optgroup label=&quot;Classics&quot;&gt;&lt;option value=&quot;vanilla&quot;&gt;Vanilla&lt;/option&gt;&lt;option value=&quot;chocolate&quot; data-description=&quot;the safe pick&quot;&gt;Chocolate&lt;/option&gt;&lt;/optgroup&gt;&lt;vera-option value=&quot;pistachio&quot; data-group=&quot;Modern&quot;&gt;&lt;svg slot=&quot;icon&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot; height=&quot;16&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot; fill=&quot;currentColor&quot;/&gt;&lt;/svg&gt; Pistachio&lt;span slot=&quot;description&quot;&gt;polarizing, correctly&lt;/span&gt;&lt;/vera-option&gt;&lt;option value=&quot;strawberry&quot; data-group=&quot;Modern&quot;&gt;Strawberry&lt;/option&gt;&lt;/vera-select&gt;&lt;/form&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-select name="flavor" value="chocolate" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div>
+        <footer>
+          <h3>An initial value</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-select name=&quot;flavor&quot; value=&quot;chocolate&quot; aria-label=&quot;Flavor&quot;&gt;&lt;optgroup label=&quot;Classics&quot;&gt;&lt;option value=&quot;vanilla&quot;&gt;Vanilla&lt;/option&gt;&lt;option value=&quot;chocolate&quot; data-description=&quot;the safe pick&quot;&gt;Chocolate&lt;/option&gt;&lt;/optgroup&gt;&lt;vera-option value=&quot;pistachio&quot; data-group=&quot;Modern&quot;&gt;&lt;svg slot=&quot;icon&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot; height=&quot;16&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot; fill=&quot;currentColor&quot;/&gt;&lt;/svg&gt; Pistachio&lt;span slot=&quot;description&quot;&gt;polarizing, correctly&lt;/span&gt;&lt;/vera-option&gt;&lt;option value=&quot;strawberry&quot; data-group=&quot;Modern&quot;&gt;Strawberry&lt;/option&gt;&lt;/vera-select&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-select multi clearable clear-message="Clear all" remove-message="Remove {label}" aria-label="Toppings"><vera-option value="sprinkles" selected><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><rect x="3" y="7" width="10" height="2" fill="currentColor"/></svg> Sprinkles</vera-option><option value="fudge" selected>Fudge</option><option value="nuts">Nuts</option></vera-select></div>
+        <footer>
+          <h3>Several, as chips, clearable</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-select multi clearable clear-message=&quot;Clear all&quot; remove-message=&quot;Remove {label}&quot; aria-label=&quot;Toppings&quot;&gt;&lt;vera-option value=&quot;sprinkles&quot; selected&gt;&lt;svg slot=&quot;icon&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot; height=&quot;16&quot;&gt;&lt;rect x=&quot;3&quot; y=&quot;7&quot; width=&quot;10&quot; height=&quot;2&quot; fill=&quot;currentColor&quot;/&gt;&lt;/svg&gt; Sprinkles&lt;/vera-option&gt;&lt;option value=&quot;fudge&quot; selected&gt;Fudge&lt;/option&gt;&lt;option value=&quot;nuts&quot;&gt;Nuts&lt;/option&gt;&lt;/vera-select&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-select searchable creatable search-placeholder="Type a flavor" create-message="Add “{label}”" results-message="{count} flavors" empty-message="No flavor by that name" aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div>
+        <footer>
+          <h3>Searchable, and creatable</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-select searchable creatable search-placeholder=&quot;Type a flavor&quot; create-message=&quot;Add “{label}”&quot; results-message=&quot;{count} flavors&quot; empty-message=&quot;No flavor by that name&quot; aria-label=&quot;Flavor&quot;&gt;&lt;optgroup label=&quot;Classics&quot;&gt;&lt;option value=&quot;vanilla&quot;&gt;Vanilla&lt;/option&gt;&lt;option value=&quot;chocolate&quot; data-description=&quot;the safe pick&quot;&gt;Chocolate&lt;/option&gt;&lt;/optgroup&gt;&lt;vera-option value=&quot;pistachio&quot; data-group=&quot;Modern&quot;&gt;&lt;svg slot=&quot;icon&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot; height=&quot;16&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot; fill=&quot;currentColor&quot;/&gt;&lt;/svg&gt; Pistachio&lt;span slot=&quot;description&quot;&gt;polarizing, correctly&lt;/span&gt;&lt;/vera-option&gt;&lt;option value=&quot;strawberry&quot; data-group=&quot;Modern&quot;&gt;Strawberry&lt;/option&gt;&lt;/vera-select&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-select remote loading debounce="300" loading-message="Finding flavors…" overflow-message="1,250 more flavors" aria-label="Flavor"><option value="vanilla">Vanilla</option></vera-select></div>
+        <footer>
+          <h3>Remote, loading, with an overflow line</h3><p>The page owns filtering; edits emit the filter event</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-select remote loading debounce=&quot;300&quot; loading-message=&quot;Finding flavors…&quot; overflow-message=&quot;1,250 more flavors&quot; aria-label=&quot;Flavor&quot;&gt;&lt;option value=&quot;vanilla&quot;&gt;Vanilla&lt;/option&gt;&lt;/vera-select&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-select disabled aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div>
+        <footer>
+          <h3>Disabled</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-select disabled aria-label=&quot;Flavor&quot;&gt;&lt;optgroup label=&quot;Classics&quot;&gt;&lt;option value=&quot;vanilla&quot;&gt;Vanilla&lt;/option&gt;&lt;option value=&quot;chocolate&quot; data-description=&quot;the safe pick&quot;&gt;Chocolate&lt;/option&gt;&lt;/optgroup&gt;&lt;vera-option value=&quot;pistachio&quot; data-group=&quot;Modern&quot;&gt;&lt;svg slot=&quot;icon&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot; height=&quot;16&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot; fill=&quot;currentColor&quot;/&gt;&lt;/svg&gt; Pistachio&lt;span slot=&quot;description&quot;&gt;polarizing, correctly&lt;/span&gt;&lt;/vera-option&gt;&lt;option value=&quot;strawberry&quot; data-group=&quot;Modern&quot;&gt;Strawberry&lt;/option&gt;&lt;/vera-select&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-select light aria-label="Flavor"><optgroup label="Classics"><option value="vanilla">Vanilla</option><option value="chocolate" data-description="the safe pick">Chocolate</option></optgroup><vera-option value="pistachio" data-group="Modern"><svg slot="icon" viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg> Pistachio<span slot="description">polarizing, correctly</span></vera-option><option value="strawberry" data-group="Modern">Strawberry</option></vera-select></div>
+        <footer>
+          <h3>In light DOM</h3><p>light: rendered into the page, styled by its scoped sheet</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-select light aria-label=&quot;Flavor&quot;&gt;&lt;optgroup label=&quot;Classics&quot;&gt;&lt;option value=&quot;vanilla&quot;&gt;Vanilla&lt;/option&gt;&lt;option value=&quot;chocolate&quot; data-description=&quot;the safe pick&quot;&gt;Chocolate&lt;/option&gt;&lt;/optgroup&gt;&lt;vera-option value=&quot;pistachio&quot; data-group=&quot;Modern&quot;&gt;&lt;svg slot=&quot;icon&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot; height=&quot;16&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6&quot; fill=&quot;currentColor&quot;/&gt;&lt;/svg&gt; Pistachio&lt;span slot=&quot;description&quot;&gt;polarizing, correctly&lt;/span&gt;&lt;/vera-option&gt;&lt;option value=&quot;strawberry&quot; data-group=&quot;Modern&quot;&gt;Strawberry&lt;/option&gt;&lt;/vera-select&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="spinner">
-    <div>
-      <h2>Spinner</h2>
-      <p class="ask">Does the ring read as &quot;busy&quot; at a glance, at every size? Is the shown label placed right? A screen reader hears the label once, about 150 ms after the spinner appears, and nothing for a quick load.</p>
-      <span class="pkg">@vera-components/spinner</span>
-    </div>
-    <div class="stage">
-      <div class="cell"><h3>Default</h3><div class="show"><vera-spinner label="Loading"></vera-spinner></div><span class="say">1em, in the text's color</span></div>
-      <div class="cell"><h3>With its label shown</h3><div class="show"><vera-spinner label="Loading results" show-label></vera-spinner></div></div>
-      <div class="cell"><h3>Sized by token</h3><div class="show"><vera-spinner label="Loading" style="--vera-spinner-size:1.5em"></vera-spinner> <vera-spinner label="Loading" style="--vera-spinner-size:2.5em;--vera-spinner-width:.2em"></vera-spinner></div></div>
-      <div class="cell"><h3>Colored by token or by color</h3><div class="show"><vera-spinner label="Saving" style="--vera-spinner-color:#00a862;--vera-spinner-track:#cfeee0"></vera-spinner> <vera-spinner label="Saving" style="color:#c4321c"></vera-spinner></div></div>
-      <div class="cell"><h3>Inside a busy owner</h3><div class="show"><button type="button" aria-busy="true"><vera-spinner></vera-spinner> Saving</button></div><span class="say">The owner speaks; the spinner stays silent</span></div>
-      <div class="cell"><h3>With a done label</h3><div class="show"><vera-spinner label="Uploading" done-label="Uploaded"></vera-spinner></div><span class="say">Said once when the load ends, only if its label was said</span></div>
-      <div class="cell"><h3>Our look dropped</h3><div class="show"><vera-spinner label="Loading" data-vera-look="none"></vera-spinner></div><span class="say">data-vera-look=&quot;none&quot;: nothing of ours is drawn</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Spinner</h2><span class="pill" data-size="@vera-components/spinner">gzip …</span></div>
+      <p class="lede">Shows that something is busy: an animated arc, decorative to assistive technology, whose label is announced once through the document's one polite live region when the wait lasts past a short settle window, so a fast load says nothing.</p>
+      <p class="try"><strong>Try it</strong> Does the ring read as &quot;busy&quot; at a glance, at every size? Is the shown label placed right? A screen reader hears the label once, about 150 ms after the spinner appears, and nothing for a quick load.</p>
+      <code class="install">npm i @vera-components/spinner</code>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <div class="preview"><vera-spinner label="Loading"></vera-spinner></div>
+        <footer>
+          <h3>Default</h3><p>1em, in the text's color</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-spinner label=&quot;Loading&quot;&gt;&lt;/vera-spinner&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-spinner label="Loading results" show-label></vera-spinner></div>
+        <footer>
+          <h3>With its label shown</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-spinner label=&quot;Loading results&quot; show-label&gt;&lt;/vera-spinner&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-spinner label="Loading" style="--vera-spinner-size:1.5em"></vera-spinner> <vera-spinner label="Loading" style="--vera-spinner-size:2.5em;--vera-spinner-width:.2em"></vera-spinner></div>
+        <footer>
+          <h3>Sized by token</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-spinner label=&quot;Loading&quot; style=&quot;--vera-spinner-size:1.5em&quot;&gt;&lt;/vera-spinner&gt; &lt;vera-spinner label=&quot;Loading&quot; style=&quot;--vera-spinner-size:2.5em;--vera-spinner-width:.2em&quot;&gt;&lt;/vera-spinner&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-spinner label="Saving" style="--vera-spinner-color:#00a862;--vera-spinner-track:#cfeee0"></vera-spinner> <vera-spinner label="Saving" style="color:#c4321c"></vera-spinner></div>
+        <footer>
+          <h3>Colored by token or by color</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-spinner label=&quot;Saving&quot; style=&quot;--vera-spinner-color:#00a862;--vera-spinner-track:#cfeee0&quot;&gt;&lt;/vera-spinner&gt; &lt;vera-spinner label=&quot;Saving&quot; style=&quot;color:#c4321c&quot;&gt;&lt;/vera-spinner&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><button type="button" aria-busy="true"><vera-spinner></vera-spinner> Saving</button></div>
+        <footer>
+          <h3>Inside a busy owner</h3><p>The owner speaks; the spinner stays silent</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;button type=&quot;button&quot; aria-busy=&quot;true&quot;&gt;&lt;vera-spinner&gt;&lt;/vera-spinner&gt; Saving&lt;/button&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-spinner label="Uploading" done-label="Uploaded"></vera-spinner></div>
+        <footer>
+          <h3>With a done label</h3><p>Said once when the load ends, only if its label was said</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-spinner label=&quot;Uploading&quot; done-label=&quot;Uploaded&quot;&gt;&lt;/vera-spinner&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-spinner label="Loading" data-vera-look="none"></vera-spinner></div>
+        <footer>
+          <h3>Our look dropped</h3><p>data-vera-look=&quot;none&quot;: nothing of ours is drawn</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-spinner label=&quot;Loading&quot; data-vera-look=&quot;none&quot;&gt;&lt;/vera-spinner&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
 
   <section class="plate" id="tabs">
-    <div>
-      <h2>Tabs</h2>
-      <p class="ask">Judge the behavior: click a tab, move with the arrow keys and Home/End, watch the indicator slide, and use find-in-page (Ctrl+F) for &quot;reviews&quot;. Does the indicator keep up with a tab that changes size?</p>
-      <span class="pkg">@vera-components/tabs</span>
-    </div>
-    <div class="stage">
-      <div class="cell wide"><h3>Your own buttons and sections</h3><div class="show"><vera-tabs><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">Before the script runs these are buttons and sections; the inactive panels are hidden</span></div>
-      <div class="cell wide"><h3>A tab chosen by value</h3><div class="show"><vera-tabs value="specs"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div></div>
-      <div class="cell wide"><h3>Manual activation</h3><div class="show"><vera-tabs activation="manual"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">The arrows move focus only; Enter or Space selects</span></div>
-      <div class="cell wide"><h3>Vertical</h3><div class="show"><vera-tabs orientation="vertical"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">Up and Down move; the indicator runs down the side</span></div>
-      <div class="cell wide"><h3>Not findable</h3><div class="show"><vera-tabs findable="false"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div><span class="say">Inactive panels are plain hidden: find-in-page does not reach them</span></div>
-      <div class="cell wide"><h3>Paired by order, one tab disabled</h3><div class="show"><vera-tabs><div slot="tabs"><button type="button">One</button><button type="button" disabled>Two</button><button type="button">Three</button></div><h3>Section</h3><div><p>First</p></div><div><p>Second</p></div><div><p>Third</p></div></vera-tabs></div><span class="say">No keys: the panels pair with the tabs in order, and a heading between them is skipped</span></div>
+    <header class="plate-head">
+      <div class="title-row"><h2>Tabs</h2><span class="pill" data-size="@vera-components/tabs">gzip …</span></div>
+      <p class="lede">Tabs over the author's own buttons and panels: a direct child marked slot=&quot;tabs&quot; holds the buttons, the host's other children are the panels. Before the script runs they are buttons and sections; after it, the roles, ids and aria wiring are set, the arrow keys move one tab stop, one panel shows, and an indicator under the selected tab follows it by CSS anchor positioning. A user's selection fires a cancelable beforetabchange, then tabchange.</p>
+      <p class="try"><strong>Try it</strong> Judge the behavior: click a tab, move with the arrow keys and Home/End, watch the indicator slide, and use find-in-page (Ctrl+F) for &quot;reviews&quot;. Does the indicator keep up with a tab that changes size?</p>
+      <code class="install">npm i @vera-components/tabs</code>
+    </header>
+    <div class="grid">
+      <article class="card wide">
+        <div class="preview"><vera-tabs><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div>
+        <footer>
+          <h3>Your own buttons and sections</h3><p>Before the script runs these are buttons and sections; the inactive panels are hidden</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-tabs&gt;&lt;div slot=&quot;tabs&quot;&gt;&lt;button type=&quot;button&quot; value=&quot;overview&quot;&gt;Overview&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;specs&quot;&gt;Specs&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;reviews&quot;&gt;Reviews&lt;/button&gt;&lt;/div&gt;&lt;section data-value=&quot;overview&quot;&gt;&lt;p&gt;A light, fast component library.&lt;/p&gt;&lt;/section&gt;&lt;section data-value=&quot;specs&quot;&gt;&lt;p&gt;Dimensions, weight and materials.&lt;/p&gt;&lt;button type=&quot;button&quot;&gt;Compare&lt;/button&gt;&lt;/section&gt;&lt;section data-value=&quot;reviews&quot;&gt;&lt;p&gt;No reviews yet.&lt;/p&gt;&lt;/section&gt;&lt;/vera-tabs&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-tabs value="specs"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div>
+        <footer>
+          <h3>A tab chosen by value</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-tabs value=&quot;specs&quot;&gt;&lt;div slot=&quot;tabs&quot;&gt;&lt;button type=&quot;button&quot; value=&quot;overview&quot;&gt;Overview&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;specs&quot;&gt;Specs&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;reviews&quot;&gt;Reviews&lt;/button&gt;&lt;/div&gt;&lt;section data-value=&quot;overview&quot;&gt;&lt;p&gt;A light, fast component library.&lt;/p&gt;&lt;/section&gt;&lt;section data-value=&quot;specs&quot;&gt;&lt;p&gt;Dimensions, weight and materials.&lt;/p&gt;&lt;button type=&quot;button&quot;&gt;Compare&lt;/button&gt;&lt;/section&gt;&lt;section data-value=&quot;reviews&quot;&gt;&lt;p&gt;No reviews yet.&lt;/p&gt;&lt;/section&gt;&lt;/vera-tabs&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-tabs activation="manual"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div>
+        <footer>
+          <h3>Manual activation</h3><p>The arrows move focus only; Enter or Space selects</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-tabs activation=&quot;manual&quot;&gt;&lt;div slot=&quot;tabs&quot;&gt;&lt;button type=&quot;button&quot; value=&quot;overview&quot;&gt;Overview&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;specs&quot;&gt;Specs&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;reviews&quot;&gt;Reviews&lt;/button&gt;&lt;/div&gt;&lt;section data-value=&quot;overview&quot;&gt;&lt;p&gt;A light, fast component library.&lt;/p&gt;&lt;/section&gt;&lt;section data-value=&quot;specs&quot;&gt;&lt;p&gt;Dimensions, weight and materials.&lt;/p&gt;&lt;button type=&quot;button&quot;&gt;Compare&lt;/button&gt;&lt;/section&gt;&lt;section data-value=&quot;reviews&quot;&gt;&lt;p&gt;No reviews yet.&lt;/p&gt;&lt;/section&gt;&lt;/vera-tabs&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-tabs orientation="vertical"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div>
+        <footer>
+          <h3>Vertical</h3><p>Up and Down move; the indicator runs down the side</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-tabs orientation=&quot;vertical&quot;&gt;&lt;div slot=&quot;tabs&quot;&gt;&lt;button type=&quot;button&quot; value=&quot;overview&quot;&gt;Overview&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;specs&quot;&gt;Specs&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;reviews&quot;&gt;Reviews&lt;/button&gt;&lt;/div&gt;&lt;section data-value=&quot;overview&quot;&gt;&lt;p&gt;A light, fast component library.&lt;/p&gt;&lt;/section&gt;&lt;section data-value=&quot;specs&quot;&gt;&lt;p&gt;Dimensions, weight and materials.&lt;/p&gt;&lt;button type=&quot;button&quot;&gt;Compare&lt;/button&gt;&lt;/section&gt;&lt;section data-value=&quot;reviews&quot;&gt;&lt;p&gt;No reviews yet.&lt;/p&gt;&lt;/section&gt;&lt;/vera-tabs&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-tabs findable="false"><div slot="tabs"><button type="button" value="overview">Overview</button><button type="button" value="specs">Specs</button><button type="button" value="reviews">Reviews</button></div><section data-value="overview"><p>A light, fast component library.</p></section><section data-value="specs"><p>Dimensions, weight and materials.</p><button type="button">Compare</button></section><section data-value="reviews"><p>No reviews yet.</p></section></vera-tabs></div>
+        <footer>
+          <h3>Not findable</h3><p>Inactive panels are plain hidden: find-in-page does not reach them</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-tabs findable=&quot;false&quot;&gt;&lt;div slot=&quot;tabs&quot;&gt;&lt;button type=&quot;button&quot; value=&quot;overview&quot;&gt;Overview&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;specs&quot;&gt;Specs&lt;/button&gt;&lt;button type=&quot;button&quot; value=&quot;reviews&quot;&gt;Reviews&lt;/button&gt;&lt;/div&gt;&lt;section data-value=&quot;overview&quot;&gt;&lt;p&gt;A light, fast component library.&lt;/p&gt;&lt;/section&gt;&lt;section data-value=&quot;specs&quot;&gt;&lt;p&gt;Dimensions, weight and materials.&lt;/p&gt;&lt;button type=&quot;button&quot;&gt;Compare&lt;/button&gt;&lt;/section&gt;&lt;section data-value=&quot;reviews&quot;&gt;&lt;p&gt;No reviews yet.&lt;/p&gt;&lt;/section&gt;&lt;/vera-tabs&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card wide">
+        <div class="preview"><vera-tabs><div slot="tabs"><button type="button">One</button><button type="button" disabled>Two</button><button type="button">Three</button></div><h3>Section</h3><div><p>First</p></div><div><p>Second</p></div><div><p>Third</p></div></vera-tabs></div>
+        <footer>
+          <h3>Paired by order, one tab disabled</h3><p>No keys: the panels pair with the tabs in order, and a heading between them is skipped</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-tabs&gt;&lt;div slot=&quot;tabs&quot;&gt;&lt;button type=&quot;button&quot;&gt;One&lt;/button&gt;&lt;button type=&quot;button&quot; disabled&gt;Two&lt;/button&gt;&lt;button type=&quot;button&quot;&gt;Three&lt;/button&gt;&lt;/div&gt;&lt;h3&gt;Section&lt;/h3&gt;&lt;div&gt;&lt;p&gt;First&lt;/p&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;Second&lt;/p&gt;&lt;/div&gt;&lt;div&gt;&lt;p&gt;Third&lt;/p&gt;&lt;/div&gt;&lt;/vera-tabs&gt;</code></pre></details>
+        </footer>
+      </article>
     </div>
   </section>
-</main>
+  </main>
+</div>
+<p class="foot">Every section runs its component's production bundle, in the states it ships with, generated from the package's own <code>demo.ts</code>.</p>
 
 <script type="module">
 {
-  const { wire } = await import('@verajs/core');
-  const { renderer } = await import('@verajs/renderer');
-  const { lists } = await import('@verajs/renderer/keyed');
-  const { slots } = await import('@verajs/renderer/slots');
-  const { styles } = await import('@verajs/styles');
-  wire([renderer, lists, slots, styles]);
+  const{wire}=await import('@verajs/core');const{renderer}=await import('@verajs/renderer');const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);
   for (const name of ["dialog","field","icon","input","kbd","menu","select","spinner","tabs"]) await import('@vera-components/' + name);
   /**
    * A demo's form has nowhere to go: keep the page, let the component do its part. A form whose method is "dialog" is
@@ -226,6 +639,92 @@ svg.glyph{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stro
   document.addEventListener('submit', (event) => {
     if (event.target.method !== 'dialog') event.preventDefault();
   });
+}
+</script>
+<script type="module">
+/** The theme controls: what they set is what an app sets. Every framed state gets the same. */
+const root = document.documentElement;
+const frames = () => [...document.querySelectorAll('iframe.frame')];
+const apply = (target) => {
+  const style = target.documentElement.style;
+  style.setProperty('--vera-accent', root.style.getPropertyValue('--vera-accent') || getComputedStyle(root).getPropertyValue('--vera-accent'));
+  style.setProperty('--vera-radius', root.style.getPropertyValue('--vera-radius') || '10px');
+  style.colorScheme = root.dataset.scheme === 'light' || root.dataset.scheme === 'dark' ? root.dataset.scheme : 'light dark';
+};
+const applyAll = () => {
+  for (const frame of frames()) if (frame.contentDocument?.documentElement) apply(frame.contentDocument);
+};
+for (const frame of frames()) frame.addEventListener('load', () => apply(frame.contentDocument));
+const press = (group, chosen) => {
+  for (const button of group.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button === chosen));
+};
+document.querySelector('[data-scheme-buttons]').addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  press(event.currentTarget, button);
+  if (button.dataset.scheme === 'system') delete root.dataset.scheme;
+  else root.dataset.scheme = button.dataset.scheme;
+  applyAll();
+});
+document.querySelector('[data-accents]').addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  press(event.currentTarget, button);
+  root.style.setProperty('--vera-accent', button.dataset.accent);
+  applyAll();
+});
+document.querySelector('[data-radius]').addEventListener('input', (event) => {
+  root.style.setProperty('--vera-radius', `${event.target.value}px`);
+  applyAll();
+});
+
+/** Copy: a state's code, or the install line. */
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-copy], [data-copy-text]');
+  if (!button) return;
+  const text = button.dataset.copyText ?? button.parentElement.querySelector('code').textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    const was = button.textContent;
+    if (button.hasAttribute('data-copy')) {
+      button.textContent = 'Copied';
+      setTimeout(() => (button.textContent = was), 1200);
+    }
+  } catch {
+    /* no clipboard (an insecure origin): nothing to do */
+  }
+});
+
+/** The section in view, marked in the side nav. */
+const links = new Map([...document.querySelectorAll('.side a')].map((a) => [a.getAttribute('href').slice(1), a]));
+const spy = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries)
+      if (entry.isIntersecting) for (const [id, a] of links) a.setAttribute('aria-current', String(id === entry.target.id));
+  },
+  { rootMargin: '-30% 0px -60% 0px' },
+);
+for (const plate of document.querySelectorAll('.plate')) spy.observe(plate);
+
+/**
+ * Each component's size, measured here from the bundle this page runs: its production file, gzip-compressed by the
+ * browser. The component's own bundle only; core and the renderer are shared by every component and counted once in
+ * the total.
+ */
+const map = JSON.parse(document.querySelector('script[type=importmap]').textContent).imports;
+const gzip = async (url) => {
+  const body = (await fetch(url)).body.pipeThrough(new CompressionStream('gzip'));
+  return (await new Response(body).arrayBuffer()).byteLength;
+};
+const kb = (bytes) => `${(bytes / 1024).toFixed(1)} kB`;
+if (typeof CompressionStream === 'function') {
+  const sizes = await Promise.all(Object.entries(map).map(async ([specifier, url]) => [specifier, await gzip(url)]));
+  const bySpecifier = new Map(sizes);
+  for (const pill of document.querySelectorAll('[data-size]')) {
+    const bytes = bySpecifier.get(pill.dataset.size);
+    if (bytes !== undefined) pill.textContent = `${kb(bytes)} gzip`;
+  }
+  document.querySelector('[data-total]').textContent = kb(sizes.reduce((sum, [, bytes]) => sum + bytes, 0));
 }
 </script>
 </body>

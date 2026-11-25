@@ -137,12 +137,12 @@ export const componentsPage = async (root) => {
     .map((path) => `<link rel="stylesheet" href="/${path}">`);
   const template = readFileSync(join(import.meta.dirname, 'template.html'), 'utf8');
   return template
-    .replace('<!--GENERATED-->', "<!-- Generated from template.html and each package's demo.ts by scripts/build-components-page.mjs: edit those, then run it. -->")
-    .replace('<!--IMPORTMAP-->', `${sheets.join('\n')}\n<script type="importmap">${JSON.stringify({ imports }, null, 1)}</script>`)
-    .replace('<!--NAV-->', demos.map(navItem).join(''))
-    .replace('<!--COUNT-->', String(demos.length))
-    .replace('<!--FIRST-->', demos[0].name)
-    .replace('<!--PLATES-->', demos.map(plate(imports)).join('\n\n'))
-    .replace('/*WIRING*/', WIRING)
-    .replace('/*COMPONENTS*/[]', JSON.stringify(demos.map(({ name }) => name)));
+    .replace('<!--GENERATED-->', () => "<!-- Generated from template.html and each package's demo.ts by scripts/build-components-page.mjs: edit those, then run it. -->")
+    .replace('<!--IMPORTMAP-->', () => `${sheets.join('\n')}\n<script type="importmap">${JSON.stringify({ imports }, null, 1)}</script>`)
+    .replace('<!--NAV-->', () => demos.map(navItem).join(''))
+    .replace('<!--COUNT-->', () => String(demos.length))
+    .replace('<!--FIRST-->', () => demos[0].name)
+    .replace('<!--PLATES-->', () => demos.map(plate(imports)).join('\n\n'))
+    .replace('/*WIRING*/', () => WIRING)
+    .replace('/*COMPONENTS*/[]', () => JSON.stringify(demos.map(({ name }) => name)));
 };
