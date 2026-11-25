@@ -4,7 +4,10 @@
  * than ships, and one that warns shows a misused component. Per component, in its own process (one registry each):
  * every state renders, through the real bundle, with nothing said on the console; and every attribute and part the
  * surface declares appears in some state's RENDERED DOM (present counts, hidden or not; a part the user's markup
- * writes counts), or is listed in the demo's `interactive` with how to reach it. Runs against both builds.
+ * writes counts), or is listed in the demo's `interactive` with how to reach it. And none of the author's markup is
+ * PARKED: wired with light-DOM slots, a light component that does not declare `ownsChildren` has its children moved
+ * into `<ins hidden data-vm-unassigned>`, present but never shown (field, icon and input rendered nothing on the
+ * preview page that way, 2026-11-25, while "present counts" passed them). Runs against both builds.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -67,13 +70,16 @@ if (COMPONENT) {
   const files = readdirSync(entry.dir);
   const surface = Object.values(await import(new URL('surface.ts', entry.dir).href))[0];
   const demo = files.includes('demo.ts') ? Object.values(await import(new URL('demo.ts', entry.dir).href))[0] : null;
-  const out = { has: demo !== null, said, seen: { attributes: [], parts: [] }, states: 0 };
+  const out = { has: demo !== null, said, seen: { attributes: [], parts: [] }, states: 0, hosts: 0, parked: [], instrument: false };
+  /** The hosts of `tag` under `root` whose own children include a parked carrier holding the author's markup. */
+  const parkedIn = (root, tag) =>
+    [...root.querySelectorAll(tag)].filter((host) => [...host.children].some((child) => child.hasAttribute('data-vm-unassigned') && child.childNodes.length > 0));
   if (demo !== null) {
     /**
      * Wired as the preview page wires them, which is what a page using every component needs: the renderer, its
      * keyed lists and light-DOM slots (select's chips and its light mode), and styles.
      */
-    const { flush, wire } = await load('core');
+    const { define, flush, wire } = await load('core');
     const { lists } = await load('renderer/keyed');
     const { slots } = await load('renderer/slots');
     wire([(await load('renderer')).renderer, lists, slots, (await load('styles')).styles]);
@@ -103,6 +109,16 @@ if (COMPONENT) {
     for (const host of document.querySelectorAll(surface.tag)) for (const { name } of host.attributes) attributes.add(name);
     read(document);
     out.seen = { attributes: [...attributes].sort(), parts: [...parts].sort() };
+    out.hosts = document.querySelectorAll(surface.tag).length;
+    out.parked = parkedIn(document, surface.tag).map((host) => host.outerHTML.slice(0, 120));
+    /** CONTROL: a light element with children and no `ownsChildren`, wired the same way, reads as parked here. */
+    define({ tag: 'demo-parks-children' }, () => {});
+    const probe = document.body.appendChild(document.createElement('div'));
+    probe.innerHTML = '<demo-parks-children><span>authored</span></demo-parks-children>';
+    flush();
+    await Promise.resolve();
+    flush();
+    out.instrument = parkedIn(probe, 'demo-parks-children').length === 1;
     out.gaps = gaps(surface, demo, out.seen);
   }
   process.stdout.write(JSON.stringify(out));
@@ -134,6 +150,9 @@ if (COMPONENT) {
       assert.equal(out.has, true, `packages/components/${name} has no demo.ts beside its surface.ts`);
       assert.ok(out.states > 0, 'CONTROL: the demo has states');
       assert.ok(out.seen.parts.length > 0, 'CONTROL: the states rendered parts');
+      assert.ok(out.hosts > 0, 'CONTROL: the states rendered hosts of the tag');
+      assert.equal(out.instrument, true, 'CONTROL: an element without ownsChildren reads as parked (else the parked check sees nothing)');
+      assert.deepEqual(out.parked, [], `${name}: the author's markup is parked out of sight under light-DOM slots: declare ownsChildren`);
       assert.deepEqual(out.said, [], 'a state warned: the demo shows a misused component');
       assert.deepEqual(out.gaps, { attributes: [], parts: [] }, 'declared and never shown: add a state, or list the part in interactive with how to reach it');
     });
