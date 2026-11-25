@@ -21,6 +21,7 @@ const instrument = join(root, 'scripts/blind-query-instrument.mjs');
 const ALLOWED = [
   ['tests/ssr-directives.test.mjs', '[data-vd-state]', 'a first try: the next line falls back to the template content'],
   ['tests/ssr-directives.test.mjs', '[data-vd-list]', 'a first try: the region is then found in the template content'],
+  ['tests/ssr-template-content.test.mjs', 'p', 'the stamp row counts the copies outside the template; that the query does not reach its content is what the row compares with jsdom'],
 ];
 
 /** Runs `args` under the instrument; answers its records. */
