@@ -20,7 +20,7 @@ import { step } from './field/count.js';
 import type { Spoken } from './field/count.js';
 
 /** The tag and the element's declared options, handed to core's `define` by `register.ts`. */
-export const options = { tag: 'vera-field' } as const;
+export const options = { tag: 'vera-field', ownsChildren: true } as const;
 
 /** The elements a `label[for]` can name; any other control is named through `aria-labelledby` (labeled decides). */
 const LABELABLE = 'input:not([type="hidden"]),select,textarea,button,meter,output,progress';

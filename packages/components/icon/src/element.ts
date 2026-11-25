@@ -12,7 +12,7 @@ import { diagnostic, quoted } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 
 /** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
-export const options = { tag: 'vera-icon', attributes: ['label', 'src'] } as const;
+export const options = { tag: 'vera-icon', attributes: ['label', 'src'], ownsChildren: true } as const;
 
 /** What `define` hands the setup: the element, with its two declared attributes as props. */
 interface IconHost extends HTMLElement {

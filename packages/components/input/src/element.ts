@@ -23,6 +23,8 @@ export const options = {
   attributes: ['clearable', 'clear-label', 'loading', 'reveal', 'reveal-label', 'caps-lock-hint', 'caps-lock-message', 'scale'],
   /** The parts written beside the input are this element's own, never a render's: a re-render keeps them. */
   foreignNodes: 'preserve',
+  /** Its children are the author's (an input, a label): a page wiring light-DOM slots must not park them. */
+  ownsChildren: true,
 } as const;
 
 /** What `define` hands the setup: the element, with its declared attributes as props. */
