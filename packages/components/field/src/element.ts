@@ -379,7 +379,7 @@ export const setup = (host: HTMLElement) => {
      * The look, adopted into the root in the wiring's own effect, not one of its own: every effect and layout effect runs
      * in the same flush before paint, so it is as early, and a second effect per field costs its creation (measured).
      */
-    if (!isServer()) adoptOwnSheet(host, SHEET, LOOK);
+    if (!isServer()) /*@__NOINLINE__*/ adoptOwnSheet(host, SHEET, LOOK);
     listen(root);
     let wired: Wired | null = null;
     const observer = new MutationObserver(() => track(findControl(field)));
