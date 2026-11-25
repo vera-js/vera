@@ -99,6 +99,8 @@ if (SCENARIO === 'ssr') {
     await Promise.resolve();
     flush();
     out.states['a password input with reveal and caps-lock-hint'] = [...new Set([...secret.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
+    /** The stepper's parts render only with its module wired: wired here, before the number input is served. */
+    wire([(await load('vera-components/input/stepper')).stepper]);
     const number = document.createElement(TAG);
     number.innerHTML = '<input aria-label="Quantity" type="number">';
     document.body.append(number);

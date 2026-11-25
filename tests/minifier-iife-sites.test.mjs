@@ -53,6 +53,8 @@ const PINS = {
   'packages/components/spinner/dist/vera-spinner-element.min.js': 1,
   'packages/components/input/dist/vera-input-element.min.js': 8,
   'packages/components/input/dist/vera-input.min.js': 8,
+  /** 3 (2026-11-25, new): the stepper's parts and its adoptOwnSheet, one caller each, run once per number input served (never per frame), and the box selector its sheet builds once, at load. */
+  'packages/components/input/dist/vera-input-stepper.min.js': 3,
   'packages/components/spinner/dist/vera-spinner.min.js': 1,
   'packages/components/dialog/dist/vera-dialog-element.min.js': 1,
   'packages/components/dialog/dist/vera-dialog.min.js': 1,

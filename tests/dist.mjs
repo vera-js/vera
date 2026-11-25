@@ -52,6 +52,7 @@ export const ENTRY = {
   'vera-components/spinner/element': ['components/spinner', 'vera-spinner-element'],
   'vera-components/input': ['components/input', 'vera-input'],
   'vera-components/input/element': ['components/input', 'vera-input-element'],
+  'vera-components/input/stepper': ['components/input', 'vera-input-stepper'],
   'vera-components/kbd': ['components/kbd', 'vera-kbd'],
   'vera-components/kbd/element': ['components/kbd', 'vera-kbd-element'],
   'vera-components/field': ['components/field', 'vera-field'],

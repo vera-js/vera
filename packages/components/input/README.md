@@ -83,13 +83,36 @@ only visual.
 
 ## Number inputs
 
-A `type="number"` input gets a stepper: `[data-vera-part="step-down"]` and `[data-vera-part="step-up"]` beside it, inside
-`[data-vera-part="stepper"]`, which is `aria-hidden`. A press steps by the input's `step` (by 1 under `step="any"`),
-within its `min` and `max`, and held, repeats after a pause, as the browser's own spinner does: `input` fires per
-step that moved the value, and `change` once, when the press ends. The parts are a pointer's way only, never focused (a
-press keeps focus in the input): the input is a spinbutton, and the keyboard steps it with the arrow keys. A disabled
-or read-only input steps nothing. Under the look the browser's own spin buttons are hidden, so there is one stepper,
-not two; with `data-vera-look="none"` they are the browser's again. Each part is 1.5em square, 24px on a 16px page.
+A `type="number"` input keeps the browser's own spinner. Three choices, by what the page wants:
+
+- **The browser's spinner**: nothing to do. It sits inside the box, drawn as the browser draws it.
+- **No spinner**, a plain number box (the keyboard's arrows still step it): your own rule,
+  `vera-input input[type="number"] { appearance: textfield }` and
+  `vera-input input[type="number"]::-webkit-inner-spin-button { appearance: none; margin: 0 }`.
+- **Our stepper**: wire `@vera-components/input/stepper` once. Every number input served after that gets
+  `[data-vera-part="step-down"]` and `[data-vera-part="step-up"]` beside it, inside `[data-vera-part="stepper"]`,
+  which is `aria-hidden`, and the browser's spinner is hidden in that box, so there is one stepper, not two.
+
+<!-- recipe -->
+```js
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import '@vera-components/input';
+import { stepper } from '@vera-components/input/stepper';
+
+wire([renderer, stepper]);
+document.body.innerHTML = '<label>Quantity <vera-input><input type="number" value="3" min="0" max="10"></vera-input></label>';
+```
+
+**Wire it before your inputs are served**, as every module is wired at startup: an input served before
+`wire([stepper])` keeps the browser's spinner. A page that does not wire it carries none of its code or rules.
+
+A press steps by the input's `step` (by 1 under `step="any"`), within its `min` and `max`, and held, repeats after a
+pause, as the browser's own spinner does: `input` fires per step that moved the value, and `change` once, when the
+press ends. The parts are a pointer's way only, never focused (a press keeps focus in the input): the input is a
+spinbutton, and the keyboard steps it with the arrow keys. A disabled or read-only input steps nothing. Each part is
+1.5em square, 24px on a 16px page. With `data-vera-look="none"` on the host the parts are unstyled and the browser's
+spinner stays.
 
 ## Look
 

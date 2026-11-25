@@ -317,6 +317,7 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
       <div class="title-row"><h2>Input</h2><span class="pill" data-size="@vera-components/input">gzip …</span></div>
       <p class="lede">Wraps the user's own &lt;input&gt; (the form participant: autofill, validity, reset and disabled stay the platform's), with optional prefix and suffix parts of the user's. With no &lt;input&gt; inside it renders one, server-side too, from its name, type, value, placeholder and autocomplete, read once. Options add a clear button that keeps the input's undo history, a password reveal, a caps-lock hint (shown and announced), and a loading mark with aria-busy on the input. It never labels: put it in a &lt;label&gt; or a &lt;vera-field&gt;.</p>
       <p class="try"><strong>Try it</strong> The box is ours: the shared border, radius, surface and focus tokens, with your input borderless inside it and the parts beside it. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, Escape on the search, and holding a step button on the number.</p>
+      <p class="try"><strong>Reached by doing</strong> stepper (wire @vera-components/input/stepper (wire([stepper])), then serve a number input); step-down (wire @vera-components/input/stepper, then serve a number input); step-up (wire @vera-components/input/stepper, then serve a number input).</p>
       <code class="install">npm i @vera-components/input</code>
     </header>
     <div class="grid">
@@ -365,7 +366,7 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
       <article class="card">
         <div class="preview"><label>Quantity <vera-input><input type="number" name="n" value="3" min="0" max="10"></vera-input></label></div>
         <footer>
-          <h3>A number, with the stepper</h3><p>The engine's spin buttons are hidden; − and + step it, held to repeat; the keyboard steps with the arrows</p>
+          <h3>A number</h3><p>The browser's own spinner, inside the box; wire @vera-components/input/stepper for ours</p>
           <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Quantity &lt;vera-input&gt;&lt;input type=&quot;number&quot; name=&quot;n&quot; value=&quot;3&quot; min=&quot;0&quot; max=&quot;10&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
         </footer>
       </article>

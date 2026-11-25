@@ -29,13 +29,18 @@ export const inputDemo = {
       markup: '<p><label>Small <vera-input scale="sm"><input name="s"></vera-input></label></p><p><label>Large <vera-input scale="lg"><input name="l"></vera-input></label></p>',
     },
     {
-      title: 'A number, with the stepper',
-      note: "The engine's spin buttons are hidden; − and + step it, held to repeat; the keyboard steps with the arrows",
+      title: 'A number',
+      note: "The browser's own spinner, inside the box; wire @vera-components/input/stepper for ours",
       markup: '<label>Quantity <vera-input><input type="number" name="n" value="3" min="0" max="10"></vera-input></label>',
     },
     {
       title: 'Disabled by its fieldset',
       markup: '<fieldset disabled><legend>Off</legend><label>Disabled <vera-input clearable><input value="can\'t clear"></vera-input></label></fieldset>',
     },
+  ],
+  interactive: [
+    { part: 'stepper', how: 'wire @vera-components/input/stepper (wire([stepper])), then serve a number input' },
+    { part: 'step-down', how: 'wire @vera-components/input/stepper, then serve a number input' },
+    { part: 'step-up', how: 'wire @vera-components/input/stepper, then serve a number input' },
   ],
 } as const satisfies ComponentDemo;

@@ -27,6 +27,11 @@
       "types": "./dist/development/vera-input-element.d.ts",
       "development": "./dist/development/vera-input-element.js",
       "default": "./dist/vera-input-element.min.js"
+    },
+    "./stepper": {
+      "types": "./dist/development/vera-input-stepper.d.ts",
+      "development": "./dist/development/vera-input-stepper.js",
+      "default": "./dist/vera-input-stepper.min.js"
     }
   },
   "sideEffects": [

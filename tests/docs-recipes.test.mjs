@@ -46,6 +46,7 @@ const PACKAGES = {
   '@vera-components/kbd/element': 'vera-components/kbd/element',
   '@vera-components/spinner': 'vera-components/spinner',
   '@vera-components/input': 'vera-components/input',
+  '@vera-components/input/stepper': 'vera-components/input/stepper',
   '@vera-components/tabs': 'vera-components/tabs',
   '@vera-hooks/typeahead': 'vera-hooks/typeahead',
   '@vera-components/menu': 'vera-components/menu',
@@ -273,7 +274,7 @@ const EXPECTED_RECIPES = {
   'packages/components/menu/README.md': 1,
   'packages/components/tabs/README.md': 1,
   'packages/components/spinner/README.md': 1,
-  'packages/components/input/README.md': 1,
+  'packages/components/input/README.md': 2, // 1 -> 2 (2026-11-25): wiring the number stepper
   'packages/components/kbd/README.md': 2,
   'packages/components/field/README.md': 1,
   'packages/components/icon/README.md': 1,
