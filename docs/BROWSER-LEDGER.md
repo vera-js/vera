@@ -401,6 +401,14 @@ from another machine, or after that is undone, has a variable changed.
   rect of the trigger (above only when below is short of what the list needs and above is larger) and caps the list at
   its side's room. A browser row paints the scroll, opens, reopens, and holds a trigger near the viewport's bottom
   opening above as its control.
+- **An author `display` on a closed popover beats the UA's `[popover]:not(:popover-open) { display: none }`.** The UA
+  hides a closed popover with a UA-origin rule, and any author rule setting `display` wins over it whatever its
+  specificity, zero-specificity `:where()` included: `<vera-select>`'s menu, styled `display: flex`, was laid out while
+  closed on Chromium, Firefox and WebKit (computed `flex`; hidden by `visibility` alone). Its options were measured on
+  every creation: 200 closed selects took 88.6 ms on main and 52.3 ms with the closed list `display: none` (headed
+  Chromium, the arms paired in one page, 2026-11-25). Consequence: a component that styles a popover's `display`
+  also writes `display: none` for `:not(:popover-open)`; a browser row holds a closed list at `none` with an open one
+  displayed as its control (`tests/browser/select.test.js`).
 - **Firefox lays out in 1/60 px, and macOS Firefox rounds a font's metric slack away.** Two paragraphs that are the
   same line read 19.20001 and 19.19999 px tall in Playwright's Firefox on macOS (an exact equality failed by about
   1.5e-5 px), and a keycap's box under a 20px parent read 1.17 times the one under a 16px parent where Chromium, WebKit

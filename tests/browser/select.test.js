@@ -321,6 +321,35 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
 });
 
 /**
+ * **A closed list is not laid out.** The menu's own `display: flex` is an author rule and beat the UA's hiding of a
+ * closed popover, so every closed select laid its list out (hidden by visibility only) and measured its options:
+ * creating 200 closed selects took +11% over main, and with this rule about half the time (headed Chromium, paired).
+ * CONTROL: the open list is displayed, with a box.
+ */
+it('a closed list is display: none (never laid out); the open one is displayed', async function () {
+  if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
+    this.skip();
+    return;
+  }
+  const element = await mount();
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  const menu = element.shadowRoot.querySelector('[part="menu"]');
+  try {
+    expect(getComputedStyle(menu).display).to.equal('none', 'closed: not laid out');
+    expect(menu.getBoundingClientRect().height).to.equal(0, 'closed: no box');
+    trigger.click();
+    await until(() => menu.matches(':popover-open'), 'the menu to open', 2000);
+    expect(getComputedStyle(menu).display).to.not.equal('none', 'CONTROL: open, displayed');
+    expect(menu.getBoundingClientRect().height).to.be.above(0, 'CONTROL: open, a box');
+    element.close();
+    await until(() => !menu.matches(':popover-open'), 'the menu to close', 3000);
+    expect(getComputedStyle(menu).display).to.equal('none', 'closed again: not laid out');
+  } finally {
+    element.remove();
+  }
+});
+
+/**
  * **An open list follows the page: scrolled until it would leave the screen below, it moves above, and back.** The side
  * is chosen at the open and again after each scroll or resize while open (once a frame). CONTROL: before the scroll the
  * open list is below its trigger.

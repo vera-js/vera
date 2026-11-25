@@ -267,6 +267,16 @@ export const SELECT_STYLES = /* css */ `
     :where([part='menu'][popover][data-side='top']) {
       position-area: block-start span-inline-end;
     }
+    /*
+     * A closed list is not laid out. The menu's own display (flex) is an author rule, which beats the UA's
+     * [popover]:not(:popover-open) { display: none } at any specificity, so every closed select laid its list out,
+     * hidden only by visibility, and sizing it to max-content measured every option: creating 200 closed selects read
+     * +11% (headed Chromium, paired in one page). The close's transition still plays: the element hides the popover
+     * only after it, and the open plays from @starting-style, which a popover entering from display: none takes.
+     */
+    :where([part='menu'][popover]:not(:popover-open)) {
+      display: none;
+    }
     :where([part='menu'][popover]:popover-open) {
       @starting-style {
         opacity: 0;
