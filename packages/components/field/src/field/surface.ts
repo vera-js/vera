@@ -42,5 +42,5 @@ export const fieldSurface = {
   ],
   states: [{ on: 'control', attribute: 'aria-invalid', values: ['true'] }],
   customStates: [],
-  tokens: ['--vera-border', '--vera-danger', '--vera-fg', '--vera-fg-muted'],
+  tokens: ['--vera-danger', '--vera-fg', '--vera-fg-muted'],
 } as const satisfies ComponentSurface;

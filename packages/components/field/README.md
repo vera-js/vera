@@ -48,7 +48,7 @@ through `Intl.PluralRules`: `count-message-one`, `-few`, `-many`, `-other`, …)
 
 **The look.** The field stacks its parts (label, control, hint, error, count) with a small gap, each at its own width.
 The label is in the text color at weight 500, the hint and the count in the muted text color, the shown error in the
-danger color. While an error shows, the field sets `--vera-border` to the danger color on itself, so a control that
-draws its edge from that token (`<vera-input>`'s box) turns red; the field never styles the control itself. It reads
+danger color. While an error shows, the control is marked `aria-invalid="true"`, and a control with a look draws that
+itself (`<vera-input>`'s box turns the danger color); the field never styles the control. It reads
 the shared tokens `--vera-fg`, `--vera-fg-muted` and `--vera-danger`, every rule is at zero specificity and keyed on the
 field's own mark, never its tag, and `data-vera-look="none"` on the field drops all of it.

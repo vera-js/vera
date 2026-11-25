@@ -98,7 +98,7 @@ describe('vera-field', () => {
 
 /**
  * The look: a stack, the label in the text color at weight 500, the hint and count muted, the shown error in the danger
- * color, and while an error shows, the shared border token turned to the danger color for the control inside.
+ * color; and with input, a shown error's aria-invalid drawn as the input box's danger edge.
  */
 describe('vera-field: the look', () => {
   const style = (node) => getComputedStyle(node);
@@ -128,7 +128,8 @@ describe('vera-field: the look', () => {
     holder.remove();
   });
 
-  it("while an error shows, the input's box inside is drawn in the danger color (CONTROL: a field with none shown is not)", async () => {
+  /** The field and input together, not the field's look: the field marks the control aria-invalid, input's box draws it. */
+  it("while an error shows, the input's box inside is drawn in the danger color: the field marks it aria-invalid (CONTROL: a field with none shown is not)", async () => {
     const holder = await mount(
       '<div style="--vera-danger: rgb(1, 2, 3)">' +
         '<vera-field><label>Name</label><vera-input><input></vera-input><small data-vera-part="error" data-when="server">Taken</small></vera-field>' +
