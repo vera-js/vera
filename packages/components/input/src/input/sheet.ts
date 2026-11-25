@@ -25,7 +25,7 @@
  *   two system colors, so it is still seen to move.
  */
 
-import { BORDER, DANGER, FG, FG_MUTED, FOCUS, HOVER, RADIUS, SURFACE } from '@verajs/shared-utils';
+import { BORDER_CONTROL, DANGER, FG, FG_MUTED, FOCUS, HOVER, RADIUS, SURFACE } from '@verajs/shared-utils';
 
 /** The root's key for the input's rules (`adoptOwnSheet`), a `_$…$` name the minifier leaves alone. */
 export const SHEET = '_$veraInputLook$';
@@ -102,7 +102,7 @@ const BUTTON =
 const BOX =
   `${box(':not([hidden])')}{display:inline-flex;align-items:center;gap:.25em;vertical-align:middle;box-sizing:border-box;` +
   'min-block-size:2.25em;padding-block:0;padding-inline:.75em .5em;' +
-  `border-style:solid;border-width:max(.0625em,1px);border-color:${BORDER};border-radius:${RADIUS};` +
+  `border-style:solid;border-width:max(.0625em,1px);border-color:${BORDER_CONTROL};border-radius:${RADIUS};` +
   `background:${SURFACE};color:${FG};transition:border-color .15s,outline-color .15s}` +
   `${box('[data-vera-input-host="sm"]')}{font-size:.875em}` +
   `${box('[data-vera-input-host="lg"]')}{font-size:1.125em}` +

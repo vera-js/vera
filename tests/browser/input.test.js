@@ -516,7 +516,7 @@ describe('vera-input: the box', () => {
   });
 
   it('every color and the radius are the shared tokens: an app sets them once and the box follows', async () => {
-    const tokens = '--vera-border: rgb(4, 5, 6); --vera-surface: rgb(7, 8, 9); --vera-fg: rgb(10, 11, 12); --vera-radius: 3px';
+    const tokens = '--vera-border-control: rgb(4, 5, 6); --vera-surface: rgb(7, 8, 9); --vera-fg: rgb(10, 11, 12); --vera-radius: 3px';
     const wrap = await mount(`<div style="${tokens}"><vera-input><input></vera-input></vera-input></div><vera-input><input></vera-input>`);
     const [themed, plain] = wrap.querySelectorAll('vera-input');
     expect(style(themed).borderTopColor, `${ON}: border`).to.equal('rgb(4, 5, 6)');
@@ -527,7 +527,7 @@ describe('vera-input: the box', () => {
     wrap.remove();
   });
 
-  it('dark scheme with no tokens set: the text on the box is at least 4.5:1, in both schemes, and the two differ', async () => {
+  it('dark scheme with no tokens set: the text on the box is at least 4.5:1 and its edge at least 3:1, in both schemes, and the two differ', async () => {
     const lin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
     const lum = (rgb) => {
       const [r, g, b] = rgb.match(/[\d.]+/g).slice(0, 3).map((v) => lin(Number(v) / 255));
@@ -543,6 +543,7 @@ describe('vera-input: the box', () => {
     for (const [name, host] of [['light', light], ['dark', dark]]) {
       const text = style(host.querySelector('input')).color;
       expect(ratio(text, style(host).backgroundColor), `${ON}: ${name}: text on the box (${text} on ${style(host).backgroundColor})`).to.be.at.least(4.5);
+      expect(ratio(style(host).borderTopColor, style(host).backgroundColor), `${ON}: ${name}: the box's edge on its surface (${style(host).borderTopColor} on ${style(host).backgroundColor}, WCAG 1.4.11)`).to.be.at.least(3);
     }
     expect(style(dark).backgroundColor, `${ON}: the dark box is not the light one`).to.not.equal(style(light).backgroundColor);
     wrap.remove();

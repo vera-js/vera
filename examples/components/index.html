@@ -271,10 +271,10 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
         </footer>
       </article>
       <article class="card">
-        <div class="preview"><form novalidate><vera-field native-messages><label>Age</label><input type="number" min="18" required><small data-vera-part="error"></small></vera-field></form></div>
+        <div class="preview"><form novalidate><vera-field native-messages><label>Age</label><vera-input><input type="number" min="18" required></vera-input><small data-vera-part="error"></small></vera-field></form></div>
         <footer>
           <h3>The browser's own messages</h3><p>native-messages keeps the browser's own bubble on a failed submit; an empty error part shows the browser's message</p>
-          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;form novalidate&gt;&lt;vera-field native-messages&gt;&lt;label&gt;Age&lt;/label&gt;&lt;input type=&quot;number&quot; min=&quot;18&quot; required&gt;&lt;small data-vera-part=&quot;error&quot;&gt;&lt;/small&gt;&lt;/vera-field&gt;&lt;/form&gt;</code></pre></details>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;form novalidate&gt;&lt;vera-field native-messages&gt;&lt;label&gt;Age&lt;/label&gt;&lt;vera-input&gt;&lt;input type=&quot;number&quot; min=&quot;18&quot; required&gt;&lt;/vera-input&gt;&lt;small data-vera-part=&quot;error&quot;&gt;&lt;/small&gt;&lt;/vera-field&gt;&lt;/form&gt;</code></pre></details>
         </footer>
       </article>
     </div>
@@ -316,7 +316,7 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
     <header class="plate-head">
       <div class="title-row"><h2>Input</h2><span class="pill" data-size="@vera-components/input">gzip …</span></div>
       <p class="lede">Wraps the user's own &lt;input&gt; (the form participant: autofill, validity, reset and disabled stay the platform's), with optional prefix and suffix parts of the user's. With no &lt;input&gt; inside it renders one, server-side too, from its name, type, value, placeholder and autocomplete, read once. Options add a clear button that keeps the input's undo history, a password reveal, a caps-lock hint (shown and announced), and a loading mark with aria-busy on the input. It never labels: put it in a &lt;label&gt; or a &lt;vera-field&gt;.</p>
-      <p class="try"><strong>Try it</strong> Unthemed on purpose: only the glyphs and the loading ring are ours; the input's own border is the browser's, and theming is by tokens. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, and Escape on the search.</p>
+      <p class="try"><strong>Try it</strong> The box is ours: the shared border, radius, surface and focus tokens, with your input borderless inside it and the parts beside it. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, Escape on the search, and holding a step button on the number.</p>
       <code class="install">npm i @vera-components/input</code>
     </header>
     <div class="grid">
@@ -356,10 +356,17 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
         </footer>
       </article>
       <article class="card">
-        <div class="preview"><label>Small <vera-input scale="sm"><input name="s"></vera-input></label> <label>Large <vera-input scale="lg"><input name="l"></vera-input></label></div>
+        <div class="preview"><p><label>Small <vera-input scale="sm"><input name="s"></vera-input></label></p><p><label>Large <vera-input scale="lg"><input name="l"></vera-input></label></p></div>
         <footer>
           <h3>Sizes</h3><p>scale: sm and lg around the page's font size (md)</p>
-          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Small &lt;vera-input scale=&quot;sm&quot;&gt;&lt;input name=&quot;s&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt; &lt;label&gt;Large &lt;vera-input scale=&quot;lg&quot;&gt;&lt;input name=&quot;l&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;p&gt;&lt;label&gt;Small &lt;vera-input scale=&quot;sm&quot;&gt;&lt;input name=&quot;s&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;&lt;/p&gt;&lt;p&gt;&lt;label&gt;Large &lt;vera-input scale=&quot;lg&quot;&gt;&lt;input name=&quot;l&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;&lt;/p&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><label>Quantity <vera-input><input type="number" name="n" value="3" min="0" max="10"></vera-input></label></div>
+        <footer>
+          <h3>A number, with the stepper</h3><p>The engine's spin buttons are hidden; − and + step it, held to repeat; the keyboard steps with the arrows</p>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;label&gt;Quantity &lt;vera-input&gt;&lt;input type=&quot;number&quot; name=&quot;n&quot; value=&quot;3&quot; min=&quot;0&quot; max=&quot;10&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;</code></pre></details>
         </footer>
       </article>
       <article class="card">

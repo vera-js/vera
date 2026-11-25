@@ -104,7 +104,8 @@ not two; with `data-vera-look="none"` they are the browser's again. Each part is
   forced colors it keeps two system colors.
 - On a clearable search input, the browser's own cancel button is hidden, so there is one clear glyph, not two.
 - The rules are adopted by the element itself, so the buttons are seen whether or not the app wired `@verajs/styles`.
-- The shared tokens: `--vera-border`, `--vera-radius`, `--vera-surface`, `--vera-fg`, `--vera-fg-muted` (the
+- The shared tokens: `--vera-border-control` (the box's edge, at least 3:1 against the surface in both schemes, as
+  WCAG 1.4.11 asks of the edge that shows where a control is), `--vera-radius`, `--vera-surface`, `--vera-fg`, `--vera-fg-muted` (the
   placeholder), `--vera-focus` (the ring), `--vera-hover` (a step part under the pointer) and `--vera-danger`. Set them on `:root` to restyle every component at once;
   dark mode follows the page's `color-scheme` (`:root { color-scheme: light dark }`). The look needs `light-dark()`
   (Chromium 123, Firefox 120, Safari 17.5); below that, a token you have not set is left unset.
