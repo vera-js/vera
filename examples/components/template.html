@@ -14,14 +14,14 @@
 :root {
   color-scheme: light dark;
   --vera-accent: oklch(0.56 0.22 280);
-  --vera-radius: 10px;
+  --vera-radius: 8px;
   --vera-bg: light-dark(#ffffff, #0c0c10);
   --vera-surface: light-dark(#ffffff, #15151b);
   --vera-fg: light-dark(#0f0f14, #f2f2f5);
   --vera-fg-muted: light-dark(#5f5f6b, #9d9daa);
   --vera-border: light-dark(#e4e4ea, #2a2a33);
   --vera-hover: light-dark(#f2f2f6, #1d1d24);
-  --vera-focus: color-mix(in oklch, var(--vera-accent) 55%, transparent);
+  --vera-focus: var(--vera-accent);
   --vera-shadow: light-dark(0 1px 2px rgb(0 0 0 / .06), 0 1px 2px rgb(0 0 0 / .5));
 
   --page: light-dark(#fafafb, #09090c);
@@ -121,7 +121,7 @@ h2 { margin: 0; font-size: 30px; letter-spacing: -.025em; font-weight: 680 }
 /* Form controls the demos bring as plain HTML get the same look the components use, so a state reads as a real app. */
 .preview :where(input:not([type=checkbox], [type=radio], [type=range]), textarea, select) { font: inherit; font-size: 15px; min-height: 40px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink) }
 .preview :where(textarea) { padding: 10px 12px; min-height: 84px }
-.preview :where(input, textarea, select):focus-visible { outline: 0; border-color: var(--vera-accent); box-shadow: 0 0 0 3px var(--vera-focus) }
+.preview :where(input, textarea, select):focus-visible { outline: 2px solid var(--vera-focus); outline-offset: 2px }
 .preview :where(button:not([slot], [data-vera-part], [role=tab], [role=menuitem], [role=option])) { font: inherit; font-size: 14px; font-weight: 550; min-height: 38px; padding: 0 16px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink); cursor: pointer; box-shadow: var(--vera-shadow) }
 .preview :where(button[slot="trigger"]) { font: inherit; font-size: 14px; font-weight: 550; min-height: 38px; padding: 0 16px; border-radius: var(--vera-radius); border: 0; background: var(--vera-accent); color: #fff; cursor: pointer }
 .preview :where(label) { font-weight: 550; font-size: 14px }
@@ -150,7 +150,7 @@ dialog :where(input, textarea) { font: inherit; min-height: 38px; padding: 0 12p
       <button type="button" style="--c:oklch(0.72 0.16 65)" data-accent="oklch(0.72 0.16 65)" aria-label="Amber" aria-pressed="false"></button>
       <button type="button" style="--c:oklch(0.35 0.01 280)" data-accent="oklch(0.35 0.01 280)" aria-label="Graphite" aria-pressed="false"></button>
     </div>
-    <label class="radius">Radius <input type="range" min="0" max="20" value="10" data-radius></label>
+    <label class="radius">Radius <input type="range" min="0" max="20" value="8" data-radius></label>
   </div>
 </header>
 
@@ -197,7 +197,7 @@ const frames = () => [...document.querySelectorAll('iframe.frame')];
 const apply = (target) => {
   const style = target.documentElement.style;
   style.setProperty('--vera-accent', root.style.getPropertyValue('--vera-accent') || getComputedStyle(root).getPropertyValue('--vera-accent'));
-  style.setProperty('--vera-radius', root.style.getPropertyValue('--vera-radius') || '10px');
+  style.setProperty('--vera-radius', root.style.getPropertyValue('--vera-radius') || '8px');
   style.colorScheme = root.dataset.scheme === 'light' || root.dataset.scheme === 'dark' ? root.dataset.scheme : 'light dark';
 };
 const applyAll = () => {

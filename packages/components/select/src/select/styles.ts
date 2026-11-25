@@ -125,8 +125,8 @@ export const SELECT_STYLES = /* css */ `
     cursor: default;
   }
   :where([part='trigger']):focus-visible {
-    outline: 3px solid ${FOCUS};
-    outline-offset: 1px;
+    outline: 2px solid ${FOCUS};
+    outline-offset: 2px;
   }
   :where([part='trigger'])::after {
     content: '';

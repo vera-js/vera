@@ -30,11 +30,16 @@ export const HOVER = 'var(--vera-hover,light-dark(#f2f2f6,#202028))';
 export const ACCENT = 'var(--vera-accent,light-dark(oklch(.56 .22 280),oklch(.72 .16 280)))';
 /** Text and icons on the accent. */
 export const ACCENT_FG = 'var(--vera-accent-fg,light-dark(#fff,#0c0c10))';
-/** The focus ring: the accent, softened, drawn 3px outside the control. Follows the accent an app sets. */
-export const FOCUS = `var(--vera-focus,color-mix(in oklch,${ACCENT} 60%,transparent))`;
+/**
+ * The focus ring's color: the accent itself, opaque, drawn as a 2px `outline` 2px outside the control, never a
+ * box-shadow (forced colors drops a box-shadow and keeps an outline). Opaque because a ring must reach 3:1 against the
+ * surface beside it (WCAG 2.4.13, 1.4.11): the accent at 60% read 1.93 in light, the opaque accent 5.05 in light and 6.86
+ * in dark, computed on SURFACE. Follows the accent an app sets.
+ */
+export const FOCUS = `var(--vera-focus,${ACCENT})`;
 /** Errors. */
 export const DANGER = 'var(--vera-danger,light-dark(#c4321c,#ff7a66))';
 /** Corners; a pill keeps its own 999px. */
-export const RADIUS = 'var(--vera-radius,10px)';
+export const RADIUS = 'var(--vera-radius,8px)';
 /** Raised surfaces' shadow: two soft layers, deeper in the dark. */
 export const SHADOW = 'var(--vera-shadow,0 1px 2px light-dark(rgb(0 0 0/.05),rgb(0 0 0/.4)),0 8px 24px -8px light-dark(rgb(0 0 0/.14),rgb(0 0 0/.6)))';
