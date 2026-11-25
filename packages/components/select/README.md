@@ -52,7 +52,7 @@ document.body.innerHTML = `
   configure, and only the components you use are paid for.
 - **Theme by token**: every color, radius and focus value is a semantic `--vera-*` custom property
   with a real fallback. Custom properties inherit through shadow boundaries, so one `:root` block
-  themes everything; dark mode is a token redefinition.
+  themes everything; dark mode follows the page's `color-scheme` (Theming, below).
 - **Override anything**: every internal node carries a `part`, so `vera-select::part(trigger)`
   reaches it in shadow mode — and in light mode (`<vera-select light>`) the same `[part="trigger"]`
   is a plain selector. Component selectors are wrapped in `:where()`, held at zero specificity:
@@ -76,3 +76,9 @@ with veto; top-layer menu where the engine has anchor positioning.
 
 Two library versions on one page warn instead of silently forking — and `@vera-components/select/elements`
 exists for the page that must control registration itself.
+
+**Theming.** `<vera-select>`'s look reads the same `--vera-*` tokens every Vera component reads (`--vera-accent`,
+`--vera-radius`, `--vera-surface`, `--vera-fg` and the rest its `custom-elements.json` lists), so one `:root` block
+restyles every component on the page. Dark mode follows the page: with `color-scheme: light dark` on `:root` the
+defaults switch with the system, and with no `color-scheme` they are the light ones. The look's floor is the engines
+with CSS `light-dark()` (Chromium 123, Firefox 120, Safari 17.5); the behavior works below it.

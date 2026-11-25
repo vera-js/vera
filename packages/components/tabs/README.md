@@ -49,6 +49,12 @@ positioning: it follows a tab's resize with no measurement, and slides between t
 moves it straight to the new tab). Without anchor positioning the selected tab draws its own underline and nothing
 slides. An `::after` of your own on the tablist container wins (the
 look is zero specificity), and then the indicator is not drawn. `orientation="vertical"` makes the tablist a column and
-runs the indicator down its side. `data-vera-look="none"` on the host drops the look.
+runs the rule and the indicator down its inline-start side, the labels aligned to it. `data-vera-look="none"` on the host drops the look.
 
 Every name is in `custom-elements.json`.
+
+**Theming.** `<vera-tabs>`'s look reads the same `--vera-*` tokens every Vera component reads (`--vera-accent`,
+`--vera-radius`, `--vera-surface`, `--vera-fg` and the rest its `custom-elements.json` lists), so one `:root` block
+restyles every component on the page. Dark mode follows the page: with `color-scheme: light dark` on `:root` the
+defaults switch with the system, and with no `color-scheme` they are the light ones. The look's floor is the engines
+with CSS `light-dark()` (Chromium 123, Firefox 120, Safari 17.5); the behavior works below it.

@@ -66,3 +66,9 @@ From the keyboard, Shift+F10 and the ContextMenu key on the focused target open 
 focused, on every engine. Give the container an `aria-label`, since no trigger names it.
 
 Submenus are not in this version. Every name is in `custom-elements.json`.
+
+**Theming.** `<vera-menu>`'s look reads the same `--vera-*` tokens every Vera component reads (`--vera-accent`,
+`--vera-radius`, `--vera-surface`, `--vera-fg` and the rest its `custom-elements.json` lists), so one `:root` block
+restyles every component on the page. Dark mode follows the page: with `color-scheme: light dark` on `:root` the
+defaults switch with the system, and with no `color-scheme` they are the light ones. The look's floor is the engines
+with CSS `light-dark()` (Chromium 123, Firefox 120, Safari 17.5); the behavior works below it.
