@@ -124,7 +124,7 @@ h2 { margin: 0; font-size: 30px; letter-spacing: -.025em; font-weight: 680 }
  * (a <vera-input>'s <input>, a menu's items, a select's parts), which a page rule here would beat, since a look is
  * zero-specificity by design.
  */
-.preview :where(input:not([type=checkbox], [type=radio], [type=range]), textarea, select):not(:where(vera-input *, vera-select *, vera-menu *, [data-vera-input], [part])) { font: inherit; font-size: 15px; min-height: 40px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink) }
+.preview :where(input:not([type=checkbox], [type=radio], [type=range]), textarea, select):not(:where(vera-input *, vera-select *, vera-menu *, [data-vera-input], [part])) { font: inherit; font-size: 15px; min-height: 40px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--vera-border-control, light-dark(#8a8a96, #686874)); background: var(--vera-surface); color: var(--ink) }
 .preview :where(textarea):not(:where(vera-input *)) { padding: 10px 12px; min-height: 84px }
 .preview :where(input, textarea, select):not(:where(vera-input *, vera-select *, vera-menu *, [part])):focus-visible { outline: 2px solid var(--vera-focus); outline-offset: 2px }
 .preview :where(button:not([slot], [data-vera-part], [part], [role])):not(:where(vera-menu [slot=menu] *, vera-select *, vera-input *)) { font: inherit; font-size: 14px; font-weight: 550; min-height: 38px; padding: 0 16px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink); cursor: pointer; box-shadow: var(--vera-shadow) }
@@ -133,7 +133,7 @@ h2 { margin: 0; font-size: 30px; letter-spacing: -.025em; font-weight: 680 }
 .preview :where(vera-field) { display: grid; gap: 6px; width: min(100%, 320px) }
 .preview :where(vera-field small) { font-size: 13px; color: var(--mute) }
 .preview :where(vera-field [data-vera-part=error]) { color: light-dark(#c4321c, #ff7a66) }
-dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { font: inherit; min-height: 38px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink) }
+dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { font: inherit; min-height: 38px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--vera-border-control, light-dark(#8a8a96, #686874)); background: var(--vera-surface); color: var(--ink) }
 
 .foot { text-align: center; color: var(--mute); font-size: 13px; padding: 40px 16px 56px; border-top: 1px solid var(--line) }
 @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr) } .side { display: none } .controls .radius { display: none } }
