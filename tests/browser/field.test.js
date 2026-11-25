@@ -119,12 +119,12 @@ describe('vera-field: the look', () => {
         '<vera-field data-vera-look="none"><label>Email</label><input></vera-field></div>',
     );
     const [on, off] = holder.querySelectorAll('vera-field');
-    expect(style(on).display, 'the field stacks its parts').to.equal('grid');
+    expect(style(on).display, 'the field stacks its parts (a flex column)').to.equal('flex');
     expect(Number(style(on.querySelector('label')).fontWeight), 'the label at weight 500').to.equal(500);
     expect(style(on.querySelector('[data-vera-part="hint"]')).color, 'the hint is the muted token').to.equal('rgb(4, 5, 6)');
     expect(style(on.querySelector('[data-vera-part="error"]')).color, 'the error is the danger token').to.equal('rgb(1, 2, 3)');
     expect(Number(style(off.querySelector('label')).fontWeight), 'look none: the UA label weight').to.equal(400);
-    expect(style(off).display, 'look none: no stack').to.not.equal('grid');
+    expect(style(off).display, 'look none: no stack').to.not.equal('flex');
     holder.remove();
   });
 

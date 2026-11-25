@@ -371,11 +371,15 @@ const wire = (field: Marked, control: Element): Wired => {
  */
 export const setup = (host: HTMLElement) => {
   const field = host as Marked;
-  /** The look's mark (its rules key on it, never on the tag), and the look itself, adopted into the root as a layout effect. */
+  /** The look's mark: its rules key on it, never on the tag. */
   host.setAttribute('data-vera-field', '');
-  if (!isServer()) effect(() => adoptOwnSheet(host, SHEET, LOOK), { timing: 'layout' });
   effect(() => {
     const root = field.getRootNode();
+    /**
+     * The look, adopted into the root in the wiring's own effect, not one of its own: every effect and layout effect runs
+     * in the same flush before paint, so it is as early, and a second effect per field costs its creation (measured).
+     */
+    if (!isServer()) adoptOwnSheet(host, SHEET, LOOK);
     listen(root);
     let wired: Wired | null = null;
     const observer = new MutationObserver(() => track(findControl(field)));

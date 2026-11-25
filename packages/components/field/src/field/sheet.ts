@@ -2,7 +2,9 @@
  * **<vera-field>'s look, one rule set**, adopted by the element into the root it renders in (`adoptOwnSheet`).
  *
  * - **A stack**: the label, the control, the hint, the error and the count one under another, a small gap between,
- *   each at its own width (a short control is never stretched to the field's).
+ *   each at its own width (a short control is never stretched to the field's). A flex column, not a grid: the same
+ *   stack laid out as a grid cost 300 fields' creation and layout +40% over unstyled fields, as a flex column +14%
+ *   (headed Chromium, both written by hand, paired in one page).
  * - **Type**: the label in the text color at weight 500, the hint and the count in the muted text color, the shown error
  *   in the danger color, both a step smaller than the label (the survey's 14px label, 12-13px help: shadcn/ui, Mantine,
  *   Primer).
@@ -26,7 +28,7 @@ const field = (more = ''): string => `:where([data-vera-field]:not([data-vera-lo
 const part = (name: string): string => `${field()} :where([data-vera-part="${name}"])`;
 
 export const LOOK =
-  `${field(':not([hidden])')}{display:grid;justify-items:start;gap:.375em}` +
+  `${field(':not([hidden])')}{display:flex;flex-direction:column;align-items:flex-start;gap:.375em}` +
   `${field()}>:where(label){font-size:.875em;font-weight:500;color:${FG}}` +
   `${part('hint')},${part('count')}{font-size:.8125em;color:${FG_MUTED}}` +
   `${part('error')}{font-size:.8125em;color:${DANGER}}`;
