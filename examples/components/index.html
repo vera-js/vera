@@ -250,10 +250,10 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
     </header>
     <div class="grid">
       <article class="card wide">
-        <div class="preview"><form novalidate><vera-field><label>Work email</label><input type="email" required autocomplete="email"><small data-vera-part="hint">We'll send the invite here.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small><small data-vera-part="error" data-when="typeMismatch">That isn't an email address.</small></vera-field><button type="submit">Send invite</button></form></div>
+        <div class="preview"><form novalidate><vera-field><label>Work email</label><vera-input><input type="email" required autocomplete="email"></vera-input><small data-vera-part="hint">We'll send the invite here.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small><small data-vera-part="error" data-when="typeMismatch">That isn't an email address.</small></vera-field><button type="submit">Send invite</button></form></div>
         <footer>
           <h3>Required email, with a hint and its errors</h3>
-          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;form novalidate&gt;&lt;vera-field&gt;&lt;label&gt;Work email&lt;/label&gt;&lt;input type=&quot;email&quot; required autocomplete=&quot;email&quot;&gt;&lt;small data-vera-part=&quot;hint&quot;&gt;We'll send the invite here.&lt;/small&gt;&lt;small data-vera-part=&quot;error&quot; data-when=&quot;valueMissing&quot;&gt;Enter your email.&lt;/small&gt;&lt;small data-vera-part=&quot;error&quot; data-when=&quot;typeMismatch&quot;&gt;That isn't an email address.&lt;/small&gt;&lt;/vera-field&gt;&lt;button type=&quot;submit&quot;&gt;Send invite&lt;/button&gt;&lt;/form&gt;</code></pre></details>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;form novalidate&gt;&lt;vera-field&gt;&lt;label&gt;Work email&lt;/label&gt;&lt;vera-input&gt;&lt;input type=&quot;email&quot; required autocomplete=&quot;email&quot;&gt;&lt;/vera-input&gt;&lt;small data-vera-part=&quot;hint&quot;&gt;We'll send the invite here.&lt;/small&gt;&lt;small data-vera-part=&quot;error&quot; data-when=&quot;valueMissing&quot;&gt;Enter your email.&lt;/small&gt;&lt;small data-vera-part=&quot;error&quot; data-when=&quot;typeMismatch&quot;&gt;That isn't an email address.&lt;/small&gt;&lt;/vera-field&gt;&lt;button type=&quot;submit&quot;&gt;Send invite&lt;/button&gt;&lt;/form&gt;</code></pre></details>
         </footer>
       </article>
       <article class="card wide">
@@ -264,10 +264,10 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
         </footer>
       </article>
       <article class="card">
-        <div class="preview"><vera-field><label>Search</label><button type="button">Clear</button><input data-vera-part="control" type="search"></vera-field></div>
+        <div class="preview"><vera-field><label>Search</label><button type="button">Clear</button><vera-input><input data-vera-part="control" type="search"></vera-input></vera-field></div>
         <footer>
           <h3>The control named, not first</h3><p>data-vera-part=&quot;control&quot; picks the control when it is not the first labelable element</p>
-          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-field&gt;&lt;label&gt;Search&lt;/label&gt;&lt;button type=&quot;button&quot;&gt;Clear&lt;/button&gt;&lt;input data-vera-part=&quot;control&quot; type=&quot;search&quot;&gt;&lt;/vera-field&gt;</code></pre></details>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-field&gt;&lt;label&gt;Search&lt;/label&gt;&lt;button type=&quot;button&quot;&gt;Clear&lt;/button&gt;&lt;vera-input&gt;&lt;input data-vera-part=&quot;control&quot; type=&quot;search&quot;&gt;&lt;/vera-input&gt;&lt;/vera-field&gt;</code></pre></details>
         </footer>
       </article>
       <article class="card">

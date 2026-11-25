@@ -11,7 +11,7 @@ export const fieldDemo = {
     {
       title: 'Required email, with a hint and its errors',
       markup:
-        '<form novalidate><vera-field><label>Work email</label><input type="email" required autocomplete="email"><small data-vera-part="hint">We\'ll send the invite here.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small><small data-vera-part="error" data-when="typeMismatch">That isn\'t an email address.</small></vera-field><button type="submit">Send invite</button></form>',
+        '<form novalidate><vera-field><label>Work email</label><vera-input><input type="email" required autocomplete="email"></vera-input><small data-vera-part="hint">We\'ll send the invite here.</small><small data-vera-part="error" data-when="valueMissing">Enter your email.</small><small data-vera-part="error" data-when="typeMismatch">That isn\'t an email address.</small></vera-field><button type="submit">Send invite</button></form>',
     },
     {
       title: 'A character count, in your words',
@@ -22,7 +22,7 @@ export const fieldDemo = {
     {
       title: 'The control named, not first',
       note: 'data-vera-part="control" picks the control when it is not the first labelable element',
-      markup: '<vera-field><label>Search</label><button type="button">Clear</button><input data-vera-part="control" type="search"></vera-field>',
+      markup: '<vera-field><label>Search</label><button type="button">Clear</button><vera-input><input data-vera-part="control" type="search"></vera-input></vera-field>',
     },
     {
       title: "The browser's own messages",
