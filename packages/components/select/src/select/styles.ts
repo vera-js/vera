@@ -210,7 +210,8 @@ export const SELECT_STYLES = /* css */ `
     z-index: 50;
     display: flex;
     flex-direction: column;
-    max-block-size: 260px;
+    /* Room for a group or two with descriptions before anything scrolls (Brian, 2026-11-25: short lists showed a scrollbar). */
+    max-block-size: min(360px, 70vh);
     border: 1px solid var(--vera-border, #d4d4d8);
     border-radius: min(var(--vera-radius, 6px), 14px);
     background: var(--vera-surface, #fff);
@@ -238,7 +239,13 @@ export const SELECT_STYLES = /* css */ `
       box-sizing: border-box;
       top: calc(anchor(bottom) + 4px);
       left: anchor(left);
-      inline-size: anchor-size(width);
+      /*
+       * At least the trigger's width, wider when an option needs it, like a native select's list (a list only as wide
+       * as a short trigger wrapped every description), and never past the viewport.
+       */
+      min-inline-size: anchor-size(width);
+      inline-size: max-content;
+      max-inline-size: min(28rem, calc(100vw - 16px));
       margin: 0;
       position-try-fallbacks: flip-block;
     }

@@ -254,8 +254,8 @@ it('the anchor tier: the menu rides the top layer and escapes an overflow:hidden
   const clipBox = clip.getBoundingClientRect();
   expect(menuBox.bottom).to.be.greaterThan(clipBox.bottom + 20,
     'the dropdown escapes the overflow prison — the bug class every JS library portals around');
-  expect(Math.abs(menuBox.width - element.shadowRoot.querySelector('[part="trigger"]').getBoundingClientRect().width))
-    .to.be.lessThan(2, 'anchor-size(width) matches the trigger');
+  expect(menuBox.width - element.shadowRoot.querySelector('[part="trigger"]').getBoundingClientRect().width)
+    .to.be.greaterThan(-2, 'min-inline-size: anchor-size(width): the list is at least as wide as the trigger');
 
   element.close();
   /** The close transition plays while still popover-open; the popover hides after it settles. */
