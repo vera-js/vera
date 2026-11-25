@@ -85,6 +85,10 @@ type Internal = {
   slottedTrigger: boolean;
   /** The close-animation timer before hidePopover(). */
   hideTimer: ReturnType<typeof setTimeout> | undefined;
+  /** While open: re-chooses the list's side after a scroll or resize, once a frame (`follow`). */
+  follow: (() => void) | undefined;
+  /** The pending frame of `follow`, 0 when none. */
+  frame: number;
   /** What `selected` attributes declared — form reset restores THIS, not emptiness. */
   defaults: import('@vera-hooks/listbox').SelectOption[];
 };
@@ -134,6 +138,18 @@ const reveal = (row: Element | null): void => {
   else if (r.bottom > l.bottom) list.scrollTop += r.bottom - l.bottom;
 };
 
+/** Scroll anywhere (an element's scroll reaches a capturing window listener) and resize, never blocking a scroll. */
+const VIEWPORT = { capture: true, passive: true } as const;
+
+/** Stops following the viewport: on close and on disconnect. */
+const unfollow = (entry: Internal): void => {
+  if (!entry.follow) return;
+  removeEventListener('scroll', entry.follow, VIEWPORT);
+  removeEventListener('resize', entry.follow, VIEWPORT);
+  cancelAnimationFrame(entry.frame);
+  entry.frame = 0;
+};
+
 const INTERNAL = new WeakMap<VeraSelect, Internal>();
 
 /** Lazily created: a property setter may run after upgrade but before connectedCallback. */
@@ -156,6 +172,8 @@ const internal = (element: VeraSelect): Internal => {
       htmlSourced: false,
       slottedTrigger: false,
       hideTimer: undefined,
+      follow: undefined,
+      frame: 0,
       defaults: [],
     };
     INTERNAL.set(element, entry);
@@ -703,7 +721,23 @@ export class VeraSelect extends HTMLElement {
                 menu.removeAttribute('data-side');
                 menu.showPopover?.();
                 menu.setAttribute('data-side', openSide(menu, root.querySelector?.('[part="trigger"]') ?? null));
-              } else
+                /**
+                 * While open, a scroll or resize that leaves the list short of room on its side moves it to the other
+                 * side (Brian, 2026-11-25: "above or below depending on where it goes off screen"); read once a frame.
+                 */
+                entry.follow ??= () => {
+                  if (entry.frame) return;
+                  entry.frame = requestAnimationFrame(() => {
+                    entry.frame = 0;
+                    const open = root.querySelector?.('[part="menu"]') as HTMLElement | null;
+                    if (open?.matches(':popover-open'))
+                      open.setAttribute('data-side', openSide(open, root.querySelector?.('[part="trigger"]') ?? null));
+                  });
+                };
+                addEventListener('scroll', entry.follow, VIEWPORT);
+                addEventListener('resize', entry.follow, VIEWPORT);
+              } else {
+                unfollow(entry);
                 entry.hideTimer = setTimeout(() => {
                   try {
                     menu.hidePopover?.();
@@ -711,6 +745,7 @@ export class VeraSelect extends HTMLElement {
                     /* detached or already hidden - the UA force-hid it */
                   }
                 }, 180);
+              }
             } catch {
               /* already in the requested state — nothing to do */
             }
@@ -809,6 +844,7 @@ export class VeraSelect extends HTMLElement {
       ((this as { _$c$?: Set<() => void> })._$c$ ??= new Set()).add(() => {
         clearTimeout(entry.hideTimer);
         clearTimeout(entry.timer); // the filter debounce must not fire on a detached element
+        unfollow(entry); // a detached open list stops listening to the page
       });
       const { state, handlers } = select;
 
@@ -869,7 +905,7 @@ export class VeraSelect extends HTMLElement {
 
       /** Keyboard travel, and the open, keep the active row visible: inside the list only, never the page. */
       effect(() => {
-        if (state.open && state.active >= 0) reveal(root.querySelector?.('[part="option"][data-active]') ?? null);
+        if (state.open && state.active >= 0) /*@__NOINLINE__*/ reveal(root.querySelector?.('[part="option"][data-active]') ?? null);
       }, { owner: this });
 
       /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */

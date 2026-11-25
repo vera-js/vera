@@ -321,6 +321,48 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
 });
 
 /**
+ * **An open list follows the page: scrolled until it would leave the screen below, it moves above, and back.** The side
+ * is chosen at the open and again after each scroll or resize while open (once a frame). CONTROL: before the scroll the
+ * open list is below its trigger.
+ */
+it('an open list moves above when a scroll leaves it no room below, and back below when room returns', async function () {
+  if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
+    this.skip();
+    return;
+  }
+  const spacer = document.body.appendChild(document.createElement('div'));
+  spacer.style.blockSize = '3000px';
+  const element = document.createElement('vera-select');
+  document.body.appendChild(element);
+  const tail = document.body.appendChild(document.createElement('div'));
+  tail.style.blockSize = '3000px';
+  element.options = OPTIONS;
+  await frame();
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  const menu = element.shadowRoot.querySelector('[part="menu"]');
+  const place = (y) => window.scrollBy(0, trigger.getBoundingClientRect().top - y);
+  /** Each side's read holds only for an open list with a box: a closed or collapsed one would read as "above". */
+  const shown = () => menu.matches(':popover-open') && menu.getBoundingClientRect().height > 20;
+  const below = () => shown() && menu.getBoundingClientRect().top >= trigger.getBoundingClientRect().bottom - 1;
+  const above = () => shown() && menu.getBoundingClientRect().bottom <= trigger.getBoundingClientRect().top + 1;
+  try {
+    place(Math.round(innerHeight * 0.3));
+    await frames(2);
+    trigger.click();
+    await until(() => menu.matches(':popover-open'), 'the menu to open', 2000);
+    await until(() => below(), 'CONTROL: the open list below its trigger', 2000);
+    place(innerHeight - trigger.getBoundingClientRect().height - 24);
+    await until(() => above(), 'the open list to move above once no room is left below', 2000);
+    place(Math.round(innerHeight * 0.3));
+    await until(() => below(), 'the open list to come back below when room returns', 2000);
+  } finally {
+    element.close();
+    window.scrollTo(0, 0);
+    for (const node of [spacer, element, tail]) node.remove();
+  }
+});
+
+/**
  * **Opening a select that has a value scrolls its list to that row, and only the list.** The row is revealed inside the
  * list by its rect, not by `scrollIntoView`, which scrolls every ancestor, the page included. The page holding still
  * was green on the scrollIntoView bytes too (Chromium, Firefox, WebKit): it guards the page, it did not catch a jump. The
@@ -365,7 +407,7 @@ it('marked aria-invalid (a field showing an error), the trigger takes the danger
     const element = document.createElement('vera-select');
     if (light) element.setAttribute('light', '');
     element.style.setProperty('--vera-danger', 'rgb(200, 0, 0)');
-    element.style.setProperty('--vera-border', 'rgb(0, 0, 200)');
+    element.style.setProperty('--vera-border-control', 'rgb(0, 0, 200)');
     document.body.appendChild(element);
     element.options = OPTIONS;
     await frame();
