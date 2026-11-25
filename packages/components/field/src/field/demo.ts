@@ -27,7 +27,7 @@ export const fieldDemo = {
     {
       title: "The browser's own messages",
       note: "native-messages keeps the browser's own bubble on a failed submit; an empty error part shows the browser's message",
-      markup: '<form novalidate><vera-field native-messages><label>Age</label><input type="number" min="18" required><small data-vera-part="error"></small></vera-field></form>',
+      markup: '<form novalidate><vera-field native-messages><label>Age</label><vera-input><input type="number" min="18" required></vera-input><small data-vera-part="error"></small></vera-field></form>',
     },
   ],
 } as const satisfies ComponentDemo;

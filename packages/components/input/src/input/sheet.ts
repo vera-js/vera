@@ -50,6 +50,9 @@ const box = (more = ''): string => `:where([data-vera-input-host]:not([data-vera
 /** The box while the input in it matches `state` (`:focus-visible`, `:disabled`, …): the box holds only the served input. */
 const boxWhen = (state: string): string => box(`:has(${state})`);
 
+/** The inner input, structurally: above a page's ordinary input rules (see the box's rules). */
+const inner = `${box()} input[data-vera-input]:not([data-vera-look="none"])`;
+
 const BUTTON =
   'display:inline-grid;place-items:center;box-sizing:border-box;inline-size:1.5em;block-size:1.5em;margin:0;padding:0;' +
   `border:0;border-radius:calc(${RADIUS} * .5);background:transparent;color:inherit;font:inherit;line-height:1;cursor:pointer`;
@@ -64,8 +67,15 @@ const BUTTON =
  * measured within noise.
  * The border turns `--vera-danger` on a control marked `aria-invalid="true"` or one the user has left invalid
  * (`:user-invalid`, which matches only once the user has committed a change); one rule, the two inside `:is()`, which
- * forgives a selector it does not know (`:has()` does not), so an engine without `:user-invalid` keeps the other. Inside `<vera-field>` the field sets the border token while it shows an error, so
- * this rule stays the one owner of the box's edge.
+ * forgives a selector it does not know (`:has()` does not), so an engine without `:user-invalid` keeps the other. Inside `<vera-field>` the field marks the control
+ * `aria-invalid` while it shows an error, so this rule is the one owner of the box's edge.
+ *
+ * **The inner input's resets are not zero specificity**: its border, background, padding, margin, font and outline must
+ * hold for the box to be a box, and a page's ordinary rules (`input {…}`, `.x :where(input)`, Bootstrap's
+ * `.form-control`) drew a box inside the box and kept the page's font size, so `sm` and `lg` read alike. So that one rule
+ * is keyed `input[data-vera-input]:not(…)` (0,2,1), above those: a rule styling the input inside the box is that
+ * mistake. Everything else stays at zero specificity, the parts included (a page's own class on a part is deliberate
+ * and wins), and `data-vera-look="none"` still drops all of it.
  */
 const BOX =
   `${box(':not([hidden])')}{display:inline-flex;align-items:center;gap:.25em;vertical-align:middle;box-sizing:border-box;` +
@@ -74,9 +84,8 @@ const BOX =
   `background:${SURFACE};color:${FG};transition:border-color .15s,outline-color .15s}` +
   `${box('[data-vera-input-host="sm"]')}{font-size:.875em}` +
   `${box('[data-vera-input-host="lg"]')}{font-size:1.125em}` +
-  `${box()} ${served('')}{flex:1;min-inline-size:0;margin:0;padding:.5em 0;border:0;background:transparent;color:inherit;font:inherit}` +
+  `${inner}{flex:1;min-inline-size:0;margin:0;padding:.5em 0;border:0;background:transparent;color:inherit;font:inherit;outline:0}` +
   `${box()} ${served('')}::placeholder{color:${FG_MUTED};opacity:1}` +
-  `${box()} ${served('')}{outline:0}` +
   `${box(':focus-within')}{outline:2px solid ${FOCUS};outline-offset:2px}` +
   `${boxWhen(':is(input[aria-invalid="true"],input:user-invalid)')}{border-color:${DANGER}}` +
   `${boxWhen('input:disabled')}{opacity:.5;cursor:not-allowed}` +

@@ -288,7 +288,8 @@ const CLAIMS = new Map([
   ['packages/components/input/README.md#99a0978f84', 'input-host-changed'], // the five are read once; a later host change does not reach the input, and development says so
   ['packages/components/input/README.md#0d3725c949', 'input-size-on-host'], // not size (development warns on a host size)
   ['packages/components/input/README.md#a94af9870c', 'input-reveal-not-password'], // reveal on another type does nothing, and development says so
-  ['packages/components/input/README.md#84281e2bfe', 'pinned by tests/browser/input.test.js: the glyph is shown, hides with the part, and another component of the same part name gets none'], // glyphs as generated content with empty alt text; named by the label
+  ['packages/components/input/README.md#dbceab3fc5', 'pinned by tests/browser/input.test.js: the glyph is shown, hides with the part, and another component of the same part name gets none'], // glyphs as generated content with empty alt text; named by the label
+  ['packages/components/input/README.md#93b8b9cb9f', 'input-inner-border'], // Development warns when a rule stronger still draws a border on the input inside the box.
   ['packages/components/icon/README.md#4910d24a5b', 'icon-scheme'], // every scheme but relative and same-origin http(s) is refused — development says why
   ['llms.txt#c5ee82cf78', 'pinned by tests/renderer-until.test.mjs: a rejection is the platform\'s unhandled rejection, with the fallback kept (the child-process row)'], // A rejection keeps the fallback and the BROWSER reports it (unhandled: console + `unhandledrejection`); …
   ['packages/renderer/README.md#4f2635a426', 'pinned by tests/renderer-until.test.mjs: continuity, a dropped late answer, removal, a non-promise, and a rejection reported by the platform — each its own row'], // Make the promise in the setup, as above; … - **A rejection** keeps the fallback, and the browser reports it …

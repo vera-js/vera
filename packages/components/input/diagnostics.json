@@ -10,6 +10,12 @@
       "fix": "Change the input itself (it is the source of truth once rendered), or write your own <input> inside."
     },
     {
+      "code": "input-inner-border",
+      "params": [],
+      "message": "draws a border on the input inside its box, from a page rule stronger than the look (an id or !important), so the box shows a box inside it.",
+      "fix": "Scope that rule away from inputs inside <vera-input>, or set data-vera-look=\"none\" on the host to style the input yourself."
+    },
+    {
       "code": "input-no-name",
       "params": [],
       "message": "holds an input with no accessible name (no label, aria-label, aria-labelledby or title), so a screen reader announces only its type.",

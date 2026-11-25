@@ -99,7 +99,11 @@ only visual.
   dark mode follows the page's `color-scheme` (`:root { color-scheme: light dark }`). The look needs `light-dark()`
   (Chromium 123, Firefox 120, Safari 17.5); below that, a token you have not set is left unset.
 - Every rule is at zero specificity (`:where`) and keyed on the parts, never the tag, so `defineAs('my-input')` looks
-  the same and any rule of yours wins, a utility class on a part included. A hidden part stays hidden.
+  the same and any rule of yours wins, a utility class on a part included. A hidden part stays hidden. One exception:
+  the input inside the box keeps its border, background, padding, font and outline reset above a page's ordinary
+  `input` rules (a reset's, a framework's `.form-control`), because a rule styling the input inside the box draws a box
+  inside the box. To style the input yourself, set `data-vera-look="none"` on the host. Development warns when a rule
+  stronger still (an id, `!important`) draws a border on the input inside the box.
 - `data-vera-look="none"` on the host or on a part drops our look; the parts stay.
 
 ## Before the script runs

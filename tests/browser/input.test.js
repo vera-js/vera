@@ -469,6 +469,43 @@ describe('vera-input: the box', () => {
     wrap.remove();
   });
 
+  it("a page's ordinary input rules draw no box inside the box and do not fix its size (CONTROL: under look none they apply)", async () => {
+    const page = document.createElement('style');
+    page.textContent = 'input { border: 3px solid red; padding: 9px; font-size: 15px; background: yellow } .page :where(input) { border-width: 4px } .form-control { border: 5px solid blue }';
+    document.head.append(page);
+    const wrap = await mount('<div class="page"><vera-input scale="sm"><input class="form-control"></vera-input><vera-input scale="lg"><input></vera-input><vera-input data-vera-look="none"><input></vera-input></div>');
+    const [sm, lg, off] = wrap.querySelectorAll('vera-input');
+    const inner = (host) => style(host.querySelector('input'));
+    expect(px(inner(sm).borderTopWidth), `${ON}: no border inside the box, a class on the input included`).to.equal(0);
+    expect(inner(sm).backgroundColor, `${ON}: no page background inside the box`).to.equal('rgba(0, 0, 0, 0)');
+    expect(px(inner(lg).fontSize), `${ON}: the page's font size does not fix the input's: lg is larger than sm`).to.be.above(px(inner(sm).fontSize));
+    expect(px(inner(off).borderTopWidth), "CONTROL: look none: the page's rules apply").to.be.above(0);
+    page.remove();
+    wrap.remove();
+  });
+
+  it('development warns when a page rule stronger than the reset draws a border inside the box (CONTROL: an ordinary page says nothing)', async () => {
+    const said = [];
+    const original = console.warn;
+    console.warn = (...args) => said.push(args.join(' '));
+    const page = document.createElement('style');
+    page.textContent = '#strong input { border: 2px solid red }';
+    document.head.append(page);
+    try {
+      const quiet = await mount('<label>q <vera-input><input></vera-input></label>');
+      const strong = await mount('<div id="strong"><label>q <vera-input><input></vera-input></label></div>');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const inner = said.filter((line) => line.includes('input-inner-border'));
+      expect(inner.length, `${ON}: one warning, for the box under the stronger rule (said: ${said.join(' | ')})`).to.equal(1);
+      expect(inner[0].startsWith('[vera]'), 'the convention prefix').to.equal(true);
+      quiet.remove();
+      strong.remove();
+    } finally {
+      console.warn = original;
+      page.remove();
+    }
+  });
+
   it('a disabled input dims the box', async () => {
     const wrap = await mount('<vera-input><input disabled></vera-input><vera-input><input></vera-input>');
     const [disabled, enabled] = wrap.querySelectorAll('vera-input');

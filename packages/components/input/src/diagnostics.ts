@@ -19,6 +19,10 @@ export const PROSE: Record<string, Prose> = {
     'has a size attribute, which <vera-input> does not read (on <input> it means a width in characters).',
     'Use scale="sm|md|lg" for the size, or put size on the <input> itself.',
   ],
+  'input-inner-border': () => [
+    'draws a border on the input inside its box, from a page rule stronger than the look (an id or !important), so the box shows a box inside it.',
+    'Scope that rule away from inputs inside <vera-input>, or set data-vera-look="none" on the host to style the input yourself.',
+  ],
   'input-host-changed': (name) => [
     `had ${name} changed after it rendered its default input, which keeps the value it was made with.`,
     'Change the input itself (it is the source of truth once rendered), or write your own <input> inside.',

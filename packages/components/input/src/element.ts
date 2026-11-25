@@ -142,6 +142,18 @@ const warn = (host: InputHost, input: HTMLInputElement): void => {
       console.warn(diagnostic('input', subject, 'input-reveal-not-password', __DEV__ && PROSE['input-reveal-not-password'](quoted(input.type))));
     else if (code === 'input-size-on-host') console.warn(diagnostic('input', subject, 'input-size-on-host', __DEV__ && PROSE['input-size-on-host']()));
     else code satisfies never;
+  /**
+   * A box inside the box: the look resets the inner input's border above a page's ordinary rules, so a border still
+   * computed there comes from a rule stronger still (an id, `!important`). Read once, here, in development only, and
+   * only where the look is in force: the box itself draws a border (where the sheet could not be adopted, jsdom
+   * among them, the input keeps the UA's border and nothing is wrong).
+   */
+  if (host.hasAttribute('data-vera-input-host') && !host.closest('[data-vera-look="none"]') && !input.closest('[data-vera-look="none"]')) {
+    const view = host.ownerDocument.defaultView;
+    const width = (node: Element) => parseFloat(view!.getComputedStyle(node).borderTopWidth) || 0;
+    if (view !== null && width(host) > 0 && width(input) > 0)
+      console.warn(diagnostic('input', subject, 'input-inner-border', __DEV__ && PROSE['input-inner-border']()));
+  }
 };
 
 /**
