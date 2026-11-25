@@ -26,6 +26,8 @@ export default [
       'vera-studio/**',
       '**/*.min.js',
       'bench/.size-*/**',
+      // The field race's competitor bundles (MUI, Chakra, Shoelace, minified), written beside it and gitignored.
+      'bench/components/.out/**',
       /**
        * Ad-hoc audit probes. `.gitignore` has carried `.probe/` since the day a probe was swept into
        * a commit, but eslint has its own ignore list and did not — so a probe left in the tree fails

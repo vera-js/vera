@@ -97,6 +97,32 @@ driven with `flushSync` so its work lands inside the measurement.
 All four implementations are verified to emit **identical markup** from one seeded generator across
 create / select / update / swap / remove / clear. If they diverge, the comparison is invalid.
 
+## Components: a form field against the component libraries
+
+```bash
+cd bench && npm install
+node components/field-race.mjs 15 chromium     # or firefox, webkit; VERA_ROOT=<checkout> to race another build
+```
+
+Mounts 300 form fields (a label, an email input, a hint) in each arm: Vera's `<vera-field>` around a `<vera-input>`,
+Vera's field around a plain input, MUI's `TextField`, Chakra's `Field` with `Input`, Shoelace's `<sl-input>`, and
+hand-written HTML with no script or look as the floor. The time runs from the mount to the library's own "done" (React's
+first commit by `flushSync`, Shoelace's `updateComplete`, Vera's `flush()`) plus one forced layout, each sample in a
+fresh page, the arms shuffled by a seed, in a real headed browser. Every sample must hold 300 textboxes whose accessible
+name is "Email", or the run reports the arm as failed: an arm that rendered nothing cannot read as fast.
+
+Measured 2026-11-25, Windows 11, Playwright's engines, 15 pages per arm, medians in ms (React 19.2.8, MUI 9.6.0,
+Chakra 3.38.0, Shoelace 2.20.1):
+
+| 300 fields | Chromium 159 | Firefox 159 | WebKit 27.2 |
+| --- | --- | --- | --- |
+| HTML, no script (floor) | 36.2 | 34 | 23 |
+| Vera field, plain input | 50.4 | 38 | 43 |
+| Vera field + Vera input | 58.1 | 50 | 60 |
+| Shoelace `sl-input` | 88.6 | 98 | 106 |
+| Chakra `Field` | 134.5 | 344 | 155 |
+| MUI `TextField` | 148.1 | 195 | 159 |
+
 ## Caveats
 
 Runs under jsdom on V8. Proxy, allocation and Map costs are representative of a browser; layout and
