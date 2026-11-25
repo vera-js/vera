@@ -291,9 +291,16 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
   const open = async () => {
     trigger.click();
     await until(() => menu.matches(':popover-open'), 'the menu to open', 2000);
-    /** Settled: the open's slide has ended (no transition on the menu still running). */
-    await frames(1);
-    await until(() => menu.getAnimations().every((a) => a.playState !== 'running'), 'the menu to settle (its slide ended)', 2000);
+    /**
+     * Settled: no transition on the menu running, and its top the same across a frame. The first alone passed before
+     * the slide had begun on WebKit once (a read of 214.8 where the list ends at 220).
+     */
+    for (let left = 120; ; left--) {
+      if (left === 0) throw new Error('timed out waiting for the menu to settle (its slide ended, the same top a frame apart)');
+      const top = menu.getBoundingClientRect().top;
+      await frames(1);
+      if (menu.getAnimations().every((a) => a.playState !== 'running') && menu.getBoundingClientRect().top === top) break;
+    }
   };
   const close = async () => {
     element.close();
