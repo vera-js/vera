@@ -19,7 +19,7 @@ import type { ErrorPart, Validity } from './field/choose.js';
 import { step } from './field/count.js';
 import type { Spoken } from './field/count.js';
 
-/** The tag and the element's declared options, handed to core's `define` by `register.ts`. */
+/** The tag and the element's declared options, handed to core's `define` by `register.ts`, and ownsChildren: its children are the author's (a label, a control, hints and errors), so a page wiring light-DOM slots must not park them. */
 export const options = { tag: 'vera-field', ownsChildren: true } as const;
 
 /** The elements a `label[for]` can name; any other control is named through `aria-labelledby` (labeled decides). */

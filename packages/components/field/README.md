@@ -43,3 +43,5 @@ only after the length falls back well below the line. The words are yours: `limi
 `{left}`, or `count-message-<category>` for the plural form of `{left}` in the field's language (the closest `lang`,
 through `Intl.PluralRules`: `count-message-one`, `-few`, `-many`, `-other`, …). The English defaults are
 "8 characters left", "1 character left" and "Limit reached".
+
+**On a page that wires light-DOM slots** (`@verajs/renderer/slots`, for another component), `<vera-field>` keeps its children where you wrote them: they are its own, not content for a `<slot>`.

@@ -46,3 +46,5 @@ Chromium, Firefox and WebKit). Put the sprite inside the same root, or use a fil
 
 A child `<svg>` shows before upgrade. A `src` icon shows once the element upgrades, or straight away when the page is
 server-rendered with `@verajs/ssr`.
+
+**On a page that wires light-DOM slots** (`@verajs/renderer/slots`, for another component), `<vera-icon>` keeps its children where you wrote them: they are its own, not content for a `<slot>`.

@@ -11,7 +11,7 @@ import { effect, html } from '@verajs/core';
 import { diagnostic, quoted } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
 
-/** The tag and the element's declared attributes, handed to core's `define` by `register.ts`. */
+/** The tag and the element's declared attributes, handed to core's `define` by `register.ts`, and ownsChildren: its child `<svg>` is the author's, so a page wiring light-DOM slots must not park it. */
 export const options = { tag: 'vera-icon', attributes: ['label', 'src'], ownsChildren: true } as const;
 
 /** What `define` hands the setup: the element, with its two declared attributes as props. */

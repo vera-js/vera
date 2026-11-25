@@ -99,3 +99,5 @@ only visual.
 Your input is already a working input with your prefix and suffix text around it: it can be focused, typed in and
 submitted before `<vera-input>` is defined, and with no script at all. A default input (when you wrote none) exists
 before the script only when a server rendered it.
+
+**On a page that wires light-DOM slots** (`@verajs/renderer/slots`, for another component), `<vera-input>` keeps its children where you wrote them: they are its own, not content for a `<slot>`.
