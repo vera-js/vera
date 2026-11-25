@@ -8,7 +8,8 @@
  * under the trigger at its inline start, flipping to the other block or inline side when it does not fit, its block size
  * clamped to the viewport and scrolling. Where an engine lacks anchor positioning the popover keeps the platform's own
  * centered placement. Entry and exit fade under `prefers-reduced-motion: no-preference` (`@starting-style`; the exit is
- * instant where `display` cannot transition). Forced colors: the focused item is `Highlight`.
+ * instant where `display` cannot transition). The item under the pointer and the focused item fill with the hover token, the
+ * fill fading in over 120ms under the same media query. Forced colors: the focused item is `Highlight`.
  */
 import { BORDER, FG, FG_MUTED, HOVER, RADIUS, SHADOW, SURFACE } from '@verajs/shared-utils';
 
@@ -32,6 +33,8 @@ export const LOOK =
   `${look(ITEM)}{display:flex;align-items:center;gap:8px;inline-size:100%;box-sizing:border-box;padding:6px 8px;border:0;` +
   `border-radius:calc(${RADIUS} - 4px);background:none;color:inherit;font:inherit;text-align:start;text-decoration:none;cursor:default}` +
   `${look(`${ITEM}:focus`)}{outline:none;background:${HOVER}}` +
+  /** The pointer's item fills too: a hover does not move focus, so without it a mouse got no answer. */
+  `${look(`${ITEM}:hover:not(:disabled,[aria-disabled="true"])`)}{background:${HOVER}}` +
   `${look(`${ITEM}:is(:disabled,[aria-disabled="true"])`)}{opacity:.5}` +
   `${look(`${ITEM} :where(kbd,vera-kbd)`)}{margin-inline-start:auto;color:${FG_MUTED};font-size:.85em}` +
   `${look(`${ITEM}[aria-checked]::before`)}{content:"";inline-size:1em;text-align:center}` +
@@ -40,6 +43,7 @@ export const LOOK =
   `${look(`${MENU} :where(hr)`)}{margin:4px 0;border:0;border-block-start:1px solid ${BORDER}}` +
   '@media (prefers-reduced-motion:no-preference){' +
   `${look(MENU)}{transition:opacity 120ms ease,display 120ms allow-discrete,overlay 120ms allow-discrete}` +
+  `${look(ITEM)}{transition:background-color 120ms ease}` +
   `${look(`${MENU}:not(:popover-open)`)}{opacity:0}` +
   `@starting-style{${look(`${MENU}:popover-open`)}{opacity:0}}}` +
   '@media (forced-colors:active){' +
