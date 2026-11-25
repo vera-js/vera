@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { playwrightLauncher } from '@web/test-runner-playwright';
+import { extendSeeds } from './tests/fuzz-seeds.mjs';
 
 /**
  * Browser-truth test layer.
@@ -55,6 +56,19 @@ const failOnce = () => {
   };
 };
 
+/**
+ * **The seeds a browser fuzz walks**: `/fuzz-seeds?base=1,2` answers `extendSeeds(base)` as JSON, so a suite running in a
+ * page keeps the node suites' one contract (`tests/fuzz-seeds.mjs`): the standing seeds locally, rotated extras in CI,
+ * `VERA_FUZZ_SEEDS` to replay, the banner printed once by this process. A page cannot read the environment itself.
+ */
+const fuzzSeeds = async (ctx, next) => {
+  if (ctx.path !== '/fuzz-seeds') return next();
+  const base = String(ctx.query.base ?? '').split(',').filter(Boolean).map(Number).filter(Number.isInteger);
+  ctx.set('cache-control', 'no-store');
+  ctx.type = 'application/json';
+  ctx.body = JSON.stringify(extendSeeds(base));
+};
+
 export default {
   /**
    * **The root in its canonical spelling, not the launching shell's.** On Windows the drive letter's case follows how the
@@ -85,6 +99,7 @@ export default {
       ctx.req.on('close', () => res.end());
     },
     failOnce(),
+    fuzzSeeds,
   ],
   /**
    * WebKit is the one that matters most and the one nothing else would catch: `@scope` and
