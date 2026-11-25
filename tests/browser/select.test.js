@@ -321,11 +321,12 @@ it('on a scrolled page the list opens below a trigger with room below, reopened 
 });
 
 /**
- * **Opening a select that has a value leaves the page where it was.** The open revealed the selected row with
- * `scrollIntoView`, which scrolls every ancestor: on a scrolled page, at the open's first layout, it scrolled the page
- * away (to the bottom, on the components page). CONTROL: the list itself does scroll to show a row past its end.
+ * **Opening a select that has a value scrolls its list to that row, and only the list.** The row is revealed inside the
+ * list by its rect, not by `scrollIntoView`, which scrolls every ancestor, the page included. The page holding still
+ * was green on the scrollIntoView bytes too (Chromium, Firefox, WebKit): it guards the page, it did not catch a jump. The
+ * list's own scroll is what this row can fail on (a reveal that does nothing leaves it at 0).
  */
-it('opening a select with a value on a scrolled page does not scroll the page; the list scrolls to its row', async function () {
+it('opening a select with a value scrolls its list to the row, and the page holds still', async function () {
   if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
     this.skip();
     return;
@@ -351,7 +352,7 @@ it('opening a select with a value on a scrolled page does not scroll the page; t
     await until(() => element.shadowRoot.querySelector('[part="menu"]').matches(':popover-open'), 'the menu to open', 2000);
     await frames(4);
     expect(window.scrollY).to.equal(before, 'the page did not move');
-    expect(list.scrollTop).to.be.greaterThan(0, 'CONTROL: the list scrolled to the selected row, past its end');
+    expect(list.scrollTop).to.be.greaterThan(0, 'the list scrolled to the selected row, past its end');
   } finally {
     element.close();
     window.scrollTo(0, 0);
