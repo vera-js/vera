@@ -25,7 +25,7 @@
  *   two system colors, so it is still seen to move.
  */
 
-import { BORDER, DANGER, FG, FG_MUTED, FOCUS, RADIUS, SURFACE } from '@verajs/shared-utils';
+import { BORDER, DANGER, FG, FG_MUTED, FOCUS, HOVER, RADIUS, SURFACE } from '@verajs/shared-utils';
 
 /** The root's key for the input's rules (`adoptOwnSheet`), a `_$…$` name the minifier leaves alone. */
 export const SHEET = '_$veraInputLook$';
@@ -52,6 +52,13 @@ const boxWhen = (state: string): string => box(`:has(${state})`);
 
 /** The inner input, structurally: above a page's ordinary input rules (see the box's rules). */
 const inner = `${box()} input[data-vera-input]:not([data-vera-look="none"])`;
+
+/**
+ * A step part, inside the stepper: keyed under the stepper part, so the host's or the stepper's `data-vera-look="none"`
+ * drops both halves with it.
+ */
+const stepPart = (name: string, more = ''): string =>
+  `${part('stepper')}>:where([data-vera-part="${name}"][data-vera-input]:not([data-vera-look="none"])${more})`;
 
 const BUTTON =
   'display:inline-grid;place-items:center;box-sizing:border-box;inline-size:1.5em;block-size:1.5em;margin:0;padding:0;' +
@@ -89,6 +96,9 @@ const BOX =
   `${box(':focus-within')}{outline:2px solid ${FOCUS};outline-offset:2px}` +
   `${boxWhen(':is(input[aria-invalid="true"],input:user-invalid)')}{border-color:${DANGER}}` +
   `${boxWhen('input:disabled')}{opacity:.5;cursor:not-allowed}` +
+  `${inner}[type="number"]{appearance:textfield}` +
+  `${inner}[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;appearance:none;margin:0}` +
+  `${inner}[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}` +
   `@media (prefers-reduced-motion:reduce){${box()}{transition:none}}` +
   `@media (forced-colors:active){${box(':focus-within')}{outline-color:Highlight}}`;
 
@@ -102,6 +112,14 @@ export const LOOK =
   `${part('loading', ':not([hidden])')}{display:inline-block;box-sizing:border-box;inline-size:1em;block-size:1em;` +
   'border:.125em solid color-mix(in srgb,currentColor 25%,transparent);border-block-start-color:currentColor;' +
   'border-radius:50%;animation:vera-input-turn .8s linear infinite}' +
+  `${part('stepper', ':not([hidden])')}{display:inline-flex;flex:none;gap:.125em}` +
+  `${stepPart('step-down')},${stepPart('step-up')}{display:inline-grid;place-items:center;box-sizing:border-box;` +
+  `inline-size:1.5em;block-size:1.5em;border-radius:calc(${RADIUS} * .5);line-height:1;cursor:pointer;user-select:none;` +
+  '-webkit-user-select:none;touch-action:none}' +
+  `${stepPart('step-down')}:hover,${stepPart('step-up')}:hover{background:${HOVER}}` +
+  `${stepPart('step-down')}::before{content:"\\2212" / ""}` +
+  `${stepPart('step-up')}::before{content:"+" / ""}` +
+  `${boxWhen('input:is(:disabled,:read-only)')} ${stepPart('step-down')},${boxWhen('input:is(:disabled,:read-only)')} ${stepPart('step-up')}{cursor:inherit;background:transparent}` +
   `${part('caps-lock', ':not([hidden])')}{display:inline-block;font-size:.875em}` +
   `${served('', ':has(~[data-vera-part="clear"][data-vera-input])')}::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}` +
   '@keyframes vera-input-turn{to{transform:rotate(1turn)}}' +

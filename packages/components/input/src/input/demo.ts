@@ -6,7 +6,7 @@ import type { ComponentDemo } from '@verajs/shared-types';
  * check reads the rendered DOM, so they count.
  */
 export const inputDemo = {
-  ask: "Unthemed on purpose: only the glyphs and the loading ring are ours; the input's own border is the browser's, and theming is by tokens. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, and Escape on the search.",
+  ask: "The box is ours: the shared border, radius, surface and focus tokens, with your input borderless inside it and the parts beside it. Try clearing (and undoing with Ctrl/Cmd+Z), revealing the password, Escape on the search, and holding a step button on the number.",
   states: [
     { title: 'Search, clearable', note: 'Escape clears a search input', markup: '<label>Search <vera-input clearable clear-label="Clear search"><input type="search" name="q" value="vera"></vera-input></label>' },
     {
@@ -26,7 +26,12 @@ export const inputDemo = {
     {
       title: 'Sizes',
       note: 'scale: sm and lg around the page\'s font size (md)',
-      markup: '<label>Small <vera-input scale="sm"><input name="s"></vera-input></label> <label>Large <vera-input scale="lg"><input name="l"></vera-input></label>',
+      markup: '<p><label>Small <vera-input scale="sm"><input name="s"></vera-input></label></p><p><label>Large <vera-input scale="lg"><input name="l"></vera-input></label></p>',
+    },
+    {
+      title: 'A number, with the stepper',
+      note: "The engine's spin buttons are hidden; − and + step it, held to repeat; the keyboard steps with the arrows",
+      markup: '<label>Quantity <vera-input><input type="number" name="n" value="3" min="0" max="10"></vera-input></label>',
     },
     {
       title: 'Disabled by its fieldset',

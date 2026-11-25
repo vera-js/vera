@@ -99,6 +99,13 @@ if (SCENARIO === 'ssr') {
     await Promise.resolve();
     flush();
     out.states['a password input with reveal and caps-lock-hint'] = [...new Set([...secret.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
+    const number = document.createElement(TAG);
+    number.innerHTML = '<input aria-label="Quantity" type="number">';
+    document.body.append(number);
+    flush();
+    await Promise.resolve();
+    flush();
+    out.states['a number input'] = [...new Set([...number.querySelectorAll('[data-vera-part]')].map((node) => node.getAttribute('data-vera-part')))].sort();
     out.observed = [...(Class.observedAttributes ?? [])].sort();
   }
   process.stdout.write(JSON.stringify(out));

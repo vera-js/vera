@@ -81,6 +81,16 @@ The hint reads Caps Lock from the input's own key events, the only reliable sour
 pressed with Caps Lock on, not at focus. It is announced once per focus, through `@vera-hooks/announce`, and is never
 only visual.
 
+## Number inputs
+
+A `type="number"` input gets a stepper: `[data-vera-part="step-down"]` and `[data-vera-part="step-up"]` beside it, inside
+`[data-vera-part="stepper"]`, which is `aria-hidden`. A press steps by the input's `step` (by 1 under `step="any"`),
+within its `min` and `max`, and held, repeats after a pause, as the browser's own spinner does: `input` fires per
+step that moved the value, and `change` once, when the press ends. The parts are a pointer's way only, never focused (a
+press keeps focus in the input): the input is a spinbutton, and the keyboard steps it with the arrow keys. A disabled
+or read-only input steps nothing. Under the look the browser's own spin buttons are hidden, so there is one stepper,
+not two; with `data-vera-look="none"` they are the browser's again. Each part is 1.5em square, 24px on a 16px page.
+
 ## Look
 
 - **The box is the element**: a hairline border, rounded corners, the surface and text colors, 2.25em tall (36px on a
@@ -95,7 +105,7 @@ only visual.
 - On a clearable search input, the browser's own cancel button is hidden, so there is one clear glyph, not two.
 - The rules are adopted by the element itself, so the buttons are seen whether or not the app wired `@verajs/styles`.
 - The shared tokens: `--vera-border`, `--vera-radius`, `--vera-surface`, `--vera-fg`, `--vera-fg-muted` (the
-  placeholder), `--vera-focus` (the ring) and `--vera-danger`. Set them on `:root` to restyle every component at once;
+  placeholder), `--vera-focus` (the ring), `--vera-hover` (a step part under the pointer) and `--vera-danger`. Set them on `:root` to restyle every component at once;
   dark mode follows the page's `color-scheme` (`:root { color-scheme: light dark }`). The look needs `light-dark()`
   (Chromium 123, Firefox 120, Safari 17.5); below that, a token you have not set is left unset.
 - Every rule is at zero specificity (`:where`) and keyed on the parts, never the tag, so `defineAs('my-input')` looks
