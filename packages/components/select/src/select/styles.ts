@@ -233,14 +233,21 @@ export const SELECT_STYLES = /* css */ `
    * root: in the light DOM it is document-wide and the last trigger in tree order wins, so every
    * light dropdown's menu opened under the last one on the page.
    */
-  @supports (top: anchor(bottom)) {
+  @supports (top: anchor(bottom)) and (position-area: block-end) {
     :where([part='menu'][popover]) {
       position: fixed;
       inset: auto;
       padding: 0;
       box-sizing: border-box;
-      top: calc(anchor(bottom) + 4px);
-      left: anchor(left);
+      /*
+       * Below the trigger, from its inline start, by position-area (menu's placement). Placed by top: anchor(bottom)
+       * and left: anchor(left) instead, the list opened ABOVE a trigger with room below on any scrolled page, in
+       * Chromium 159 and WebKit (Playwright, 2026-11-25): at the open the flip-block fallback was judged as if the page
+       * were not scrolled (Chromium's first layout read top 9213px at scrollY 9001), and the engine kept it. Near the top
+       * of a page it opened down, which is why it looked random. Firefox placed it right either way.
+       */
+      position-area: block-end span-inline-end;
+      margin-block: 4px;
       /*
        * At least the trigger's width, wider when an option needs it, like a native select's list (a list only as wide
        * as a short trigger wrapped every description), and never past the viewport.
@@ -248,7 +255,7 @@ export const SELECT_STYLES = /* css */ `
       min-inline-size: anchor-size(width);
       inline-size: max-content;
       max-inline-size: min(28rem, calc(100vw - 16px));
-      margin: 0;
+      margin-inline: 0;
       position-try-fallbacks: flip-block;
     }
     :where([part='menu'][popover]:popover-open) {

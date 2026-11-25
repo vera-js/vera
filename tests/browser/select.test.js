@@ -265,6 +265,87 @@ it('the anchor tier: the menu rides the top layer and escapes an overflow:hidden
   clip.remove();
 });
 
+/**
+ * **On a scrolled page the list opens below a trigger with room below, and again when reopened.** Placed by
+ * `top: anchor(bottom)`, it opened ABOVE in Chromium 159 and WebKit whenever the page was scrolled (the flip judged as if
+ * unscrolled at the open, and kept); near the top of a page it opened down, so it looked random. CONTROL: a trigger near
+ * the viewport's bottom still flips, so the fallback is alive, not removed.
+ */
+it('on a scrolled page the list opens below a trigger with room below, reopened too; near the bottom it flips', async function () {
+  if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
+    this.skip();
+    return;
+  }
+  const spacer = document.body.appendChild(document.createElement('div'));
+  spacer.style.blockSize = '3000px';
+  const element = document.createElement('vera-select');
+  document.body.appendChild(element);
+  const tail = document.body.appendChild(document.createElement('div'));
+  tail.style.blockSize = '3000px';
+  element.options = OPTIONS;
+  await frame();
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  const menu = element.shadowRoot.querySelector('[part="menu"]');
+  const place = (y) => window.scrollBy(0, trigger.getBoundingClientRect().top - y);
+  const open = async () => {
+    trigger.click();
+    await until(() => menu.matches(':popover-open'), 'the menu to open', 2000);
+    /** Settled: the open's slide has ended (two reads a frame apart agree). */
+    let last = NaN;
+    await until(() => {
+      const top = menu.getBoundingClientRect().top;
+      const same = top === last;
+      last = top;
+      return same;
+    }, () => `the menu to settle (top ${menu.getBoundingClientRect().top})`, 2000);
+  };
+  const close = async () => {
+    element.close();
+    await until(() => !menu.matches(':popover-open'), 'the menu to close', 3000);
+  };
+  try {
+    place(Math.round(innerHeight * 0.3));
+    expect(window.scrollY).to.be.greaterThan(2000, 'CONTROL: the page is scrolled');
+    await open();
+    expect(menu.getBoundingClientRect().top).to.be.at.least(trigger.getBoundingClientRect().bottom - 1, 'opened below the trigger');
+    await close();
+    await open();
+    expect(menu.getBoundingClientRect().top).to.be.at.least(trigger.getBoundingClientRect().bottom - 1, 'reopened below the trigger');
+    await close();
+    place(innerHeight - trigger.getBoundingClientRect().height - 24);
+    await open();
+    expect(menu.getBoundingClientRect().bottom).to.be.at.most(trigger.getBoundingClientRect().top + 1, 'CONTROL: near the bottom it flips above');
+    await close();
+  } finally {
+    window.scrollTo(0, 0);
+    for (const node of [spacer, element, tail]) node.remove();
+  }
+});
+
+it('the list grows past a narrow trigger to fit a long option, up to its cap', async function () {
+  if (!(CSS.supports('top: anchor(bottom)') && CSS.supports('position-area: block-end') && 'showPopover' in HTMLElement.prototype)) {
+    this.skip();
+    return;
+  }
+  const element = document.createElement('vera-select');
+  element.style.inlineSize = '80px';
+  document.body.appendChild(element);
+  element.options = [{ value: 'a', label: 'A' }, { value: 'b', label: 'A considerably longer option than its trigger is wide' }];
+  await frame();
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  const menu = element.shadowRoot.querySelector('[part="menu"]');
+  try {
+    trigger.click();
+    await until(() => menu.matches(':popover-open'), 'the menu to open', 2000);
+    const width = menu.getBoundingClientRect().width;
+    expect(width).to.be.greaterThan(trigger.getBoundingClientRect().width + 40, 'the list grew past the trigger for its long option');
+    expect(width).to.be.at.most(28 * parseFloat(getComputedStyle(document.documentElement).fontSize) + 1, 'and stops at 28rem');
+  } finally {
+    element.close();
+    element.remove();
+  }
+});
+
 it('below the tier or beside a slotted trigger, the fallback menu still works inside the host', async () => {
   const element = document.createElement('vera-select');
   const trigger = document.createElement('button');
