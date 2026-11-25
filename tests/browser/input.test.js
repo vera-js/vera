@@ -438,6 +438,23 @@ describe('vera-input: the box', () => {
     wrap.remove();
   });
 
+  /**
+   * The box's height is its own, whatever line height the input inherits: Firefox on macOS draws `normal` taller, and
+   * with the input's own block padding setting the height its box read 37.2px at a 16px page. Planted here through
+   * inheritance (the inner reset's `font: inherit` carries a page's line height in; a rule on `input` loses to the reset).
+   */
+  it("the box is 2.25em tall under any inherited line height, and the input fills its height (CONTROL: the plant reaches the input)", async () => {
+    const wrap = await mount('<div style="font-size: 20px; line-height: 2"><vera-input><input value="x"></vera-input><vera-input><input type="number"></vera-input></div>');
+    const [text, number] = wrap.querySelectorAll('vera-input');
+    const input = text.querySelector('input');
+    expect(style(input).lineHeight, 'CONTROL: the inherited line height reaches the input').to.equal('40px');
+    expect(text.getBoundingClientRect().height, `${ON}: 2.25em at a 20px page, not the line height`).to.be.closeTo(45, 1);
+    expect(number.getBoundingClientRect().height, `${ON}: a number box the same`).to.be.closeTo(text.getBoundingClientRect().height, 0.5);
+    const inner = text.clientHeight;
+    expect(input.getBoundingClientRect().height, `${ON}: the input fills the box's content height, so a click anywhere in it lands on the input`).to.be.closeTo(inner, 1);
+    wrap.remove();
+  });
+
   it('focus draws one ring, on the box: a 2px solid outline offset 2px, and none on the input; it goes with the focus', async () => {
     const wrap = await mount('<vera-input><input></vera-input><button>after</button>');
     const host = wrap.querySelector('vera-input');

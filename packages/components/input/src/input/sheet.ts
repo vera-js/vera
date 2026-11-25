@@ -58,6 +58,10 @@ const BUTTON =
  * forgives a selector it does not know (`:has()` does not), so an engine without `:user-invalid` keeps the other. Inside `<vera-field>` the field marks the control
  * `aria-invalid` while it shows an error, so this rule is the one owner of the box's edge.
  *
+ * **The box's height is its own** (`min-block-size: 2.25em`): the inner input has no block padding and stretches to the box's
+ * content height, centering its text as an input does. With `padding: .5em 0` the input's line height set the height
+ * instead, and Firefox on macOS, whose `normal` line height is taller, drew the box 37.2px at a 16px page, not 36.
+ *
  * **The inner input's resets are not zero specificity**: its border, background, padding, margin, font and outline must
  * hold for the box to be a box, and a page's ordinary rules (`input {…}`, `.x :where(input)`, Bootstrap's
  * `.form-control`) drew a box inside the box and kept the page's font size, so `sm` and `lg` read alike. So that one rule
@@ -72,7 +76,7 @@ const BOX =
   `background:${SURFACE};color:${FG};transition:border-color .15s,outline-color .15s}` +
   `${box('[data-vera-input-host="sm"]')}{font-size:.875em}` +
   `${box('[data-vera-input-host="lg"]')}{font-size:1.125em}` +
-  `${inner}{flex:1;min-inline-size:0;margin:0;padding:.5em 0;border:0;background:transparent;color:inherit;font:inherit;outline:0}` +
+  `${inner}{flex:1;align-self:stretch;min-inline-size:0;margin:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;outline:0}` +
   `${box()} ${served('')}::placeholder{color:${FG_MUTED};opacity:1}` +
   `${box(':focus-within')}{outline:2px solid ${FOCUS};outline-offset:2px}` +
   `${boxWhen(':is(input[aria-invalid="true"],input:user-invalid)')}{border-color:${DANGER}}` +
