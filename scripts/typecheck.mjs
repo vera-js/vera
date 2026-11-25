@@ -56,7 +56,14 @@ for (const config of configs) {
   } catch (error) {
     failed++;
     console.error(`  ✗ ${pkg}`);
-    console.error((error.stdout || error.message).trim().split('\n').map((l) => `      ${l}`).join('\n'));
+    /**
+     * A type error is on stdout; a `tsc` that crashed or was killed writes nothing there, so its stderr
+     * and how it ended are printed too. Printing only stdout made a crashed pass a bare "Command
+     * failed" with no reason (2026-11-25: one pass in a gate, which passed when run again).
+     */
+    const ended = error.signal ? `stopped by ${error.signal}` : `exit ${error.status}`;
+    const said = [error.stdout, error.stderr].map((text) => (text ?? '').trim()).filter(Boolean).join('\n');
+    console.error(`${said || error.message}\n(tsc ${ended})`.split('\n').map((l) => `      ${l}`).join('\n'));
   }
 }
 
