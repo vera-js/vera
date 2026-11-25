@@ -86,15 +86,34 @@ if (COMPONENT) {
     await load(`vera-components/${COMPONENT}`);
     const attributes = new Set();
     const parts = new Set();
-    for (const state of demo.states) {
-      const holder = document.createElement('div');
-      holder.innerHTML = state.markup;
-      document.body.append(holder);
-      out.states += 1;
-    }
+    /**
+     * The states that wire modules of their own render after the rest, the modules wired between: wiring is page-wide,
+     * and a host connected before a module is wired keeps what it had (the page frames such a state for the same reason).
+     */
+    const render = (states) => {
+      for (const state of states) {
+        const holder = document.createElement('div');
+        holder.innerHTML = state.markup;
+        document.body.append(holder);
+        out.states += 1;
+      }
+    };
+    render(demo.states.filter((state) => !state.wires?.length));
     flush();
     await Promise.resolve();
     flush();
+    const wired = demo.states.filter((state) => state.wires?.length);
+    if (wired.length) {
+      /** Through tests/dist.mjs like every other bundle here, so each build runs its own: '@vera-components/x/y' is 'vera-components/x/y'. */
+      for (const { from, name } of wired.flatMap((state) => state.wires)) {
+        if (!from.startsWith('@vera-components/')) throw new Error(`${COMPONENT}: a demo wires ${from}; only component modules are known to dist.mjs here`);
+        wire([(await load(from.slice(1)))[name]]);
+      }
+      render(wired);
+      flush();
+      await Promise.resolve();
+      flush();
+    }
     /** Past every settle window a component waits before it speaks or warns (the spinner's is 150 ms). */
     await new Promise((resolve) => setTimeout(resolve, 300));
     /**

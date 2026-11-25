@@ -3,7 +3,8 @@
  * `src/<folder>/demo.ts` (its `ComponentDemo`: what to try and each state it ships with, as markup), led by the
  * description its `surface.ts` declares, and an import map to the production bundles those sections run, found by
  * following each bundle's own bare imports from the package's `exports`. A state marked `framed` (one that takes over
- * its page, a modal open at load) runs in a frame of its own. `scripts/build-components-page.mjs` writes it to
+ * its page, a modal open at load) runs in a frame of its own, as does a state that `wires` modules of its own (wiring
+ * is page-wide); its Code panel shows the wiring above the markup. `scripts/build-components-page.mjs` writes it to
  * `index.html` (and `--check`s it in the gate).
  *
  *   import { componentsPage } from './page.mjs';
@@ -70,25 +71,37 @@ const WIRING =
 /** The components a piece of markup uses, by package name. */
 const usedIn = (markup) => [...new Set([...markup.matchAll(/<vera-([a-z-]+)/g)].map((match) => match[1]))];
 
+/** A state's own modules, wired after the page's and before its components load (a module wired later misses them). */
+const wiresOf = (wires = []) =>
+  wires.map(({ from, name }, i) => `const{${name}:w${i}}=await import(${JSON.stringify(from)});wire([w${i}]);`).join('');
+
+/** What an author writes to wire a state's modules, shown above its markup in the Code panel. */
+const wiringCode = (wires = []) =>
+  wires.map(({ from, name }) => `import { ${name} } from '${from}';\nwire([${name}]);`).join('\n');
+
 /**
- * A framed state's document: the page's import map and wiring, the state's markup, and only the components it uses.
- * The page's script hands it the theme (color scheme, accent, radius) when it loads and on every change.
+ * A framed state's document: the page's import map and wiring, the state's own modules, the state's markup, and only
+ * the components it uses. The page's script hands it the theme (color scheme, accent, radius) when it loads and on
+ * every change.
  */
-const frameDoc = (imports, markup) =>
+const frameDoc = (imports, markup, wires) =>
   '<!DOCTYPE html><html><head><meta charset="utf-8">' +
   '<style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}</style>' +
   `<script type="importmap">${JSON.stringify({ imports })}</script></head><body>${markup}` +
-  `<script type="module">${WIRING}${usedIn(markup).map((name) => `await import('@vera-components/${name}');`).join('')}</script></body></html>`;
+  `<script type="module">${WIRING}${wiresOf(wires)}${usedIn(markup).map((name) => `await import('@vera-components/${name}');`).join('')}</script></body></html>`;
 
 const card = (imports) => (state) => {
-  const preview = state.framed ? `<iframe class="frame" title="${escape(state.title)}" srcdoc="${escape(frameDoc(imports, state.markup))}"></iframe>` : state.markup;
-  const wide = state.framed || state.markup.length > 220 ? ' wide' : '';
+  /** Wiring is page-wide: a state that wires its own modules is framed, so the rest of the page keeps its wiring. */
+  const framed = state.framed || (state.wires?.length ?? 0) > 0;
+  const preview = framed ? `<iframe class="frame" title="${escape(state.title)}" srcdoc="${escape(frameDoc(imports, state.markup, state.wires))}"></iframe>` : state.markup;
+  const wide = framed || state.markup.length > 220 ? ' wide' : '';
+  const code = state.wires?.length ? `${wiringCode(state.wires)}\n\n${state.markup}` : state.markup;
   return [
     `      <article class="card${wide}">`,
     `        <div class="preview">${preview}</div>`,
     `        <footer>`,
     `          <h3>${escape(state.title)}</h3>${state.note ? `<p>${escape(state.note)}</p>` : ''}`,
-    `          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>${escape(state.markup)}</code></pre></details>`,
+    `          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>${escape(code)}</code></pre></details>`,
     `        </footer>`,
     `      </article>`,
   ].join('\n');

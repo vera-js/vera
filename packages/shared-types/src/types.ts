@@ -133,6 +133,12 @@ export type ComponentDemo = {
      * outside it inert) is confined to its frame, so the rest of the preview page stays usable.
      */
     readonly framed?: boolean;
+    /**
+     * Modules this state wires besides the page's own (renderer, keyed lists, slots, styles), each by its specifier
+     * and export: `{ from: '@vera-components/input/stepper', name: 'stepper' }`. Wiring is page-wide, so such a state
+     * is always shown in a frame of its own, the modules wired there before its components load.
+     */
+    readonly wires?: readonly { readonly from: string; readonly name: string }[];
   }[];
   /** Parts reached only by interaction: the part's name and what to do to see it. */
   readonly interactive?: readonly { readonly part: string; readonly how: string }[];
