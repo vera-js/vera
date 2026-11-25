@@ -510,6 +510,12 @@ from another machine, or after that is undone, has a variable changed.
   page's centered content 7.5 px under `scrollbar-gutter: stable`. Playwright 1.65, Windows 11, 2026-11-23. Consequence:
   `<vera-dialog>` gives the root the gutter only when the page was scrolling at open (one read at `beforetoggle`, a mark
   on the root); a browser row pins the mark and the computed gutter on all three engines.
+- **An input's `normal` line height is taller in Firefox on macOS, so block padding on an input does not fix its height.**
+  A `<vera-input>` box with `min-block-size: 2.25em` around an inner input with `padding: .5em 0` and `font: inherit`
+  read 37.2 px at a 16px page (36 expected) in Playwright's Firefox 159 on macOS, 2 of 2 runs, 2026-11-25; Firefox 159
+  on Windows, Chromium 159 and WebKit 27.2 read 36. Consequence: the inner input has no block padding and stretches to
+  the box's content height (`align-self: stretch`), so the box sets the height; a browser row inheriting `line-height: 2`
+  at a 20px page holds it at 2.25em on all three engines (red with the padding: 62 for 45).
 
 ## Rendering, frames and timing
 
