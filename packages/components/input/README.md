@@ -48,7 +48,7 @@ children, or a page parsed after the definition ran) takes over from the default
 | `reveal-label` | The reveal button's accessible name. Default `"Show password"`. |
 | `caps-lock-hint` | A hint after the input while Caps Lock is on, shown and announced. |
 | `caps-lock-message` | What the hint shows and says. Default `"Caps Lock is on"`. |
-| `scale` | `sm`, `md` or `lg`: the input's own font size, `md` the page's, `sm` and `lg` smaller and larger than it; with no `scale` the browser's own size stays. Not `size`, which on `<input>` already means a width in characters (development warns on a host `size`). |
+| `scale` | `sm`, `md` or `lg`: the box's font size, which the input and its parts follow: `md` the page's, `sm` and `lg` smaller and larger than it; with no `scale` the page's size too. Not `size`, which on `<input>` already means a width in characters (development warns on a host `size`). |
 
 Each option adds its part when it is set and removes it, with its listeners, when it is removed. With no option set,
 the element adds nothing and listens to nothing.
@@ -83,13 +83,20 @@ only visual.
 
 ## Look
 
+- **The box is the element**: a hairline border, rounded corners, the surface and text colors, 2.25em tall (36px on a
+  16px page), with your input borderless inside it and the clear, reveal and loading parts beside it, inside the
+  border. Focus draws one ring around the box; the border turns to the danger color on an input marked
+  `aria-invalid="true"` or one the user has left invalid. A disabled input dims the box.
 - The clear and reveal buttons draw their glyphs (× and ● / ○) as generated content with empty alt text: each button
   is named by its label, never by its glyph. The loading mark is a small turning ring in
   `currentColor`; under `prefers-reduced-motion: reduce` it pulses slowly instead, so "busy" stays visible, and in
   forced colors it keeps two system colors.
 - On a clearable search input, the browser's own cancel button is hidden, so there is one clear glyph, not two.
 - The rules are adopted by the element itself, so the buttons are seen whether or not the app wired `@verajs/styles`.
-- Tokens: `--vera-radius` (the buttons' corners) and `--vera-focus` (their focus ring).
+- The shared tokens: `--vera-border`, `--vera-radius`, `--vera-surface`, `--vera-fg`, `--vera-fg-muted` (the
+  placeholder), `--vera-focus` (the ring) and `--vera-danger`. Set them on `:root` to restyle every component at once;
+  dark mode follows the page's `color-scheme` (`:root { color-scheme: light dark }`). The look needs `light-dark()`
+  (Chromium 123, Firefox 120, Safari 17.5); below that, a token you have not set is left unset.
 - Every rule is at zero specificity (`:where`) and keyed on the parts, never the tag, so `defineAs('my-input')` looks
   the same and any rule of yours wins, a utility class on a part included. A hidden part stays hidden.
 - `data-vera-look="none"` on the host or on a part drops our look; the parts stay.

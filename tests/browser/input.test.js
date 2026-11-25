@@ -343,7 +343,7 @@ describe('vera-input: upgraded by the parser before its children exist', () => {
 describe('vera-input: look v2 (scale, one clear glyph)', () => {
   const size = (wrap) => parseFloat(getComputedStyle(wrap.querySelector('input')).fontSize);
 
-  it("scale sets the input's own font size: md the page's, sm below it, lg above it, and none the browser's", async () => {
+  it("scale sets the box's font size, which the input follows: md the page's, sm below it, lg above it, and none the page's too", async () => {
     const plain = await mount('<label>q <vera-input><input></vera-input></label>');
     const bare = await mount('<label>q <input></label>');
     const sm = await mount('<label>q <vera-input scale="sm"><input></vera-input></label>');
@@ -354,7 +354,8 @@ describe('vera-input: look v2 (scale, one clear glyph)', () => {
     expect(size(md), 'md is the page\'s size').to.equal(page);
     expect(size(sm)).to.be.below(size(md));
     expect(size(lg)).to.be.above(size(md));
-    expect(size(plain), 'no scale leaves the browser\'s own size').to.equal(parseFloat(getComputedStyle(bare.querySelector('input')).fontSize));
+    expect(size(plain), 'no scale is the page\'s size too').to.equal(page);
+    expect(size(bare), 'CONTROL: a bare input keeps the browser\'s own size, which differs from the page\'s').to.not.equal(page);
     for (const wrap of [plain, bare, sm, md, lg]) wrap.remove();
   });
 
@@ -370,9 +371,10 @@ describe('vera-input: look v2 (scale, one clear glyph)', () => {
     const off = await mount('<label>q <vera-input scale="lg" data-vera-look="none"><input></vera-input></label>');
     const on = await mount('<label>q <vera-input scale="lg"><input></vera-input></label>');
     const control = await mount('<label>q <vera-input><input></vera-input></label>');
+    const bare = await mount('<label>q <input></label>');
     expect(size(on), 'CONTROL: the same scale without the opt-out is styled').to.be.above(size(control));
-    expect(size(off)).to.equal(size(control));
-    for (const wrap of [off, on, control]) wrap.remove();
+    expect(size(off), 'the opted-out input keeps the browser\'s size').to.equal(size(bare));
+    for (const wrap of [off, on, control, bare]) wrap.remove();
   });
 
   /**
@@ -400,6 +402,110 @@ describe('vera-input: look v2 (scale, one clear glyph)', () => {
     expect(input.matches(subject), 'and not once clearable is removed').to.equal(false);
     wrap.remove();
     bare.remove();
+  });
+});
+
+/**
+ * The box is the host: a border around the input and its parts, the input borderless inside, one ring on the box while
+ * the input shows focus, the danger border when invalid, dimmed when disabled, every color a shared token.
+ */
+describe('vera-input: the box', () => {
+  const style = (node) => getComputedStyle(node);
+  const px = (value) => parseFloat(value);
+
+  it('the host is the box: its border holds the input and the clear button, the input inside is borderless (CONTROL: look none leaves the UA input)', async () => {
+    const wrap = await mount('<vera-input clearable><input value="hello"></vera-input><vera-input clearable data-vera-look="none"><input value="hi"></vera-input>');
+    const [on, off] = wrap.querySelectorAll('vera-input');
+    const input = on.querySelector('input');
+    expect(px(style(on).borderTopWidth), `${ON}: the box has a border`).to.be.at.least(1);
+    expect(px(style(input).borderTopWidth), `${ON}: the input inside has none`).to.equal(0);
+    const outer = on.getBoundingClientRect();
+    const clear = on.querySelector('[data-vera-part="clear"]').getBoundingClientRect();
+    expect(clear.width, 'CONTROL: the clear button is shown').to.be.above(0);
+    expect(clear.left >= outer.left && clear.right <= outer.right && clear.top >= outer.top && clear.bottom <= outer.bottom, `${ON}: the clear button sits inside the box`).to.equal(true);
+    expect(outer.height, `${ON}: the box is 2.25em tall`).to.be.closeTo(2.25 * px(style(on).fontSize), 1);
+    expect(px(style(off).borderTopWidth), `${ON}: look none: no box`).to.equal(0);
+    expect(px(style(off.querySelector('input')).borderTopWidth), `${ON}: look none: the input keeps its own border`).to.be.above(0);
+    wrap.remove();
+  });
+
+  it('focus draws one ring, on the box: a 2px solid outline offset 2px, and none on the input; it goes with the focus', async () => {
+    const wrap = await mount('<vera-input><input></vera-input><button>after</button>');
+    const host = wrap.querySelector('vera-input');
+    const input = host.querySelector('input');
+    expect(style(host).outlineStyle, 'CONTROL: no ring before focus').to.equal('none');
+    input.focus();
+    expect(style(host).outlineStyle, `${ON}: the box's ring`).to.equal('solid');
+    expect(px(style(host).outlineWidth), `${ON}: 2px`).to.equal(2);
+    expect(px(style(host).outlineOffset), `${ON}: offset 2px`).to.equal(2);
+    expect(style(input).outlineStyle, `${ON}: no second ring on the input`).to.equal('none');
+    wrap.querySelector('button').focus();
+    expect(style(host).outlineStyle, `${ON}: the ring goes with the focus`).to.equal('none');
+    wrap.remove();
+  });
+
+  it('the border is --vera-danger on aria-invalid="true" and once the user has left a required input empty (CONTROL: valid it is not)', async () => {
+    const wrap = await mount('<div style="--vera-danger: rgb(1, 2, 3)"><vera-input><input aria-invalid="true"></vera-input><vera-input><input required></vera-input><vera-input><input></vera-input><button>after</button></div>');
+    const [marked, required, valid] = wrap.querySelectorAll('vera-input');
+    expect(style(marked).borderTopColor, `${ON}: aria-invalid`).to.equal('rgb(1, 2, 3)');
+    expect(style(valid).borderTopColor, 'CONTROL: a valid box is not the danger color').to.not.equal('rgb(1, 2, 3)');
+    expect(style(required).borderTopColor, 'CONTROL: required but untouched is not yet invalid to the user').to.not.equal('rgb(1, 2, 3)');
+    required.querySelector('input').focus();
+    await sendKeys({ type: 'a' });
+    await sendKeys({ press: 'Backspace' });
+    wrap.querySelector('button').focus();
+    expect(style(required).borderTopColor, `${ON}: left empty by the user (:user-invalid)`).to.equal('rgb(1, 2, 3)');
+    wrap.remove();
+  });
+
+  it('a disabled input dims the box', async () => {
+    const wrap = await mount('<vera-input><input disabled></vera-input><vera-input><input></vera-input>');
+    const [disabled, enabled] = wrap.querySelectorAll('vera-input');
+    expect(px(style(disabled).opacity), `${ON}: dimmed`).to.equal(0.5);
+    expect(px(style(enabled).opacity), 'CONTROL: enabled is not').to.equal(1);
+    wrap.remove();
+  });
+
+  it('every color and the radius are the shared tokens: an app sets them once and the box follows', async () => {
+    const tokens = '--vera-border: rgb(4, 5, 6); --vera-surface: rgb(7, 8, 9); --vera-fg: rgb(10, 11, 12); --vera-radius: 3px';
+    const wrap = await mount(`<div style="${tokens}"><vera-input><input></vera-input></vera-input></div><vera-input><input></vera-input>`);
+    const [themed, plain] = wrap.querySelectorAll('vera-input');
+    expect(style(themed).borderTopColor, `${ON}: border`).to.equal('rgb(4, 5, 6)');
+    expect(style(themed).backgroundColor, `${ON}: surface`).to.equal('rgb(7, 8, 9)');
+    expect(style(themed.querySelector('input')).color, `${ON}: text, inherited by the input`).to.equal('rgb(10, 11, 12)');
+    expect(style(themed).borderTopLeftRadius, `${ON}: radius`).to.equal('3px');
+    expect(style(plain).borderTopColor, 'CONTROL: unset, the default is not the themed value').to.not.equal('rgb(4, 5, 6)');
+    wrap.remove();
+  });
+
+  it('dark scheme with no tokens set: the text on the box is at least 4.5:1, in both schemes, and the two differ', async () => {
+    const lin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    const lum = (rgb) => {
+      const [r, g, b] = rgb.match(/[\d.]+/g).slice(0, 3).map((v) => lin(Number(v) / 255));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    expect(ratio('rgb(0, 0, 0)', 'rgb(255, 255, 255)'), 'CONTROL: the ratio reads 21 for black on white').to.be.closeTo(21, 0.01);
+    const wrap = await mount('<div style="color-scheme: light"><vera-input><input></vera-input></div><div style="color-scheme: dark"><vera-input><input></vera-input></div>');
+    const [light, dark] = wrap.querySelectorAll('vera-input');
+    for (const [name, host] of [['light', light], ['dark', dark]]) {
+      const text = style(host.querySelector('input')).color;
+      expect(ratio(text, style(host).backgroundColor), `${ON}: ${name}: text on the box (${text} on ${style(host).backgroundColor})`).to.be.at.least(4.5);
+    }
+    expect(style(dark).backgroundColor, `${ON}: the dark box is not the light one`).to.not.equal(style(light).backgroundColor);
+    wrap.remove();
+  });
+
+  it('forced colors: the ring is Highlight, as the engine parsed the rule (this runner has no forced-colors emulation)', async () => {
+    const wrap = await mount('<vera-input><input></vera-input>');
+    const rules = document.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules]);
+    const forced = rules.filter((rule) => rule.conditionText?.includes('forced-colors') && [...rule.cssRules].some((inner) => inner.selectorText.includes('data-vera-input-host')));
+    expect(forced.length, `${ON}: the box's forced-colors rule was kept`).to.equal(1);
+    expect(forced[0].cssRules[0].style.getPropertyValue('outline-color').toLowerCase(), `${ON}: Highlight`).to.equal('highlight');
+    wrap.remove();
   });
 });
 

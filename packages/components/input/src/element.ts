@@ -288,7 +288,13 @@ export const setup = (host: InputHost) => {
       if (input === null) return undefined;
       const before = input.getAttribute('data-vera-input');
       input.setAttribute('data-vera-input', host.scale ?? '');
-      return () => (before === null ? input.removeAttribute('data-vera-input') : input.setAttribute('data-vera-input', before));
+      /** The host is the look's box while it serves an input, valued with the scale the box's font follows. */
+      host.setAttribute('data-vera-input-host', host.scale ?? '');
+      return () => {
+        host.removeAttribute('data-vera-input-host');
+        if (before === null) input.removeAttribute('data-vera-input');
+        else input.setAttribute('data-vera-input', before);
+      };
     });
     effect(() => {
       const input = current.value;

@@ -104,7 +104,7 @@ export const readNames = (files) => {
 };
 
 /** Components whose look has not moved onto the tokens yet (W106/W108). A name leaves this list in its look's commit. */
-const NOT_YET = ['input', 'kbd'];
+const NOT_YET = [];
 
 /** Each component's look sources: every .ts under src except its demo and surface (data) and diagnostics (prose). */
 const lookFiles = (name) => {
