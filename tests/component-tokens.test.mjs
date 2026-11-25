@@ -23,6 +23,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { withoutComments } from './source-comments.mjs';
+import { posix } from '../scripts/fs-path.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TOKENS_SOURCE = join(ROOT, 'packages/shared-utils/src/tokens.ts');
@@ -114,7 +115,7 @@ const lookFiles = (name) => {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) walk(path);
       else if (entry.name.endsWith('.ts') && !['demo.ts', 'surface.ts', 'diagnostics.ts'].includes(entry.name))
-        files.push([path.slice(ROOT.length).replaceAll('\\', '/'), withoutComments(readFileSync(path, 'utf8'), entry.name)]);
+        files.push([posix(path.slice(ROOT.length)), withoutComments(readFileSync(path, 'utf8'), entry.name)]);
     }
   };
   walk(join(ROOT, 'packages/components', name, 'src'));
@@ -157,7 +158,9 @@ test('CONTROL: breaches() names a wrong default, an unknown token, and a raw col
 
 for (const name of components)
   test(`${name}: its look reads the shared tokens with the shared defaults, and no raw color`, async (t) => {
-    const found = breaches(name, lookFiles(name), tokens);
+    const files = lookFiles(name);
+    assert.ok(files.length > 0, `${name}: no look sources read, so an empty breach list would mean nothing`);
+    const found = breaches(name, files, tokens);
     if (NOT_YET.includes(name)) {
       assert.notDeepEqual(found, [], `${name} is in NOT_YET but already on the tokens: take it off the list`);
       return t.skip(`not yet on the tokens (${found.length} to move)`);
@@ -166,5 +169,5 @@ for (const name of components)
     const src = join(ROOT, 'packages/components', name, 'src');
     const folder = readdirSync(src).find((entry) => existsSync(join(src, entry, 'surface.ts')));
     const surface = Object.values(await import(pathToFileURL(join(src, folder, 'surface.ts')).href))[0];
-    assert.deepEqual([...surface.tokens].sort(), readNames(lookFiles(name)), `${name}: its surface's tokens list is not what its look reads`);
+    assert.deepEqual([...surface.tokens].sort(), readNames(files), `${name}: its surface's tokens list is not what its look reads`);
   });

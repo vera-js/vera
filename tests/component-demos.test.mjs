@@ -113,7 +113,7 @@ if (COMPONENT) {
     /**
      * CONTROL, and the page's condition: a light element with children and no `ownsChildren` that renders a template
      * with no `<slot>`. Slots moves captured children out of sight at the end of a render, ANY render on the page,
-     * for every host still holding them: a component that renders nothing (field) is parked by its neighbours' renders
+     * for every host still holding them: a component that renders nothing (field) is parked by its neighbors' renders
      * on a real page, and alone in this process by none (the first reading of this check, 0 of 4 fields, where the
      * preview page in Chromium had 4 of 4). So the parked reading comes after this render ends, as on a page.
      */
