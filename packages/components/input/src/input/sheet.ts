@@ -47,8 +47,8 @@ const served = (value: string, more = ''): string =>
  */
 const box = (more = ''): string => `:where([data-vera-input-host]:not([data-vera-look="none"])${more})`;
 
-/** The box while its served input matches `state` (`:focus-visible`, `:disabled`, …). */
-const boxWhen = (state: string): string => box(`:has(input[data-vera-input]:not([data-vera-look="none"])${state})`);
+/** The box while the input in it matches `state` (`:focus-visible`, `:disabled`, …): the box holds only the served input. */
+const boxWhen = (state: string): string => box(`:has(${state})`);
 
 const BUTTON =
   'display:inline-grid;place-items:center;box-sizing:border-box;inline-size:1.5em;block-size:1.5em;margin:0;padding:0;' +
@@ -60,8 +60,8 @@ const BUTTON =
  * input inside shows focus; the input's own outline goes only by a rule that ALSO needs `:has()`, so an engine without
  * `:has()` (Firefox 120, under the look's floor by one release) drops both and keeps its native ring, never neither.
  * The border turns `--vera-danger` on a control marked `aria-invalid="true"` or one the user has left invalid
- * (`:user-invalid`, which matches only once the user has interacted); each its own rule, so an engine without
- * `:user-invalid` loses only that one. Inside `<vera-field>` the field sets the border token while it shows an error, so
+ * (`:user-invalid`, which matches only once the user has committed a change); one rule, the two inside `:is()`, which
+ * forgives a selector it does not know (`:has()` does not), so an engine without `:user-invalid` keeps the other. Inside `<vera-field>` the field sets the border token while it shows an error, so
  * this rule stays the one owner of the box's edge.
  */
 const BOX =
@@ -69,17 +69,16 @@ const BOX =
   'min-block-size:2.25em;padding-block:0;padding-inline:.75em .5em;' +
   `border-style:solid;border-width:max(.0625em,1px);border-color:${BORDER};border-radius:${RADIUS};` +
   `background:${SURFACE};color:${FG};transition:border-color .15s,outline-color .15s}` +
-  `${box('[data-vera-input-host="md"]')}{font-size:1em}${box('[data-vera-input-host="sm"]')}{font-size:.875em}` +
+  `${box('[data-vera-input-host="sm"]')}{font-size:.875em}` +
   `${box('[data-vera-input-host="lg"]')}{font-size:1.125em}` +
   `${box()} ${served('')}{flex:1;min-inline-size:0;margin:0;padding:.5em 0;border:0;background:transparent;color:inherit;font:inherit}` +
   `${box()} ${served('')}::placeholder{color:${FG_MUTED};opacity:1}` +
-  `${box(':has(input[data-vera-input])')} ${served('')}{outline:0}` +
-  `${boxWhen(':focus-visible')}{outline:2px solid ${FOCUS};outline-offset:2px}` +
-  `${boxWhen('[aria-invalid="true"]')}{border-color:${DANGER}}` +
-  `${boxWhen(':user-invalid')}{border-color:${DANGER}}` +
-  `${boxWhen(':disabled')}{opacity:.5;cursor:not-allowed}` +
+  `${boxWhen('input')} ${served('')}{outline:0}` +
+  `${boxWhen('input:focus-visible')}{outline:2px solid ${FOCUS};outline-offset:2px}` +
+  `${boxWhen(':is(input[aria-invalid="true"],input:user-invalid)')}{border-color:${DANGER}}` +
+  `${boxWhen('input:disabled')}{opacity:.5;cursor:not-allowed}` +
   `@media (prefers-reduced-motion:reduce){${box()}{transition:none}}` +
-  `@media (forced-colors:active){${boxWhen(':focus-visible')}{outline-color:Highlight}}`;
+  `@media (forced-colors:active){${boxWhen('input:focus-visible')}{outline-color:Highlight}}`;
 
 export const LOOK =
   BOX +
