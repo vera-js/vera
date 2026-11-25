@@ -134,7 +134,9 @@ export const componentsPage = async (root) => {
   if (demos.length === 0) throw new Error('no component has a demo.ts: nothing to show');
   const resolve = resolver(root, packageDirs(root));
   const imports = {};
-  const queue = ['@verajs/core', '@verajs/renderer', '@verajs/renderer/keyed', '@verajs/renderer/slots', '@verajs/styles', ...demos.map(({ name }) => `@vera-components/${name}`)];
+  /** Every module a state wires is mapped too: no import of a component's main entry leads to it. */
+  const wired = demos.flatMap(({ demo }) => demo.states.flatMap((state) => (state.wires ?? []).map(({ from }) => from)));
+  const queue = ['@verajs/core', '@verajs/renderer', '@verajs/renderer/keyed', '@verajs/renderer/slots', '@verajs/styles', ...demos.map(({ name }) => `@vera-components/${name}`), ...wired];
   while (queue.length > 0) {
     const specifier = queue.shift();
     if (imports[specifier]) continue;

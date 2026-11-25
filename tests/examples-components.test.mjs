@@ -41,6 +41,21 @@ test('the import map names every component and the core modules, and each target
   }
 });
 
+test('a state that wires modules is framed, each module mapped, and its frame wires it before its components load', () => {
+  const { imports } = JSON.parse(/<script type="importmap">([\s\S]*?)<\/script>/.exec(html)[1]);
+  const wiring = demos.flatMap(({ demo }) => demo.states.filter((state) => state.wires?.length));
+  assert.ok(wiring.length >= 1, 'positive control: a state wires a module (input: the stepper)');
+  for (const state of wiring) {
+    for (const [i, { from, name }] of state.wires.entries()) {
+      assert.ok(imports[from], `${from} is mapped (no import of a component's main entry reaches it)`);
+      /** The frame's document is in srcdoc, escaped: its wiring reads with &quot; for each quote. */
+      const call = `const{${name}:w${i}}=await import(&quot;${from}&quot;);wire([w${i}]);`;
+      const frame = html.slice(html.indexOf(`<iframe class="frame" title="${state.title}"`));
+      assert.ok(frame.length > 0 && frame.indexOf(call) !== -1 && frame.indexOf(call) < frame.indexOf("await import('@vera-components/"), `${state.title}: framed, wiring ${from} before its components`);
+    }
+  }
+});
+
 test('no template marker is left, and the page loads the components it shows', () => {
   assert.doesNotMatch(html, /<!--(GENERATED|IMPORTMAP|NAV|COUNT|FIRST|PLATES)-->|\/\*(WIRING|COMPONENTS)\*\//);
   assert.ok(html.includes(JSON.stringify(demos.map(({ name }) => name))), 'the loader list is the plates');

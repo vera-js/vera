@@ -34,13 +34,14 @@ export const inputDemo = {
       markup: '<label>Quantity <vera-input><input type="number" name="n" value="3" min="0" max="10"></vera-input></label>',
     },
     {
+      title: 'A number, with the stepper wired',
+      note: 'Opt-in: wire([stepper]) from @vera-components/input/stepper replaces the spinner with − and +; hold one to repeat',
+      markup: '<label>Quantity <vera-input><input type="number" name="n" value="3" min="0" max="10"></vera-input></label>',
+      wires: [{ from: '@vera-components/input/stepper', name: 'stepper' }],
+    },
+    {
       title: 'Disabled by its fieldset',
       markup: '<fieldset disabled><legend>Off</legend><label>Disabled <vera-input clearable><input value="can\'t clear"></vera-input></label></fieldset>',
     },
-  ],
-  interactive: [
-    { part: 'stepper', how: 'wire @vera-components/input/stepper (wire([stepper])), then serve a number input' },
-    { part: 'step-down', how: 'wire @vera-components/input/stepper, then serve a number input' },
-    { part: 'step-up', how: 'wire @vera-components/input/stepper, then serve a number input' },
   ],
 } as const satisfies ComponentDemo;
