@@ -8,6 +8,7 @@ import { sendKeys } from '@web/test-runner-commands';
 import { flush, wire } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import '../../packages/components/field/dist/development/vera-field.js';
+import '../../packages/components/input/dist/development/vera-input.js';
 import { until } from './until.js';
 
 wire([renderer]);
@@ -92,5 +93,51 @@ describe('vera-field', () => {
     await until(() => document.activeElement?.id === 'bare', 'focus reached the bare control', 2000);
     expect(bare.prevented).to.equal(false, 'the bare control keeps its native report');
     f.remove();
+  });
+});
+
+/**
+ * The look: a stack, the label in the text color at weight 500, the hint and count muted, the shown error in the danger
+ * color, and while an error shows, the shared border token turned to the danger color for the control inside.
+ */
+describe('vera-field: the look', () => {
+  const style = (node) => getComputedStyle(node);
+  const mount = async (inner) => {
+    const holder = document.createElement('div');
+    holder.innerHTML = inner;
+    document.body.append(holder);
+    flush();
+    await Promise.resolve();
+    flush();
+    return holder;
+  };
+
+  it('a stack of its parts; the label at weight 500, the hint muted, the error the danger token (CONTROL: look none leaves the UA label)', async () => {
+    const holder = await mount(
+      '<div style="--vera-danger: rgb(1, 2, 3); --vera-fg-muted: rgb(4, 5, 6)">' +
+        '<vera-field><label>Email</label><input><small data-vera-part="hint">Hint</small><small data-vera-part="error" data-when="server">Taken</small></vera-field>' +
+        '<vera-field data-vera-look="none"><label>Email</label><input></vera-field></div>',
+    );
+    const [on, off] = holder.querySelectorAll('vera-field');
+    expect(style(on).display, 'the field stacks its parts').to.equal('grid');
+    expect(Number(style(on.querySelector('label')).fontWeight), 'the label at weight 500').to.equal(500);
+    expect(style(on.querySelector('[data-vera-part="hint"]')).color, 'the hint is the muted token').to.equal('rgb(4, 5, 6)');
+    expect(style(on.querySelector('[data-vera-part="error"]')).color, 'the error is the danger token').to.equal('rgb(1, 2, 3)');
+    expect(Number(style(off.querySelector('label')).fontWeight), 'look none: the UA label weight').to.equal(400);
+    expect(style(off).display, 'look none: no stack').to.not.equal('grid');
+    holder.remove();
+  });
+
+  it("while an error shows, the input's box inside is drawn in the danger color (CONTROL: a field with none shown is not)", async () => {
+    const holder = await mount(
+      '<div style="--vera-danger: rgb(1, 2, 3)">' +
+        '<vera-field><label>Name</label><vera-input><input></vera-input><small data-vera-part="error" data-when="server">Taken</small></vera-field>' +
+        '<vera-field><label>Name</label><vera-input><input></vera-input><small data-vera-part="error" hidden>Taken</small></vera-field></div>',
+    );
+    const [erring, quiet] = holder.querySelectorAll('vera-input');
+    expect(holder.querySelector('[data-when="server"]').hidden, 'CONTROL: the server error is shown').to.equal(false);
+    await until(() => style(erring).borderTopColor === 'rgb(1, 2, 3)', "the erring field's input box is the danger color", 2000);
+    expect(style(quiet).borderTopColor, 'CONTROL: a field with no error shown leaves the box its own border').to.not.equal('rgb(1, 2, 3)');
+    holder.remove();
   });
 });

@@ -45,3 +45,10 @@ through `Intl.PluralRules`: `count-message-one`, `-few`, `-many`, `-other`, …)
 "8 characters left", "1 character left" and "Limit reached".
 
 **On a page that wires light-DOM slots** (`@verajs/renderer/slots`, for another component), `<vera-field>` keeps its children where you wrote them: they are its own, not content for a `<slot>`.
+
+**The look.** The field stacks its parts (label, control, hint, error, count) with a small gap, each at its own width.
+The label is in the text color at weight 500, the hint and the count in the muted text color, the shown error in the
+danger color. While an error shows, the field sets `--vera-border` to the danger color on itself, so a control that
+draws its edge from that token (`<vera-input>`'s box) turns red; the field never styles the control itself. It reads
+the shared tokens `--vera-fg`, `--vera-fg-muted` and `--vera-danger`, every rule is at zero specificity and keyed on the
+field's own mark, never its tag, and `data-vera-look="none"` on the field drops all of it.

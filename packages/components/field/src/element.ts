@@ -8,14 +8,15 @@
  * count's text. Its listeners are delegated per ROOT (the document, or a user's shadow root), one handler per copy of
  * this library, so a page of a thousand fields has one set of listeners per root, not per field.
  */
-import { effect } from '@verajs/core';
-import { diagnostic, quoted } from '@verajs/shared-utils';
+import { effect, isServer } from '@verajs/core';
+import { adoptOwnSheet, diagnostic, quoted } from '@verajs/shared-utils';
 import { announce } from '@vera-hooks/announce';
 import { labeled } from '@vera-hooks/labeled';
 import type { LabeledWiring } from '@vera-hooks/labeled';
 import { PROSE } from './diagnostics.js';
 import { choose, VALIDITY_KEYS } from './field/choose.js';
 import type { ErrorPart, Validity } from './field/choose.js';
+import { LOOK, SHEET } from './field/sheet.js';
 import { step } from './field/count.js';
 import type { Spoken } from './field/count.js';
 
@@ -370,6 +371,9 @@ const wire = (field: Marked, control: Element): Wired => {
  */
 export const setup = (host: HTMLElement) => {
   const field = host as Marked;
+  /** The look's mark (its rules key on it, never on the tag), and the look itself, adopted into the root as a layout effect. */
+  host.setAttribute('data-vera-field', '');
+  if (!isServer()) effect(() => adoptOwnSheet(host, SHEET, LOOK), { timing: 'layout' });
   effect(() => {
     const root = field.getRootNode();
     listen(root);
