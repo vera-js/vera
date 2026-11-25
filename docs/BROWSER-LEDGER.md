@@ -401,6 +401,14 @@ from another machine, or after that is undone, has a variable changed.
   rect of the trigger (above only when below is short of what the list needs and above is larger) and caps the list at
   its side's room. A browser row paints the scroll, opens, reopens, and holds a trigger near the viewport's bottom
   opening above as its control.
+- **Firefox lays out in 1/60 px, and macOS Firefox rounds a font's metric slack away.** Two paragraphs that are the
+  same line read 19.20001 and 19.19999 px tall in Playwright's Firefox on macOS (an exact equality failed by about
+  1.5e-5 px), and a keycap's box under a 20px parent read 1.17 times the one under a 16px parent where Chromium, WebKit
+  and Windows Firefox read 1.2 to 1.3: an inline box's height holds the font's content area, rounded to whole pixels
+  there, plus the borders' constant pixel floors. Seen in every gate on macOS from 2026-11-22 to 2026-11-25; Windows
+  Firefox passes both. Consequence: a browser row compares layout heights within one app unit (1/60 px), and checks
+  that a length is in `em` on the computed lengths (`font-size`, `padding`), never on a box that holds font metrics
+  or a floored border (`tests/browser/kbd.test.js`).
 - **`scrollbar-gutter: stable` on a page that never scrolled moves its centered content.** Locking a modal's page with
   `html { overflow: hidden; scrollbar-gutter: stable }`: on Chromium 159 headed with classic scrollbars, a short page's
   centered content moved 7.6 px at open (the gutter appeared), and a scrolling page's did not move (the control: without

@@ -180,12 +180,22 @@ describe('vera-kbd: the look', () => {
     wrap.remove();
   });
 
-  it('every length is in em: a key under a 20px parent is 1.25 times the one under a 16px parent', async () => {
+  /**
+   * The key's size and padding are in em, so they follow the text; its borders are not quite: each has a pixel floor
+   * (1px, 2px) so the keycap keeps its depth at body size. So the lengths themselves are compared, not the box's
+   * height: that height also holds the font's content area, which macOS Firefox rounds to whole pixels (the box read
+   * 1.17 times, not 1.25), and the constant floors.
+   */
+  it('its size and padding are in em: under a 20px parent they are 1.25 times those under a 16px parent; the borders keep their floor', async () => {
     const small = await mounted('<p style="font-size: 16px">');
     const large = await mounted('<p style="font-size: 20px">');
-    const ratio = firstKey(large).getBoundingClientRect().height / firstKey(small).getBoundingClientRect().height;
-    expect(firstKey(small).getBoundingClientRect().height, 'CONTROL: a box was measured').to.be.above(0);
-    expect(ratio).to.be.within(1.2, 1.3);
+    const a = getComputedStyle(firstKey(small));
+    const b = getComputedStyle(firstKey(large));
+    expect(parseFloat(a.fontSize), 'CONTROL: a key was read').to.be.above(0);
+    for (const length of ['fontSize', 'paddingTop', 'paddingLeft'])
+      expect(parseFloat(b[length]) / parseFloat(a[length]), length).to.be.closeTo(1.25, 0.01);
+    expect(parseFloat(a.borderTopWidth), "the hairline's floor").to.be.at.least(1);
+    expect(parseFloat(a.borderBottomWidth), "the heavier edge's floor").to.be.at.least(2);
     small.remove();
     large.remove();
   });
@@ -201,7 +211,8 @@ describe('vera-kbd: the look', () => {
     naive.innerHTML = 'Press <span style="display:inline-block;padding:.05em .4em;font-size:.85em;border:.0625em solid;border-bottom-width:.125em">K</span> now';
     text.append(naive);
     expect(naive.getBoundingClientRect().height, 'CONTROL: an inline-block keycap grows the line').to.be.above(plain.getBoundingClientRect().height);
-    expect(holding.getBoundingClientRect().height).to.equal(plain.getBoundingClientRect().height);
+    /** Within one Firefox layout unit (1/60 px): macOS Firefox read 19.20001 against 19.19999, the same line. */
+    expect(holding.getBoundingClientRect().height).to.be.closeTo(plain.getBoundingClientRect().height, 1 / 60);
     text.remove();
   });
 

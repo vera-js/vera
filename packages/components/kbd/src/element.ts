@@ -43,9 +43,9 @@ const own = (name: string): string =>
   `:where([data-vera-part="${name}"][data-vera-kbd]:not([data-vera-look="none"],[data-vera-look="none"] *))`;
 
 /**
- * **The look**, in the same sheet as the words, so one root adopts one sheet. Every length is in `em`, so a key follows
- * the text around it at any size (a browser row: a 20px parent's key is 1.25 times a 16px one's). The combo takes the
- * page's font: an engine's own `kbd` rule is `monospace`, which also shrinks the text under the generic-monospace size
+ * **The look**, in the same sheet as the words, so one root adopts one sheet. Its size and padding are in `em`, so a key
+ * follows the text around it at any size (a browser row: under a 20px parent they are 1.25 times those under a 16px
+ * one); the borders are in `em` above a pixel floor (below). The combo takes the page's font: an engine's own `kbd` rule is `monospace`, which also shrinks the text under the generic-monospace size
  * quirk. A key is a keycap: a hairline border, a heavier one below, the shared `--vera-border` token, and colors mixed
  * from `currentColor` without it, so a key follows the color of the text it sits in (an error's red, a button's
  * label), which two schemes could not; forced colors replace all of it with the system's. Its corners are a share of
