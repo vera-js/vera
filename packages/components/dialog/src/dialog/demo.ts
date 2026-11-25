@@ -28,7 +28,8 @@ export const dialogDemo = {
     },
     {
       title: 'Open at load',
-      note: 'The host\'s open: shown as a modal on connect.',
+      note: 'The host\'s open: shown as a modal on connect (in a frame of its own here, since a modal makes the rest of its page inert).',
+      framed: true,
       markup: '<vera-dialog open><dialog><h2>Welcome</h2><form method="dialog"><button autofocus>Start</button></form></dialog></vera-dialog>',
     },
   ],

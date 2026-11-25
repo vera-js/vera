@@ -6,58 +6,180 @@
 <title>Vera components</title>
 <!--GENERATED-->
 <style>
-/* A proof sheet: each component pulled as a plate, its states side by side on a quiet stage. */
-:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0b0d0c);--ink:light-dark(#0b0b10,#eef2ef);--mute:light-dark(#5a5f66,#9aa39e);
-  --line:light-dark(#e6e8ea,#1f2422);--stage:light-dark(#f6f7f8,#121614);--accent:#00a862;--mist:light-dark(#eafaf2,#0d1f16)}
-*{box-sizing:border-box;min-width:0}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,sans-serif;overflow-x:clip}
-h1,h2{font-weight:600;line-height:1.1;text-wrap:balance;margin:0}
-h1{font-size:clamp(30px,5vw,44px)}h2{font-size:26px}
-.band{padding:clamp(28px,4vw,56px) max(5vw,16px)}
-.top{background:var(--mist);border-bottom:1px solid var(--line)}
-.top p{max-width:68ch;margin:14px 0 0;color:var(--mute)}
-nav{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}
-nav a{color:var(--ink)}
-.plate{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:clamp(20px,4vw,48px);max-width:1240px;margin:0 auto;
-  padding-block:clamp(28px,4vw,48px);border-bottom:1px solid var(--line)}
-.plate .ask{margin:12px 0 0;color:var(--mute);font-size:15px}
-.plate .pkg{display:block;margin-top:10px;font-size:13px;color:var(--mute)}
-.stage{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.cell{background:var(--stage);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;min-height:120px}
-.cell .show{flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;font-size:17px}
-.cell .say{font-size:13px;color:var(--mute)}
-.cell h3{font:500 15px/1.3 system-ui,sans-serif;margin:0}
-.reach{margin:14px 0 0;font-size:13px;color:var(--mute)}
-.wide{grid-column:1/-1}
-button.act{font:inherit;font-size:15px;min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
-button.act:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-vera-field input,vera-field textarea{font:inherit;font-size:16px;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
-vera-field label{font-weight:500}
-vera-field small{display:block;font-size:13px;color:var(--mute)}
-vera-field [data-vera-part=error]{color:#c4321c}
-svg.glyph{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-@media(max-width:760px){.plate{grid-template-columns:minmax(0,1fr)}}
+/*
+ * The page's own look, and the theme every component reads: the --vera-* tokens set here on :root are the same ones
+ * the controls in the bar change, so what you see when you pick an accent or a radius is what an app gets by setting
+ * them itself.
+ */
+:root {
+  color-scheme: light dark;
+  --vera-accent: oklch(0.56 0.22 280);
+  --vera-radius: 10px;
+  --vera-bg: light-dark(#ffffff, #0c0c10);
+  --vera-surface: light-dark(#ffffff, #15151b);
+  --vera-fg: light-dark(#0f0f14, #f2f2f5);
+  --vera-fg-muted: light-dark(#5f5f6b, #9d9daa);
+  --vera-border: light-dark(#e4e4ea, #2a2a33);
+  --vera-hover: light-dark(#f2f2f6, #1d1d24);
+  --vera-focus: color-mix(in oklch, var(--vera-accent) 55%, transparent);
+  --vera-shadow: light-dark(0 1px 2px rgb(0 0 0 / .06), 0 1px 2px rgb(0 0 0 / .5));
+
+  --page: light-dark(#fafafb, #09090c);
+  --card: var(--vera-surface);
+  --stage: light-dark(#f6f6f9, #111116);
+  --dot: light-dark(#dcdce4, #22222b);
+  --glow: color-mix(in oklch, var(--vera-accent) 18%, transparent);
+  --ink: var(--vera-fg);
+  --mute: var(--vera-fg-muted);
+  --line: var(--vera-border);
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
+}
+:root[data-scheme="light"] { color-scheme: light }
+:root[data-scheme="dark"] { color-scheme: dark }
+* { box-sizing: border-box; min-width: 0 }
+html { scroll-behavior: smooth; scroll-padding-top: 84px }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.6 var(--font); -webkit-font-smoothing: antialiased; overflow-x: clip }
+a { color: inherit }
+code, pre { font-family: var(--mono) }
+:focus-visible { outline: 2px solid var(--vera-accent); outline-offset: 2px }
+
+/* The bar */
+.bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 20px; padding: 12px max(4vw, 16px);
+  background: color-mix(in oklch, var(--page) 78%, transparent); backdrop-filter: saturate(1.6) blur(14px);
+  border-bottom: 1px solid color-mix(in oklch, var(--line) 70%, transparent) }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; text-decoration: none; font-size: 16px }
+.mark { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--vera-accent), color-mix(in oklch, var(--vera-accent) 45%, #ff6bd6));
+  box-shadow: 0 4px 14px var(--glow) }
+.controls { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--stage); border: 1px solid var(--line) }
+.seg button { font: inherit; font-size: 13px; border: 0; background: none; color: var(--mute); padding: 4px 12px; border-radius: 999px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--vera-shadow), 0 0 0 1px var(--line) }
+.swatches { display: inline-flex; gap: 6px }
+.swatches button { width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .12) }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--c) }
+.radius { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mute) }
+.radius input { width: 90px; accent-color: var(--vera-accent) }
+
+/* The hero */
+.hero { position: relative; padding: clamp(56px, 9vw, 120px) max(4vw, 16px) clamp(40px, 6vw, 72px); text-align: center; overflow: hidden }
+.hero::before { content: ""; position: absolute; inset: -40% 10% auto; height: 520px; background: radial-gradient(closest-side, var(--glow), transparent); pointer-events: none }
+.hero::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 20%, transparent 70%); pointer-events: none; opacity: .7 }
+.hero > * { position: relative; z-index: 1 }
+.eyebrow { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--mute); padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card) }
+.eyebrow b { color: var(--vera-accent); font-weight: 600 }
+h1 { margin: 22px auto 0; max-width: 16ch; font-size: clamp(38px, 6.4vw, 72px); line-height: 1.02; letter-spacing: -.035em; font-weight: 700; text-wrap: balance }
+h1 em { font-style: normal; background: linear-gradient(120deg, var(--vera-accent), color-mix(in oklch, var(--vera-accent) 40%, #ff6bd6)); -webkit-background-clip: text; background-clip: text; color: transparent }
+.sub { margin: 22px auto 0; max-width: 58ch; color: var(--mute); font-size: clamp(16px, 1.6vw, 19px); text-wrap: pretty }
+.cta { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap }
+.btn { font: inherit; font-weight: 550; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 20px; border-radius: 999px; text-decoration: none; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink) }
+.btn.primary { background: var(--ink); color: var(--page); border-color: transparent }
+.btn code { font-size: 13px }
+.facts { margin: 44px auto 0; display: flex; justify-content: center; gap: clamp(20px, 5vw, 64px); flex-wrap: wrap; color: var(--mute); font-size: 14px }
+.facts strong { display: block; color: var(--ink); font-size: 26px; letter-spacing: -.02em; font-weight: 650 }
+
+/* The layout */
+.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); max-width: 1280px; margin: 0 auto; padding: 0 max(4vw, 16px) 96px }
+.side { position: sticky; top: 84px; align-self: start; display: flex; flex-direction: column; gap: 2px; padding-top: 8px }
+.side .label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); margin: 0 0 8px 12px }
+.side a { text-decoration: none; padding: 7px 12px; border-radius: 8px; color: var(--mute); font-size: 14px }
+.side a:hover { background: var(--vera-hover); color: var(--ink) }
+.side a[aria-current="true"] { color: var(--ink); background: var(--vera-hover); font-weight: 550; box-shadow: inset 2px 0 0 var(--vera-accent) }
+
+/* A component */
+.plate { padding-top: 40px; margin-top: 24px; border-top: 1px solid var(--line) }
+.plate:first-child { border-top: 0; margin-top: 0; padding-top: 8px }
+.title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+h2 { margin: 0; font-size: 30px; letter-spacing: -.025em; font-weight: 680 }
+.pill { font-size: 12px; font-weight: 550; padding: 3px 10px; border-radius: 999px; color: var(--vera-accent); background: color-mix(in oklch, var(--vera-accent) 12%, transparent) }
+.lede { margin: 10px 0 0; font-size: 17px; max-width: 70ch; text-wrap: pretty }
+.try { margin: 10px 0 0; color: var(--mute); max-width: 75ch; font-size: 14px }
+.try strong { color: var(--ink); font-weight: 600; margin-right: 4px }
+.install { display: inline-block; margin-top: 14px; font-size: 13px; padding: 6px 12px; border-radius: 8px; background: var(--stage); border: 1px solid var(--line); color: var(--mute) }
+.install::before { content: "$ "; color: var(--vera-accent) }
+.grid { margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px }
+.card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px -12px rgb(0 0 0 / .08); transition: box-shadow .2s, border-color .2s }
+.card:hover { border-color: color-mix(in oklch, var(--vera-accent) 35%, var(--line)); box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 14px 32px -14px var(--glow) }
+.card.wide { grid-column: 1 / -1 }
+.preview { flex: 1; min-height: 150px; padding: 32px 24px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px;
+  background: var(--stage); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 16px 16px; font-size: 16px }
+.preview > * { max-width: 100% }
+.frame { width: 100%; height: 300px; border: 0; border-radius: 10px; background: transparent }
+.card footer { padding: 14px 18px 16px; border-top: 1px solid var(--line) }
+.card h3 { margin: 0; font-size: 14px; font-weight: 600 }
+.card footer p { margin: 4px 0 0; font-size: 13px; color: var(--mute) }
+.code { margin-top: 10px; position: relative }
+.code summary { font-size: 12px; color: var(--mute); cursor: pointer; width: fit-content; list-style: none; padding: 2px 0 }
+.code summary::before { content: "</> "; color: var(--vera-accent); font-family: var(--mono) }
+.code summary::-webkit-details-marker { display: none }
+.code pre { margin: 8px 0 0; padding: 14px; border-radius: 10px; background: light-dark(#0f0f14, #050507); color: #e6e6ef; font-size: 12.5px; line-height: 1.55; overflow: auto; max-height: 280px; white-space: pre-wrap; word-break: break-word }
+.copy { position: absolute; top: 34px; right: 8px; font: 500 12px var(--font); padding: 3px 10px; border-radius: 6px; border: 1px solid #ffffff24; background: #ffffff14; color: #e6e6ef; cursor: pointer }
+
+/* Form controls the demos bring as plain HTML get the same look the components use, so a state reads as a real app. */
+.preview :where(input:not([type=checkbox], [type=radio], [type=range]), textarea, select) { font: inherit; font-size: 15px; min-height: 40px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink) }
+.preview :where(textarea) { padding: 10px 12px; min-height: 84px }
+.preview :where(input, textarea, select):focus-visible { outline: 0; border-color: var(--vera-accent); box-shadow: 0 0 0 3px var(--vera-focus) }
+.preview :where(button:not([slot], [data-vera-part], [role=tab], [role=menuitem], [role=option])) { font: inherit; font-size: 14px; font-weight: 550; min-height: 38px; padding: 0 16px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink); cursor: pointer; box-shadow: var(--vera-shadow) }
+.preview :where(button[slot="trigger"]) { font: inherit; font-size: 14px; font-weight: 550; min-height: 38px; padding: 0 16px; border-radius: var(--vera-radius); border: 0; background: var(--vera-accent); color: #fff; cursor: pointer }
+.preview :where(label) { font-weight: 550; font-size: 14px }
+.preview :where(vera-field) { display: grid; gap: 6px; width: min(100%, 320px) }
+.preview :where(vera-field small) { font-size: 13px; color: var(--mute) }
+.preview :where(vera-field [data-vera-part=error]) { color: light-dark(#c4321c, #ff7a66) }
+dialog :where(input, textarea) { font: inherit; min-height: 38px; padding: 0 12px; border-radius: var(--vera-radius); border: 1px solid var(--line); background: var(--vera-surface); color: var(--ink) }
+
+.foot { text-align: center; color: var(--mute); font-size: 13px; padding: 40px 16px 56px; border-top: 1px solid var(--line) }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr) } .side { display: none } .controls .radius { display: none } }
 </style>
 <!--IMPORTMAP-->
 </head>
 <body>
-<header class="band top">
-  <h1>Vera components</h1>
-  <p>Every component in this repo, running its production bundle through an import map, in the states it ships with. Each plate comes from the package's own <code>src/&lt;name&gt;/demo.ts</code>, so this page is always the current source and build.</p>
+<header class="bar">
+  <a class="brand" href="#top"><span class="mark" aria-hidden="true"></span>Vera</a>
+  <div class="controls" role="group" aria-label="Theme">
+    <div class="seg" role="group" aria-label="Color scheme" data-scheme-buttons>
+      <button type="button" data-scheme="system" aria-pressed="true">Auto</button><button type="button" data-scheme="light" aria-pressed="false">Light</button><button type="button" data-scheme="dark" aria-pressed="false">Dark</button>
+    </div>
+    <div class="swatches" role="group" aria-label="Accent color" data-accents>
+      <button type="button" style="--c:oklch(0.56 0.22 280)" data-accent="oklch(0.56 0.22 280)" aria-label="Violet" aria-pressed="true"></button>
+      <button type="button" style="--c:oklch(0.58 0.19 250)" data-accent="oklch(0.58 0.19 250)" aria-label="Blue" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.62 0.16 160)" data-accent="oklch(0.62 0.16 160)" aria-label="Emerald" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.62 0.21 15)" data-accent="oklch(0.62 0.21 15)" aria-label="Rose" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.72 0.16 65)" data-accent="oklch(0.72 0.16 65)" aria-label="Amber" aria-pressed="false"></button>
+      <button type="button" style="--c:oklch(0.35 0.01 280)" data-accent="oklch(0.35 0.01 280)" aria-label="Graphite" aria-pressed="false"></button>
+    </div>
+    <label class="radius">Radius <input type="range" min="0" max="20" value="10" data-radius></label>
+  </div>
 </header>
 
-<main class="band">
+<section class="hero" id="top">
+  <span class="eyebrow"><b>New</b> Web components over your own HTML</span>
+  <h1>Components that are <em>fast, tiny and yours</em></h1>
+  <p class="sub">Accessible, framework-free building blocks that wire the markup you already write. They work before the script loads, weigh a few kilobytes, and restyle with a handful of CSS variables. Try the controls up top.</p>
+  <div class="cta">
+    <a class="btn primary" href="#<!--FIRST-->">Browse components</a>
+    <button type="button" class="btn" data-copy-text="npm i @verajs/core @verajs/renderer"><code>npm i @verajs/core</code></button>
+  </div>
+  <div class="facts">
+    <span><strong><!--COUNT--></strong>components</span>
+    <span><strong data-total>…</strong>all of them, gzip</span>
+    <span><strong>0</strong>dependencies</span>
+  </div>
+</section>
+
+<div class="layout">
+  <nav class="side" aria-label="Components"><p class="label">Components</p><!--NAV--></nav>
+  <main>
 <!--PLATES-->
-</main>
+  </main>
+</div>
+<p class="foot">Every section runs its component's production bundle, in the states it ships with, generated from the package's own <code>demo.ts</code>.</p>
 
 <script type="module">
 {
-  const { wire } = await import('@verajs/core');
-  const { renderer } = await import('@verajs/renderer');
-  const { lists } = await import('@verajs/renderer/keyed');
-  const { slots } = await import('@verajs/renderer/slots');
-  const { styles } = await import('@verajs/styles');
-  wire([renderer, lists, slots, styles]);
+  /*WIRING*/
   for (const name of /*COMPONENTS*/[]) await import('@vera-components/' + name);
   /**
    * A demo's form has nowhere to go: keep the page, let the component do its part. A form whose method is "dialog" is
@@ -66,6 +188,92 @@ svg.glyph{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stro
   document.addEventListener('submit', (event) => {
     if (event.target.method !== 'dialog') event.preventDefault();
   });
+}
+</script>
+<script type="module">
+/** The theme controls: what they set is what an app sets. Every framed state gets the same. */
+const root = document.documentElement;
+const frames = () => [...document.querySelectorAll('iframe.frame')];
+const apply = (target) => {
+  const style = target.documentElement.style;
+  style.setProperty('--vera-accent', root.style.getPropertyValue('--vera-accent') || getComputedStyle(root).getPropertyValue('--vera-accent'));
+  style.setProperty('--vera-radius', root.style.getPropertyValue('--vera-radius') || '10px');
+  style.colorScheme = root.dataset.scheme === 'light' || root.dataset.scheme === 'dark' ? root.dataset.scheme : 'light dark';
+};
+const applyAll = () => {
+  for (const frame of frames()) if (frame.contentDocument?.documentElement) apply(frame.contentDocument);
+};
+for (const frame of frames()) frame.addEventListener('load', () => apply(frame.contentDocument));
+const press = (group, chosen) => {
+  for (const button of group.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button === chosen));
+};
+document.querySelector('[data-scheme-buttons]').addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  press(event.currentTarget, button);
+  if (button.dataset.scheme === 'system') delete root.dataset.scheme;
+  else root.dataset.scheme = button.dataset.scheme;
+  applyAll();
+});
+document.querySelector('[data-accents]').addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  press(event.currentTarget, button);
+  root.style.setProperty('--vera-accent', button.dataset.accent);
+  applyAll();
+});
+document.querySelector('[data-radius]').addEventListener('input', (event) => {
+  root.style.setProperty('--vera-radius', `${event.target.value}px`);
+  applyAll();
+});
+
+/** Copy: a state's code, or the install line. */
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-copy], [data-copy-text]');
+  if (!button) return;
+  const text = button.dataset.copyText ?? button.parentElement.querySelector('code').textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    const was = button.textContent;
+    if (button.hasAttribute('data-copy')) {
+      button.textContent = 'Copied';
+      setTimeout(() => (button.textContent = was), 1200);
+    }
+  } catch {
+    /* no clipboard (an insecure origin): nothing to do */
+  }
+});
+
+/** The section in view, marked in the side nav. */
+const links = new Map([...document.querySelectorAll('.side a')].map((a) => [a.getAttribute('href').slice(1), a]));
+const spy = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries)
+      if (entry.isIntersecting) for (const [id, a] of links) a.setAttribute('aria-current', String(id === entry.target.id));
+  },
+  { rootMargin: '-30% 0px -60% 0px' },
+);
+for (const plate of document.querySelectorAll('.plate')) spy.observe(plate);
+
+/**
+ * Each component's size, measured here from the bundle this page runs: its production file, gzip-compressed by the
+ * browser. The component's own bundle only; core and the renderer are shared by every component and counted once in
+ * the total.
+ */
+const map = JSON.parse(document.querySelector('script[type=importmap]').textContent).imports;
+const gzip = async (url) => {
+  const body = (await fetch(url)).body.pipeThrough(new CompressionStream('gzip'));
+  return (await new Response(body).arrayBuffer()).byteLength;
+};
+const kb = (bytes) => `${(bytes / 1024).toFixed(1)} kB`;
+if (typeof CompressionStream === 'function') {
+  const sizes = await Promise.all(Object.entries(map).map(async ([specifier, url]) => [specifier, await gzip(url)]));
+  const bySpecifier = new Map(sizes);
+  for (const pill of document.querySelectorAll('[data-size]')) {
+    const bytes = bySpecifier.get(pill.dataset.size);
+    if (bytes !== undefined) pill.textContent = `${kb(bytes)} gzip`;
+  }
+  document.querySelector('[data-total]').textContent = kb(sizes.reduce((sum, [, bytes]) => sum + bytes, 0));
 }
 </script>
 </body>

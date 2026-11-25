@@ -111,7 +111,8 @@ export type ComponentSurface = {
  * surface, declared `as const satisfies ComponentDemo`. The preview page is generated from every package's demo, and
  * `tests/component-demos.test.mjs` holds each one to its surface: every state renders with no warning, and every
  * attribute and part the surface declares appears in some state. That check reads the RENDERED DOM, so a part the
- * user writes (a prefix the demo's markup supplies) counts, and so does a part that is present but hidden.
+ * user writes (a prefix the demo's markup supplies) counts, and so does a part that is present but hidden, but never
+ * the user's markup parked out of sight by light-DOM slots.
  *
  * Markup only, no script, so a demo stays readable by anything and buildless. A part that is not in the DOM until the
  * reader does something (a caps-lock hint after a key press) is listed in `interactive` with how to reach it, which the
@@ -127,6 +128,11 @@ export type ComponentDemo = {
     readonly note?: string;
     /** The state's HTML, as a page author would write it. */
     readonly markup: string;
+    /**
+     * Shown in a frame of its own: a state that takes over the page it is in (a modal open at load makes everything
+     * outside it inert) is confined to its frame, so the rest of the preview page stays usable.
+     */
+    readonly framed?: boolean;
   }[];
   /** Parts reached only by interaction: the part's name and what to do to see it. */
   readonly interactive?: readonly { readonly part: string; readonly how: string }[];
