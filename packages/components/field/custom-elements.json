@@ -71,7 +71,17 @@
               "description": "Shows \"length / maxlength\" for a control with a maxlength, and describes the control."
             }
           ],
-          "cssProperties": [],
+          "cssProperties": [
+            {
+              "name": "--vera-danger"
+            },
+            {
+              "name": "--vera-fg"
+            },
+            {
+              "name": "--vera-fg-muted"
+            }
+          ],
           "vera-states": [
             {
               "on": "control",

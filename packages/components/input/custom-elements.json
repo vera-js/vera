@@ -43,7 +43,7 @@
             },
             {
               "name": "scale",
-              "description": "sm, md or lg: the input's own font size, md the page's and sm and lg around it; none leaves the browser's (never size, which <input size> already means)."
+              "description": "sm, md or lg: the box's font size, which the input and its parts follow, md the page's and sm and lg around it; none is the page's too (never size, which <input size> already means)."
             },
             {
               "name": "name",
@@ -101,10 +101,25 @@
           ],
           "cssProperties": [
             {
-              "name": "--vera-radius"
+              "name": "--vera-border"
+            },
+            {
+              "name": "--vera-danger"
+            },
+            {
+              "name": "--vera-fg"
+            },
+            {
+              "name": "--vera-fg-muted"
             },
             {
               "name": "--vera-focus"
+            },
+            {
+              "name": "--vera-radius"
+            },
+            {
+              "name": "--vera-surface"
             }
           ],
           "vera-states": [],
