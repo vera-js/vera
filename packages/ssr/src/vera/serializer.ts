@@ -93,6 +93,14 @@ const isEventName = (name: string): boolean => {
  */
 const nameCut = (text: string, nameAt: number): number => (nameAt > 0 && isSpace(text[nameAt - 1]) ? nameAt - 1 : nameAt);
 /**
+ * A binding's static text before it, as compile writes it: one that ends in `/` keeps one space after it. A binding
+ * takes the space before its name, so a dropped one (`@click`, a refused handler, a nullish value, a false `?bool`)
+ * left `<g/` against the tag's `>`, and `<g/>` is a self-closing tag in SVG and MathML: the element's children were
+ * served after it, where the client, which never drops the `/ `, keeps them inside. A space after a `/` makes it no
+ * self-closing slash in every tokenizer state, and keeps it as written at the end of an unquoted value (`a=x/`).
+ */
+const beforeBinding = (text: string): string => (text.charCodeAt(text.length - 1) === 47 ? `${text} ` : text);
+/**
  * Where a sigil or event binding's value ends in a static after its hole: past the closing quote, or, unquoted, at the
  * whitespace or `>` that ends it — or `-1` when it does not end there, and runs on into the next hole. The client
  * drops such an attribute whole, every static and every further hole in its value (`@click="${fn}x"` renders `<a>`), so
@@ -757,7 +765,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
      */
     if (first && isSigil(tagState.attrRaw.charCodeAt(0))) {
       /** The space that preceded the binding goes with it, so dropped bindings leave no residue. */
-      const before = part.slice(0, nameCut(strings[i], tagState.nameAt) - shift).replace(/ $/, '');
+      const before = beforeBinding(part.slice(0, nameCut(strings[i], tagState.nameAt) - shift).replace(/ $/, ''));
       record(before);
       parts.push(before);
       openQuote = tagState.quote;
@@ -827,7 +835,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
 
     /** `onClick=${fn}` — the React-shaped event binding, named as the client names it: a client concern, dropped like `@`. */
     if (first && isEventName(tagState.attrRaw)) {
-      const before = part.slice(0, tagState.nameAt - shift).replace(/ $/, '');
+      const before = beforeBinding(part.slice(0, tagState.nameAt - shift).replace(/ $/, ''));
       record(before);
       parts.push(before);
       openQuote = tagState.quote;
@@ -865,7 +873,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         leads[kinds.length] = forDoubleQuotes(part, group.quote);
         decodedLeads[kinds.length] = decodeSchemeReferences(part);
       } else {
-        const before = part.slice(0, tagState.attrStart - shift);
+        const before = beforeBinding(part.slice(0, tagState.attrStart - shift));
         const prefix = part.slice(tagState.valueStart - shift);
         const lower = tagState.attrName;
         if (owner === 'font' && tagState.foreign !== 0) fontInForeign(strings, lower);
@@ -1327,9 +1335,9 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
            * The space that introduced the binding goes with it, exactly as a dropped sigil binding's
            * does. Leaving it served `<p >r</p>` where the client renders `<p>r</p>` — harmless to a
            * parser, and still a difference between the two halves for something neither of them
-           * renders at all.
+           * renders at all. A space after a `/` stays (`beforeBinding`): `<g/>` would close the element in SVG.
            */
-          out = out.replace(/ $/, '');
+          if (out.charCodeAt(out.length - 2) !== 47) out = out.replace(/ $/, '');
           break;
         }
         /**

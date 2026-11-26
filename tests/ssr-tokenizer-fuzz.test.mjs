@@ -22,7 +22,7 @@ import { parse } from 'parse5';
 import { serializeTemplate } from '@verajs/ssr';
 import { extendSeeds } from './fuzz-seeds.mjs';
 
-const SEEDS = extendSeeds([1, 7, 42, 1009, 31337, 271828]);
+const SEEDS = extendSeeds([1, 7, 42, 1009, 31337, 271828, 833563626, 1743990491, 859037048]);
 const CASES_PER_SEED = 1500;
 
 const template = (statics, values) => ({ ['_$litType$']: 1, strings: Object.assign([...statics], { raw: [...statics] }), values });
