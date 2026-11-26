@@ -114,7 +114,7 @@ const cool = heavyBatch('gate');
 
 let failed = 0;
 for (const [name, command, args] of steps) {
-  cool();
+  cool(name);
   process.stdout.write(`  ${name.padEnd(26)}`);
   /**
    * A buffer far above any step's output (2026-11-17): at spawnSync's default 1 MiB, the development suite's output
