@@ -94,6 +94,8 @@ a more intelligent way that takes way less time."
   liveness reads only, not even `tsc`.
 - **Caffeinate** every heavy run (`-dimsu -w <pid>`; the tools do it) plus ONE continuous `caffeinate -dimsu -t <h>` over
   any unattended stretch: gaps let the screen saver up, and only real input dismisses it.
+- **Windows:** `heavyBatch` holds the machine awake (`SetThreadExecutionState`) and refuses to start locked; a step
+  that ends locked fails, and is re-run.
 - **Thermal pressure 0** (`notifyutil -g com.apple.system.thermalpressurelevel`) before every sample and gate step; else
   pause a minute at a time. A tool that cannot read it refuses. The 2-minute batch pause before every heavy batch,
   narrow A/Bs included (Brian, 2026-11-20: "keep 120s"; `BATCH_PAUSE_S`), lives in `scripts/heavy-batch.mjs`.
