@@ -249,8 +249,8 @@ member: `cd bench && npm install`), `docs/` (public), `internal/` (private, giti
 - The loop, in order: `npx changeset version` → `npm install --package-lock-only` → `git add -- <the changed paths>` and
   `git commit -F <file>` ("release: …") → the full gate on that commit → `node scripts/tag-release.mjs` (tags HEAD; the gate's `tag-release` step is red on the version commit
   until this runs, by design) → push the commit and its release tags in ONE atomic push, by name:
-  `git push --atomic origin HEAD:main $(git tag --points-at HEAD)` (the release waits for CI, and CI is red on a version
-  commit whose tags are not there yet; `--follow-tags` also pushes any old local annotated tag, 2026-11-20).
+  `git push --atomic origin HEAD:main $(git tag --points-at HEAD)` (CI's `tag-release --check` fails a commit pushed
+  before its tags; `--follow-tags` also pushes any old local annotated tag, 2026-11-20).
 - CI publishes what `main` has that npm lacks, via **Trusted Publishing** (OIDC): `release.yml` keeps its name; a new
   package's first publish is manual; `repository.url` stays `git+https://github.com/vera-js/vera.git`; **never an
   `NPM_TOKEN`**. `shared-types`/`shared-utils` are private, inlined.

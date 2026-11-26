@@ -32,10 +32,16 @@ ones.
 npx changeset version            # bump versions, write CHANGELOGs, consume changesets
 npm install --package-lock-only  # the lockfile's workspace entries follow the new versions (node_modules untouched)
 git diff                         # review — this is the release gate
-git add -A && git commit -m "release: 0.x.y"
+git add -- .changeset packages package-lock.json bench/size-snapshot.json llms.txt   # only what the release changed
+git commit -m "release: 0.x.y"
 node scripts/tag-release.mjs     # annotated tag per publishable package — AFTER the commit
 git push --atomic origin HEAD:main $(git tag --points-at HEAD)   # the commit and ITS tags, in one push
 ```
+
+**Stage the release's own paths, never `git add -A`**: the version bumps and CHANGELOGs (`packages`), the consumed
+changesets, the lockfile, and the size snapshot and CDN pins once re-taken (`node bench/size.mjs --snapshot` and the
+pinned versions in `llms.txt` move with built output, which a version commit changes). `-A` also takes whatever else the
+tree holds, a scratch file or a half-done edit, into a commit that is published.
 
 **Push the commit and its tags together, in one atomic push, by name.** CI checks that every bumped package is tagged
 (`tag-release.mjs --check`), and the release waits for CI to pass on the commit (below), so a version commit pushed
