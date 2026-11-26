@@ -39,7 +39,10 @@ customElements.define('x-card', Card);
 
 `css` returns `{ styleSheet, cssText }`: a constructed sheet for the engines that adopt one, and its
 text for everything that cannot (a `<style>` element, a server render, jsdom). Interpolated values are
-joined as text — `0` stays `0`, and `''` or `undefined` add nothing.
+joined as text — `0` stays `0`, and `''` or `undefined` add nothing. They are CSS source, not escaped: a value
+can add a declaration or a rule (`red; background: url(…)`), so interpolate constants only and put a user's value in a
+custom property (`el.style.setProperty('--accent', value)`, below). Only a `</style` sequence is neutralized, where
+text is written into a `<style>` element.
 
 `static styles` takes one `css` result, a string of CSS, or an array of either. A falsy member is
 skipped, so conditional styles read naturally: `static styles = [base, compact && compactSheet]`.
