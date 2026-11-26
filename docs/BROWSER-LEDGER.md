@@ -429,7 +429,14 @@ from another machine, or after that is undone, has a variable changed.
   expose the `switch` IDL attribute Safari 17.4 shipped (Safari itself was not measured here). Consequence:
   `<vera-switch>` feature-detects it on the input and takes `role="switch"` wherever it is absent, which is every engine
   this runner has; its browser row keeps the measured table and turns red when a runner gains it, and the native branch
-  is exercised in jsdom with the property faked present.
+  is exercised in jsdom with the property faked present. **Narrowed 2026-11-26 by the next entry: measured on Windows
+  only, and it does not hold for Playwright's WebKit on macOS.**
+- **Playwright's WebKit exposes the native switch on macOS, and not on Windows or Linux.** `'switch' in
+  HTMLInputElement.prototype` is true in Playwright's WebKit 27 on macOS (a macOS gate, 2026-11-26) and false in the same
+  WebKit 27.2 on Windows 11 and on the Linux CI runner; Chromium 159 and Firefox 159 have it on none of them. So the
+  switch is a platform's choice within one engine build, not the engine's. Consequence: `<vera-switch>`'s browser row
+  keys its measured table by engine and platform, and on macOS WebKit the native branch (the `switch` attribute, no
+  `role`) is met for real.
 
 ## CSS and the cascade
 

@@ -44,11 +44,13 @@ const LABELED = (attrs = '') => `<label><input type="checkbox" name="n"${attrs}>
 
 describe('vera-switch: the platform switch where it exists', () => {
   /**
-   * Which engines expose the native switch (`HTMLInputElement.prototype.switch`), measured: none of this runner's three
-   * today. Safari 17.4 ships it; Playwright's WebKit build does not expose it. A runner that gains it turns this red, so
-   * the table is updated with the browser ledger, and the native branch, faked present in jsdom until then, is met for real.
+   * Which engines expose the native switch (`HTMLInputElement.prototype.switch`), measured, and it is per platform, not
+   * per engine: Playwright's WebKit 27 has it on macOS and not on Windows 11 or the Linux CI runner; Chromium 159 and
+   * Firefox 159 have it nowhere (2026-11-26). Safari 17.4 ships it. A runner that gains or loses it turns this red, so the
+   * table is updated with the browser ledger; where it is absent, the native branch is met in jsdom with it faked present.
    */
-  const NATIVE = { Chromium: false, Firefox: false, WebKit: false };
+  const MAC = /Macintosh|Mac OS X/.test(navigator.userAgent);
+  const NATIVE = { Chromium: false, Firefox: false, WebKit: MAC };
 
   it('the input carries exactly one of the native switch and role="switch": the switch where the engine has it, the role elsewhere', async () => {
     const wrap = await mount(`<vera-switch>${LABELED()}</vera-switch>`);
