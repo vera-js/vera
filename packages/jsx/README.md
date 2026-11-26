@@ -384,7 +384,17 @@ is an error.
 
 A Vera component's tag is typed the same way once its package is imported: each one merges its tag
 into the DOM library's `HTMLElementTagNameMap`, so `e.currentTarget` is the component's own element
-(`<vera-select onInput={(e) => e.currentTarget.value} />`).
+(`<vera-select onInput={(e) => e.currentTarget.value} />`). A component that sends a native event
+name with its own shape declares it as a type-only class member, `declare readonly '~events'?: { … }`,
+and its handler types that event while every other name keeps the native one:
+
+```tsx
+<vera-select onChange={(e) => e.detail.value} />   // e: CustomEvent<{ value; selectedOptions }>
+<vera-input onChange={(e) => e.type} />           // declares none: the native Event
+```
+
+A key starting with `~` is reserved for type-only members: it exists for the types and is `undefined`
+at runtime, which its optional `?` says, so `select['~events'].change` is a type error.
 
 Everything else accepts every prop, so `key={id}` and bare props on a component type-check, and a
 dash-named tag (a custom element) is fully permissive. A typed per-attribute surface is the known

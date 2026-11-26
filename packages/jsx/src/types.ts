@@ -79,8 +79,24 @@ type LooseEventHandler =
 type ElementEventHandlers<El> = {
   [K in keyof HTMLElementEventMap as
     | `on${Capitalize<K>}`
-    | (K extends keyof CheckedCamelEventNames ? `on${CheckedCamelEventNames[K]}` : never)]?: EventHandler<HTMLElementEventMap[K], El>;
+    | (K extends keyof CheckedCamelEventNames ? `on${CheckedCamelEventNames[K]}` : never)]?: EventHandler<EventOf<El, K>, El>;
 };
+
+/**
+ * **An element's own events, merged over the native map.** A component that dispatches a native name with its own
+ * event (`<vera-select>`'s `change` is a `CustomEvent` carrying the selection) declares it on its class as a
+ * type-only member, `declare readonly '~events'?: { change: CustomEvent<…> }`, and its handler types that event;
+ * every name it does not declare stays the native one. `declare` emits nothing, so the member costs no shipped byte.
+ * The `~` key is the spelling for type-only members (Standard Schema's `'~standard'` is the precedent): it sorts
+ * last in autocomplete, and being optional it reads as possibly `undefined`, which is what it is at runtime. The
+ * `infer` through the optional member yields the map without `undefined`, and an element without the member does
+ * not match, so it keeps the native map (both checked with tsc 6 under `strict`).
+ */
+type EventOf<El, K extends keyof HTMLElementEventMap> = El extends { readonly '~events'?: infer Own }
+  ? K extends keyof Own
+    ? Own[K]
+    : HTMLElementEventMap[K]
+  : HTMLElementEventMap[K];
 
 /**
  * **A built-in element's props: typed handlers, and everything else as permissive as before.** Only

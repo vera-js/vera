@@ -347,6 +347,14 @@ const sameShown = (a: Shown[], b: Shown[] | undefined): boolean =>
   a.every((row, i) => row.every((field, k) => (k < 5 ? field === b[i][k] : sameIcon(field, b[i][k]))));
 
 export class VeraSelect extends HTMLElement {
+  /**
+   * Type-only: the events this element dispatches under a native name with its own shape, so a TSX `onChange` types
+   * `e.detail`. `declare` emits nothing, so it costs no shipped byte, and it is optional because it is `undefined` at
+   * runtime; every other name keeps the native event.
+   */
+  declare readonly '~events'?: {
+    change: CustomEvent<{ value: string | string[]; selectedOptions: SelectOption[] }>;
+  };
   static styles = SELECT_STYLES;
   static formAssociated = true;
   static observedAttributes = [

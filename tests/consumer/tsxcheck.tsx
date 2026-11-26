@@ -79,20 +79,30 @@ const wrongElement = <input onClick={(e) => e.currentTarget.viewBox} />;
 
 /**
  * **A component's tag is typed by importing its package**, whose register entry merges the tag into
- * `HTMLElementTagNameMap`: `e.currentTarget` is the element's own class. Without the declarations each read below
- * is an error (`value` and `keys` are not on `HTMLElement`).
+ * `HTMLElementTagNameMap`: `e.currentTarget` is the element's own class, and an element that declares `'~events'`
+ * types its own event under a native name. `<vera-select>`'s `change` carries the selection in `detail`;
+ * `<vera-input>` declares none, so its `change` stays the native `Event`. Without the declarations each read below
+ * is an error (`value` and `keys` are not on `HTMLElement`, `detail` is not on `Event`).
  */
 const tagged = (
   <div>
-    <vera-select onInput={(e) => e.currentTarget.value} />
+    <vera-select onChange={(e) => e.detail.value} onInput={(e) => e.currentTarget.value} />
+    <vera-select onChange={(e) => e.detail.selectedOptions.map((option) => option.value)} />
     <vera-input onChange={(e) => e.type} />
   </div>
 );
 const created = document.createElement('vera-select').value;
 const queried = document.querySelector('vera-kbd')?.keys;
+// @ts-expect-error — select's change detail has no `nope`
+const wrongDetail = <vera-select onChange={(e) => e.detail.nope} />;
+// @ts-expect-error — vera-input declares no change of its own: the native `Event` has no `detail`
+const nativeChange = <vera-input onChange={(e) => e.detail} />;
+/** The `~` member is type-only, so it is honestly optional: read without `?.` it is possibly undefined, as at runtime. */
+// @ts-expect-error — '~events' is undefined at runtime, and the type says so
+const notAtRuntime = document.createElement('vera-select')['~events'].change;
 
 export {
   element, keyedElement, keyedComponent, stringKey, objectKey, withChildren, declared,
   handlers, notAHandler, wrongEvent, wrongElement,
-  tagged, created, queried,
+  tagged, created, queried, wrongDetail, nativeChange, notAtRuntime,
 };

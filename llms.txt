@@ -1068,7 +1068,9 @@ a TSX app imports `@verajs/core` and configures the plugin in `vite.config.js` �
 the DOM library — `onInput={(e) => e.currentTarget.value}` infers `InputEvent` on `HTMLInputElement`
 under `strict`, `onKeyDown` and `onKeydown` both work, and `false`/`null`/`undefined` mean no
 handler; an unknown event name gets a plain `Event`. A Vera component's tag is typed once its package
-is imported (each merges into `HTMLElementTagNameMap`). Every other prop is permissive (every element
+is imported (each merges into `HTMLElementTagNameMap`), and a component's own event under a native name
+types through its `declare readonly '~events'?` (`<vera-select onChange={(e) => e.detail.value} />`); a `~` key
+is reserved for type-only members and is `undefined` at runtime. Every other prop is permissive (every element
 accepts it), so `key` and bare props type-check and a misspelled attribute is not caught — nor a misspelled
 handler name, though development names one a keystroke or two from a real event (`onClik` → "did you
 mean @click?"); the checked

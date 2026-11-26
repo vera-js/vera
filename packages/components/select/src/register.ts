@@ -30,7 +30,7 @@ define('vera-select', VeraSelect);
 
 declare global {
   /**
-   * Types `document.createElement('vera-select')`, `querySelector` and a TSX element's handlers (`e.currentTarget`).
+   * Types `document.createElement('vera-select')`, `querySelector` and a TSX `onChange` (`e.detail` from `'~events'`).
    * Under a stand-down (another copy already holds the tag) the type is still this copy's; the two can differ by a version.
    */
   // eslint-disable-next-line no-restricted-syntax -- HTMLElementTagNameMap is the DOM library's interface; only an interface merges into it
