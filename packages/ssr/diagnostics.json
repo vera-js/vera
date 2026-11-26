@@ -32,6 +32,14 @@
       "fix": "Keep `>` out of the section before its `]]>`, or write the text without a CDATA section."
     },
     {
+      "code": "ssr-font-in-foreign",
+      "params": [
+        "name"
+      ],
+      "message": "binds `{name}` on a <font> inside <svg> or <math>: the client builds that <font> as SVG or MathML, while the browser's parse of the served page leaves the <svg> or <math> at it (HTML's rule for a <font> with `color`, `face` or `size`), so the two pages' trees differ.",
+      "fix": "SVG's <font> is obsolete: style text with `fill` and `font-family`, or close the <svg> before an HTML <font>. Said once per template."
+    },
+    {
       "code": "ssr-listener-threw",
       "params": [
         "type"
@@ -121,6 +129,15 @@
       "params": [],
       "message": "a value in a <script> is code — on a served page it runs — so a script hole is refused, except in a JSON data block (its type ends in `json`, with no character reference).",
       "fix": "Give the script a JSON type (`type=\"application/json\"` or `application/ld+json`) for state or JSON-LD, or pass the value another way."
+    },
+    {
+      "code": "ssr-select-no-match",
+      "params": [
+        "binding",
+        "count"
+      ],
+      "message": "a bound <select> {binding} matched none of its {count} options: the client shows none selected, and the served page shows its first.",
+      "fix": "Markup cannot say \"none selected\". Give every value the select can be bound to an option (`<option value=\"\">` for no choice yet), or mark one `selected` yourself. Said once per template."
     },
     {
       "code": "ssr-selector-unsupported",

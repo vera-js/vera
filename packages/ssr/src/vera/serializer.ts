@@ -9,7 +9,7 @@ import { currentRenderingTag } from './stylesheets.js';
 import { INSTANCE_ATTRIBUTE, NodeBaseShim, markPending } from './nodes.js';
 import type { ElementShim } from './nodes.js';
 import type { Open, ScanResult, ScanStart, SsrTemplate } from './types.js';
-import { PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, depthOf, positionAt, positionOf, holdsText, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
+import { FONT_BREAKOUT, PHASE_END_TAG_OPEN as END_TAG_OPEN, INERT_EDIT as EDIT_INERT, RAW_TEXT_TAGS as RAWTEXT, PHASE_TAG_NAME as TAG_NAME, PHASE_TAG_OPEN as TAG_OPEN, TEXT_ONLY_TAGS as TEXT_ONLY, closersOf, freshScan, isTokenizerSpace as isSpace, depthOf, positionAt, positionOf, holdsText, rawTextCloserAt as closerAt, scanTag } from './tokenizer.js';
 
 /** Module-local, because serializeValue (the hottest function here) reads it: an imported binding is a live one, which
  *  V8 reaches less directly (CLAUDE.md, measured on the tokenizer's constants). */
@@ -172,6 +172,20 @@ const joinValue = (pieces: readonly string[], values: readonly unknown[], i: num
  */
 const NAME_CHAR_BEFORE = /[^\t\n\f\r "'>=/]$/;
 const NAME_CHAR_AFTER = /^(?:[^\t\n\f\r "'>=/]|[ \t\n\f\r]*=)/;
+/**
+ * **A bound `color`, `face` or `size` on a `<font>` in SVG or MathML** — said once per template (`site`, its `strings`),
+ * from compile, so nothing per render. The client's parse of the template sees a marker where a bound attribute goes,
+ * so it builds that `<font>` as foreign content; the browser's parse of the served `<font color="…">` leaves foreign
+ * content at it (the standard's conditional breakout, see `FONT_BREAKOUT`), and the trees differ. No value is at stake
+ * (every value is escaped under both readings), and SVG's `<font>` is obsolete, so it is served as written and said
+ * rather than made to match (2026-11-26).
+ */
+const fontInForeign = (site: unknown, name: string): void => {
+  if (!FONT_BREAKOUT.has(name) || !once('ssr-font-in-foreign', site as object)) return;
+  const tag = currentRenderingTag();
+  console.warn(ssrWarning(tag ? `<${tag}>` : 'the page', 'ssr-font-in-foreign', PROSE['ssr-font-in-foreign']!(name)));
+};
+
 /**
  * A bound `javascript:` URL, refused — said once per process per component and attribute. The VALUE is never printed:
  * it is attacker-shaped by definition, and a server's console is a log pipeline (2026-10-09).
@@ -758,6 +772,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         kinds.push(DROPPED);
       } else if (kind === '?') {
         kinds.push(BOOLEAN);
+        if (owner === 'font' && tagState.foreign !== 0) fontInForeign(strings, asciiLower(sigilName));
       } else if ((kind === '.' || kind === '!') && sigilName && owner.includes('-')) {
         /**
          * A property on a COMPONENT tag is neither markup nor a client concern: it is the data the
@@ -853,6 +868,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
         const before = part.slice(0, tagState.attrStart - shift);
         const prefix = part.slice(tagState.valueStart - shift);
         const lower = tagState.attrName;
+        if (owner === 'font' && tagState.foreign !== 0) fontInForeign(strings, lower);
         /** Whether the name is a URL sink, and which kind (captured: from the start; not: item by item). */
         const sink = URL_SINK.exec(lower);
         record(before);
@@ -1480,7 +1496,7 @@ export const serializeTemplate = (template: SsrTemplate, depth = 0): string => {
   }
   const tail = parts[kinds.length];
   const finished = pendingText === null ? out + tail : out + insertContent(tail, pendingText, pendingStrip);
-  return selectValues.length ? resolveSelects(finished, selectValues) : finished;
+  return selectValues.length ? resolveSelects(finished, selectValues, strings) : finished;
 };
 
 /**
@@ -1557,6 +1573,18 @@ const optionText = (content: string, from: number): string => {
 };
 
 /**
+ * A `<select>` binding that matched no option — said once per process per template (`site`, its `strings`). The VALUE is
+ * never printed: it is request data, often a user's own input, and a server's log is read by others; the binding's
+ * name and the option count are what its developer can act on.
+ */
+const unmatchedSelect = (site: unknown, binding: string, count: number): void => {
+  /** A plan exists for it, so `compile`'s `isLiteral` admitted it: an array, never a primitive. */
+  if (!once('ssr-select-no-match', site as object)) return;
+  const tag = currentRenderingTag();
+  console.warn(ssrWarning(tag ? `<${tag}>` : 'the page', 'ssr-select-no-match', PROSE['ssr-select-no-match']!(binding, `${count}`)));
+};
+
+/**
  * Marks the first option matching `wanted`, and clears any `selected` the author wrote.
  *
  * Clearing is not tidiness: a property assignment overrides markup, so `<option selected>` beside a
@@ -1567,9 +1595,10 @@ const optionText = (content: string, from: number): string => {
  * When nothing matches, nothing is marked — and that is a divergence markup cannot close. The client
  * leaves `selectedIndex` at `-1` with nothing showing; a parsed `<select>` with no selected option
  * takes its **first**. See the SSR README. An index is the same: one out of range — `-1` included — selects nothing
- * on the client, and marks nothing here.
+ * on the client, and marks nothing here. So it is said (`unmatchedSelect`), once per template: `site` is its `strings`,
+ * which `once` holds weakly, so a select bound per request warns once for its template, never per render.
  */
-const markSelected = (content: string, wanted: string | number): string => {
+const markSelected = (content: string, wanted: string | number, site: unknown): string => {
   /**
    * With no `selected` anywhere in the options there is nothing to clear, so the chosen option is the input plus one
    * ` selected` and nothing after it is read (the old pattern's early return, on the parser's reading of the tag).
@@ -1614,6 +1643,8 @@ const markSelected = (content: string, wanted: string | number): string => {
     out += content.slice(last, start) + open;
     last = end;
   }
+  /** Reached with nothing marked: a match without `clear` returned above, and with `clear` it set `marked`. */
+  if (!marked) unmatchedSelect(site, typeof wanted === 'number' ? 'selectedIndex' : 'value', index);
   return clear ? out + content.slice(last) : content;
 };
 
@@ -1635,7 +1666,7 @@ const nextMarkedSelect = (markup: string, from: number): number => {
  * read by `readTag`, so its end is the parser's (a `>` inside a quoted title is not it) and its mark is an attribute
  * of its own, never text inside another value.
  */
-const resolveSelects = (markup: string, wanted: ReadonlyArray<string | number>): string => {
+const resolveSelects = (markup: string, wanted: ReadonlyArray<string | number>, site: unknown): string => {
   let out = '';
   let last = 0;
   for (let start = nextMarkedSelect(markup, 0); start !== -1; start = nextMarkedSelect(markup, start + 1)) {
@@ -1654,7 +1685,7 @@ const resolveSelects = (markup: string, wanted: ReadonlyArray<string | number>):
     if (mark === -1) continue;
     const closeAt = nextTag(markup, '/select', end);
     const contentEnd = closeAt === -1 ? markup.length : closeAt;
-    out += markup.slice(last, start) + open + markup.slice(from, end) + markSelected(markup.slice(end, contentEnd), wanted[mark]!);
+    out += markup.slice(last, start) + open + markup.slice(from, end) + markSelected(markup.slice(end, contentEnd), wanted[mark]!, site);
     last = contentEnd;
     start = Math.max(start, contentEnd - 1);
   }

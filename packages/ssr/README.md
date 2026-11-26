@@ -204,7 +204,9 @@ content (`<svg><p><my-comp>`), both of which the browser reads as HTML. A tag's 
 reads, so `<my-comp.x>` is another, unregistered element and is left exactly as written. A `<font>` with a static
 `color`, `face` or `size` breaks out too (`<svg><font color=red><my-comp>` renders it). One case differs from the
 client: after a *bound* one (`<font color=${c}>`) the server renders the component, as the browser reads the served
-page, while the client's template never sees the attribute and leaves it a foreign element.
+page, while the client's template never sees the attribute and leaves it a foreign element. The server says so
+(`ssr-font-in-foreign`), once per template: SVG's `<font>` is obsolete, so style the text with `fill` and
+`font-family` instead.
 
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
   registered class — field initializers run, `instanceof` answers — and appending it renders **that
@@ -503,7 +505,9 @@ markup itself is served byte for byte as it was written.
   verbatim, otherwise the option's text stripped and collapsed; first match wins), asserted against
   Chromium, Firefox and WebKit in `tests/browser/select-value.test.js`. But a value matching no option cannot be served:
   the client leaves nothing selected, while a parsed `<select>` with no `selected` option shows its
-  first, and there is no markup for "none of them". An index out of range, `-1` included, is the same case.
+  first, and there is no markup for "none of them". An index out of range, `-1` included, is the same case. The
+  server says so (`ssr-select-no-match`), once per template, naming the binding and the option count but never the
+  value, which is often a user's own input.
 - **A carriage return survives, as `&#13;`** — the HTML parser collapses a raw CR before tokenizing,
   so escaping it is what keeps a `<textarea>` value or a CSV cell identical on both sides.
   **RAWTEXT is the exception, and it is not fixable**: inside `<style>` and `<script>` a reference is

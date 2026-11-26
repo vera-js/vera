@@ -54,6 +54,14 @@ export const PROSE: Record<string, Prose> = {
     'CSSStyleSheet.deleteRule needs a parsed rule list; this sheet is text.',
     'Remove the rule from the text instead, or replace the sheet.',
   ],
+  'ssr-font-in-foreign': (name) => [
+    `binds \`${name}\` on a <font> inside <svg> or <math>: the client builds that <font> as SVG or MathML, while the browser's parse of the served page leaves the <svg> or <math> at it (HTML's rule for a <font> with \`color\`, \`face\` or \`size\`), so the two pages' trees differ.`,
+    "SVG's <font> is obsolete: style text with `fill` and `font-family`, or close the <svg> before an HTML <font>. Said once per template.",
+  ],
+  'ssr-select-no-match': (binding, count) => [
+    `a bound <select> ${binding} matched none of its ${count} options: the client shows none selected, and the served page shows its first.`,
+    'Markup cannot say "none selected". Give every value the select can be bound to an option (`<option value="">` for no choice yet), or mark one `selected` yourself. Said once per template.',
+  ],
   'ssr-styles-vary': () => [
     'hoisted different CSS than it did on an earlier render, and the new stylesheet was dropped.',
     "A tag's styles are established once per class for the life of the process, so CSS that varies per request cannot be hoisted — put the varying part in an inline style or a custom property instead.",

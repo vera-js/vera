@@ -88,6 +88,8 @@ const CLAIMS = new Map([
   ['packages/static/README.md#799991a53e', "pinned by tests/tier-parity-fixes.test.mjs: static's warnings are said once per site and value, never twice for one value"], // Each is said once — …
   ['llms.txt#329425cf39', 'pinned by tests/tier-parity-fixes.test.mjs: static says boolean-child and attribute-value where core says them, production silent'], // static's iframe/noscript sentence, run on by the sentence splitter into "**Development says core's warnings in core's words**, once each"
   ['packages/static/README.md#057802d34c', 'static-needs-renderer'], // a function value renders nothing; tests/static.test.mjs' development row // @verajs/lite: an option or a value only core handles — development names it
+  ['packages/ssr/README.md#71a369d622', 'ssr-select-no-match'], // a bound select value matching no option is said once per template, the value never printed — tests/ssr-select-no-match.test.mjs
+  ['packages/ssr/README.md#12d6999af1', 'ssr-font-in-foreign'], // a bound color/face/size on a <font> in SVG or MathML is said once per template — tests/ssr-font-in-foreign.test.mjs
   ['packages/ssr/README.md#72f0b30ee1', 'ssr-template-in-text'], // **A template in an HTML `<title>` or `<textarea>` is refused here** (`ssr-template-in-text`), while core's renderer places it and warns
   ['packages/ssr/README.md#22e66ee19b', 'pinned by tests/ssr-coded-diagnostics.test.mjs: every code ssr raises has its entry, each line ending on its code'], // **What ssr says, and how.** Every line ends with its code
   ['packages/ssr/README.md#616e1b6d69', 'pinned by tests/ssr-coded-diagnostics.test.mjs: the same key twice is one line, a second key a second; outside text arrives JSON-quoted'], // Two rules make it safe on a server

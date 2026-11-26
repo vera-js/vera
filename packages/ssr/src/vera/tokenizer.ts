@@ -88,7 +88,7 @@ const STRUCTURAL = new Set(['svg', 'math', 'noscript', 'select', 'template', ...
  * template parse never sees it (its bound attributes are renamed to markers before parsing), so the server keeps the
  * no-breakout reading there, which escapes every value — safe under both readings.
  */
-const FONT_BREAKOUT = new Set(['color', 'face', 'size']);
+export const FONT_BREAKOUT = new Set(['color', 'face', 'size']);
 const BREAKOUT = new Set([
   'b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4',
   'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small',
