@@ -1,5 +1,55 @@
 # @verajs/core
 
+## 0.5.1
+
+### Patch Changes
+
+- 4bf8b98: An array's single write is one wake: a `'sync'` effect or a watched `computed` that read `length` and an index a
+  truncating `length = n` drops, or an index and the list's walk, runs once per write instead of twice. Core's bundle
+  is smaller by the array handler's write wrappers.
+- 4bf8b98: A computed that reads itself, directly or through another, throws `computed-cycle` in development, read from plain
+  code or by an effect, where it recursed until the stack overflowed or re-ran about 1200 times a write. Production is
+  unchanged.
+- 45a880c: With a scheduler that runs the flush at once, a hook's error reaches the `'error'` chain once. A handler that rethrew
+  it used to hear it a second time, through the write that asked for the flush. It is now thrown as uncaught, as the
+  default scheduler leaves it, and the write no longer throws.
+- dd8245c: Three scheduler and store fixes:
+  
+  - An `'error'` handler that rethrows no longer strands the hooks queued behind the failing one: they are queued again
+    and a flush is asked for, so they run (before, no later write could queue them, and a hook on an unrelated signal
+    never ran again).
+  - `setRenderScheduler` called from inside a flush with a scheduler that runs at once no longer stops rendering for good.
+  - `Object.defineProperty` on a store array tells `length`'s readers when it moves `length`, and a shorter `length`
+    tells the readers of the indices it drops, as an assignment does.
+  - A store key made enumerable or hidden by `Object.defineProperty` tells the readers of the key set
+    (`Object.keys`, `JSON.stringify`), as adding a key does.
+- ec43d4c: A hook's error never leaves a write: an `'error'` handler that rethrows, under a `'sync'` effect or a scheduler that
+  runs the flush at once, no longer stops the write before every later subscriber hears it. The error is reported as
+  uncaught, as the default scheduler's flush reports it; `flush()` still throws it.
+- bb0c5e3: A paused component (`persist`, or an async setup still pending) taken into another window with `adoptNode` and
+  appended there stays alive: its pause timer was set on the new window and never cleared by the resume, so it fired
+  and tore down a component that was back in the page, whose writes then no longer rendered.
+- 3cb419e: Faster component creation and updates. A `define` element's props record starts out known as a plain data record, so
+  its first write no longer scans every prop's descriptor.
+- 4bf8b98: Development's render-loop warning names a hook owned by a plain object (a module's `effect`) without a tag, where it
+  printed "on <undefined>".
+- eaab014: A light component that renders no `<slot>` and reads its own children can say so: `static ownsChildren = true` on its
+  class, or `define({ tag, ownsChildren: true })`. On a page that wires `@verajs/renderer/slots` for other components,
+  slots then never moves that component's children into its unassigned carrier, at init or at a render's end, so the
+  component still finds the children it reads. A component that declares it and renders a `<slot>` is told once in
+  development (`owns-children-slot`). Nothing changes on a page without slots.
+- cbf6b05: `@verajs/ssr/named-references`: every named character reference of the HTML Standard for the server DOM, as a module
+  to wire (`wire([namedReferences])`). The server's parser decodes six names itself (`&amp;`, `&lt;`, `&gt;`, `&quot;`,
+  `&apos;`, `&nbsp;`) and every numeric reference; wired, every other name reads back as the text a browser gives in
+  `textContent`, attributes, `.value` and a bound `<select>`'s options, by the tokenizer's rules: a legacy name without
+  its `;` decodes too (`&amp` in text is `&`), the longest name wins (`&notin` in text is `¬in`), and in an attribute
+  value a legacy name before `=` or a letter or digit stays as written (`&ampx=1`). A server that does not wire it never
+  loads the table and reads such a name back as written, as before, and now says so once per name written with its `;`
+  (`ssr-named-reference-unwired`). The served markup is unchanged. `'reference'` is the new insert point the module wires
+  on (types only).
+- Updated dependencies [cbf6b05]
+  - @verajs/inserts@0.2.3
+
 ## 0.5.0
 
 ### Minor Changes

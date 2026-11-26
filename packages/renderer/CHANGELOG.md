@@ -1,5 +1,61 @@
 # @verajs/renderer
 
+## 0.3.4
+
+### Patch Changes
+
+- 4dce381: A bound `href` on a `<base>` is refused, as a bound `<script>` URL is: every relative and path-absolute URL after a
+  `<base>` resolves against it, a module script's `src="/assets/app.js"` included, so a value there chooses where the
+  page's code loads from (measured in Chromium, Firefox and WebKit, served and client-rendered). The renderer and `spread`
+  ignore the binding, `@verajs/lite` and `@verajs/static` do not write it, and `@verajs/ssr` never serves it; development
+  names it `base-href`. A `<base href>` written in the template is the author's own and untouched, and `<base target>`
+  still binds. What this takes away: a base computed per request in a template. Write the base for each deployment, or
+  give `@verajs/router` its prefix with its `base` option (`router({ base: '/app' })`).
+- 41113e5: The client's template scanners read whitespace as HTML does: tab, line feed, form feed, carriage return and space, and
+  nothing else, as `@verajs/ssr` does. U+000B, U+00A0 and JavaScript's other non-HTML spaces are part of a name or an
+  unquoted value to a browser. Development now refuses a hole one of them joins to an attribute name
+  (`name-expression`), as the server does, and the scanners read tag and attribute names where a browser ends them.
+- 53d346d: The JSON data-block check reads attribute names as the HTML parser does: a quote or a leading `=` is part of a name, so
+  `<script x"type="application/json">` has no `type`, is code, and a hole in it is refused (`script-hole`,
+  `ssr-script-hole`), on the client and the server alike.
+- eaab014: A light component that renders no `<slot>` and reads its own children can say so: `static ownsChildren = true` on its
+  class, or `define({ tag, ownsChildren: true })`. On a page that wires `@verajs/renderer/slots` for other components,
+  slots then never moves that component's children into its unassigned carrier, at init or at a render's end, so the
+  component still finds the children it reads. A component that declares it and renders a `<slot>` is told once in
+  development (`owns-children-slot`). Nothing changes on a page without slots.
+- 19e38f6: Development's tag-shape check reads a slash an unquoted attribute value takes as part of the value, as HTML does:
+  `<svg class=a/>` stays open, so a binding beside an element in its `<title>` is refused as it is in any open `<svg>`,
+  and `<div class=a/>` is no longer warned as a self-closed `<div />`. A quoted value, a bare name or a binding before the
+  slash still self-closes. Production is unchanged.
+- 85f12ac: A `<script>` no longer takes a property binding. Its properties include its code (`.textContent`, `.innerHTML`,
+  `.innerText`, `.text`, `.outerHTML`, `.outerText`), so `.name=${…}`, `!name=${…}` and a `.`/`!` spread key on a script —
+  a JSON data block's included — are now refused: the renderer and `spread` ignore the binding, `@verajs/lite` writes
+  nothing, and `@verajs/ssr` no longer serves `.textContent` or `.innerHTML` there (it served no other property on a
+  script already). Development says so (`script-property`), and the server says so once in every build. This changes what
+  such a template does: a bound `.textContent` used to write the value, and a page the server rendered ran it. Every
+  script property has an attribute form: bind `?async=${…}`, `?defer=${…}`, `type=${…}`, `nonce=${…}` instead. To hand
+  data to the client, write a text hole in a JSON data block, `<script type="application/json">${data}</script>`, which
+  escapes `<` as `\u003c` (JSON reads it back unchanged). An object kept on the script element itself, or a customized
+  built-in script's own property (`<script is="…">`), has no binding any more; for code, load a module.
+- 044fb04: A `<script>`'s URL can no longer be bound. `src` (and an SVG script's `href` or `xlink:href`) chooses the code the
+  script runs, so `<script src=${url}>`, `.src=${url}` and a spread `src` key on a script are now refused: the renderer
+  and `spread` ignore the binding, and `@verajs/lite`, `@verajs/static` and `@verajs/ssr` never write the attribute.
+  Development says so (`script-source`). This changes what such a template does: it used to write the URL, and a page
+  the server rendered ran that script on load (as WebKit does on the client for an SVG script). Write the URL into the
+  template, where it is the author's own (`<script src="/app.js">`), or load the module with `import()`. A written `src`
+  beside a spread one stays.
+- Updated dependencies [4bf8b98]
+- Updated dependencies [4bf8b98]
+- Updated dependencies [45a880c]
+- Updated dependencies [dd8245c]
+- Updated dependencies [ec43d4c]
+- Updated dependencies [bb0c5e3]
+- Updated dependencies [3cb419e]
+- Updated dependencies [4bf8b98]
+- Updated dependencies [eaab014]
+- Updated dependencies [cbf6b05]
+  - @verajs/core@0.5.1
+
 ## 0.3.3
 
 ### Patch Changes

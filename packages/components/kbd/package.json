@@ -34,7 +34,7 @@
     "./dist/vera-kbd.min.js"
   ],
   "peerDependencies": {
-    "@verajs/core": "^0.5.0"
+    "@verajs/core": "^0.5.1"
   },
   "files": [
     "dist",

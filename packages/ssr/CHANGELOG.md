@@ -1,5 +1,212 @@
 # @verajs/ssr
 
+## 0.3.9
+
+### Patch Changes
+
+- 4dce381: A bound `href` on a `<base>` is refused, as a bound `<script>` URL is: every relative and path-absolute URL after a
+  `<base>` resolves against it, a module script's `src="/assets/app.js"` included, so a value there chooses where the
+  page's code loads from (measured in Chromium, Firefox and WebKit, served and client-rendered). The renderer and `spread`
+  ignore the binding, `@verajs/lite` and `@verajs/static` do not write it, and `@verajs/ssr` never serves it; development
+  names it `base-href`. A `<base href>` written in the template is the author's own and untouched, and `<base target>`
+  still binds. What this takes away: a base computed per request in a template. Write the base for each deployment, or
+  give `@verajs/router` its prefix with its `base` option (`router({ base: '/app' })`).
+- 53d346d: The JSON data-block check reads attribute names as the HTML parser does: a quote or a leading `=` is part of a name, so
+  `<script x"type="application/json">` has no `type`, is code, and a hole in it is refused (`script-hole`,
+  `ssr-script-hole`), on the client and the server alike.
+- 85f12ac: A `<script>` no longer takes a property binding. Its properties include its code (`.textContent`, `.innerHTML`,
+  `.innerText`, `.text`, `.outerHTML`, `.outerText`), so `.name=${…}`, `!name=${…}` and a `.`/`!` spread key on a script —
+  a JSON data block's included — are now refused: the renderer and `spread` ignore the binding, `@verajs/lite` writes
+  nothing, and `@verajs/ssr` no longer serves `.textContent` or `.innerHTML` there (it served no other property on a
+  script already). Development says so (`script-property`), and the server says so once in every build. This changes what
+  such a template does: a bound `.textContent` used to write the value, and a page the server rendered ran it. Every
+  script property has an attribute form: bind `?async=${…}`, `?defer=${…}`, `type=${…}`, `nonce=${…}` instead. To hand
+  data to the client, write a text hole in a JSON data block, `<script type="application/json">${data}</script>`, which
+  escapes `<` as `\u003c` (JSON reads it back unchanged). An object kept on the script element itself, or a customized
+  built-in script's own property (`<script is="…">`), has no binding any more; for code, load a module.
+- 044fb04: A `<script>`'s URL can no longer be bound. `src` (and an SVG script's `href` or `xlink:href`) chooses the code the
+  script runs, so `<script src=${url}>`, `.src=${url}` and a spread `src` key on a script are now refused: the renderer
+  and `spread` ignore the binding, and `@verajs/lite`, `@verajs/static` and `@verajs/ssr` never write the attribute.
+  Development says so (`script-source`). This changes what such a template does: it used to write the URL, and a page
+  the server rendered ran that script on load (as WebKit does on the client for an SVG script). Write the URL into the
+  template, where it is the author's own (`<script src="/app.js">`), or load the module with `import()`. A written `src`
+  beside a spread one stays.
+- ce2b177: The server's DOM reads a NUL in a parsed tag name, attribute name or attribute value as U+FFFD, as browsers do, so
+  `getElementById`, `getAttribute` and the selectors find `<p id="a\0b">` by the id a browser gives it, and markup with a
+  NUL in an attribute name (`<p a\0b="1">`), which failed the render, parses. What the page receives is unchanged: a
+  parsed element serves the bytes it came from.
+- f451dbd: A name in the object form of `attributes` follows the rule a spread's keys do: a backtick, `<` or a control character
+  is refused as well as whitespace, a quote, `/`, `=` and `>`. The message no longer says `setAttribute` refuses a quote
+  in the browser, which it does not; it names the rule it applies.
+- bc96fe4: The `base` option is checked the way it is used, by resolving `.` against it: a value that parses as a URL but holds no
+  directory (a Windows path such as `C:\dir\`, read as the scheme `c:`; a `mailto:` or `data:` URL) is refused as the
+  option, naming what to pass, where it passed the check and then failed with a bare `Invalid URL`.
+- 4ffd160: The server's DOM reads `<!x>` and `<?y>` in assigned markup as comments, as every parser does; they were read as text,
+  so `textContent` answered the markup itself. A NUL in a comment's data reads as U+FFFD, as in a browser. The served
+  bytes are unchanged.
+- dffecf8: A static attribute written after a binding of its own name is no longer served. The client's parse of the template keeps
+  the first attribute of a name, in any case and in SVG too, so in `<a title=${v} title=x>` the static is gone before any
+  value exists: the client has `title` from `v`, or none when `v` is `null`. The server wrote the static as well, and when
+  the binding wrote nothing (`null`, `undefined`, `?hidden=${false} hidden`) the browser kept it: `title="x"` served where
+  the client rendered none. The static is now dropped once per template, never per render. A static before the binding,
+  and a spread's keys, are unchanged.
+- 4dce381: A component that throws from its `connectedCallback` or its constructor is named. Only a throw from a render frame
+  was wrapped before; a callback's or constructor's own throw rejected `renderToString` with the bare error, so a page of
+  components said nothing about which one failed (a nested `<x-fail>` came back as just its message). It now rejects with
+  `ssr-render-threw` naming the component that threw, a nested one by its own tag, with the original error as `cause`
+  (the identical object), in `renderToString` and `renderToStringAsync` alike. This changes what such a failure looks
+  like: a coded refusal `@verajs/lite` throws while a component renders on the server (`unfinished-tag`,
+  `tier-hole-position`) arrives as that `cause`, no longer as the rejection itself. The README's Styles section now says
+  which per-request CSS warns (a sheet adopted on the document) and which is kept from the first render silently
+  (`@verajs/styles`, per class), and that the string form of `attributes` is read as the tag's attribute text.
+- 830f8db: The server's DOM refuses what browsers refuse, with the same error name: `createElement` with a name whose first
+  character is not an ASCII letter and does not follow the engines' rule (`'1a'`, `'-a'`), or with no argument (and
+  `createTextNode()`, `createComment()`); `attachShadow` on an element that cannot host a shadow root; setting a
+  `dataset` key with a hyphen before a lowercase letter; a prefixed `setAttributeNS` name its namespace does not allow;
+  inserting the document as a child; appending a child to text or a comment. A selector it cannot read now throws a
+  `SyntaxError` `DOMException`. Each of these used to be accepted, or refused with a different error, so the server
+  rendered markup the browser would not have built from the same calls.
+- c9ea6c6: A repeated attribute is its first occurrence on the server, as every parser reads it: the DOM's `getAttribute` on
+  parsed markup and a nested component rebuilt from its open tag kept the last one.
+- 42549a6: Fixes an injection on a server-rendered page: inside SVG or MathML, an end tag that closes nothing the template opened
+  (`<math></div>`) can close an element outside the template, such as the page's `<div id="host">`, taking the `<math>`
+  with it, so what follows is HTML. The server read it as ignored and stayed in MathML, so in
+  `<math></div><script><b><style>${value}` it took the `<script>` as a MathML element, let the `<b>` break out, and wrote
+  the value raw, where the browser was inside the script's raw text and a value's `</script>` ended it. Such an end tag
+  now makes the namespace unknown, as one at an integration point already did, so what follows is escaped or refused
+  for both readings. Every SVG and MathML element a template opens is tracked for this, so a matched `</g>` keeps the
+  namespace known, and an SVG element a template leaves open is closed at its end (`<svg><g>` ends `</g></svg>`).
+- 384735d: A frame a component requested before its `connectedCallback` threw is dropped when that render ends, as the README
+  says leftover frames are. Frames drain after the callback returns, so this one never drained and ran inside the next
+  render instead: with that render's document (a title it wrote landed on the next page), and, when it threw, failing the
+  next render in that render's component's name.
+- 2bf2995: A value bound inside what looks like a comment in a text element the server cannot place for certain (a `<style>`,
+  `<textarea>`, `<title>` and the like after an end tag the browser may ignore at an SVG or MathML integration point, or in
+  `<noscript>`/`<select>` markup) is now served as escaped text instead of dropped. In those places the browser reads the
+  element's text, not a comment, and the client renderer writes the value there, so the server left out a value the
+  client shows. Its dashes are written as references too, so no value can end the comment where a browser reads the
+  element's content as markup. An ordinary comment still drops its value, as the client does, and a template in such a
+  place is refused as in any text-only element.
+- 45bd21d: The server reads whitespace in markup as HTML does: tab, line feed, form feed, carriage return and space, and nothing
+  else. U+000B, U+00A0, U+FEFF, U+2028 and JavaScript's other non-HTML spaces are part of a name or an unquoted value to
+  a browser, and the server read them as spaces in a few places. A template holding one inside a tag could then be
+  served in a shape a browser reads differently: a value the server quoted could end early in the browser, and
+  `<script type` followed by U+000B was taken for a JSON block where a browser sees a script with no type, which runs.
+  These templates are now refused where a browser would read the value as part of a name (`name-expression`) or the
+  script as code (`ssr-script-hole`). An `<option>` matched by its text keeps a leading or trailing U+00A0, as a browser's
+  value does.
+  
+  Parsing is faster too: the server now reads a tag's name, the space between its attributes and an end tag's name a
+  character at a time, where it ran a pattern on a fresh slice of the markup. A large page (50 KB) parses about
+  7% faster the first time and about 10% faster once warm, and a template compiles about 8% faster in steady state.
+- a074e88: The marker the server puts on a component a parent builds and hands properties to (until it renders) is no longer
+  visible to code reading the DOM: `getAttributeNames()`, `attributes`, `hasAttributes()`, `innerHTML` and `outerHTML`
+  answer as a browser's element does. A component that wrote what it read (a show-source or debug component) served the
+  marker's name in the page.
+  This holds for a node or markup kept past the render that marked it, too: a deep clone, a child appended and removed,
+  or a light component whose children were rendered with a property binding, kept in a module cache and read in a later
+  render.
+- 84eb21b: A shadow root opened with `slotAssignment: 'manual'` is served as one: its template carries
+  `shadowrootslotassignment="manual"`. Served without it, the root arrived assigning by name, which `attachShadow`
+  reuses as it is, so the component's `slot.assign()` calls did nothing and every child showed in the default slot.
+  Measured in Chromium, Firefox and WebKit. The README's known limit for manual slot assignment is gone.
+- cbf6b05: `@verajs/ssr/named-references`: every named character reference of the HTML Standard for the server DOM, as a module
+  to wire (`wire([namedReferences])`). The server's parser decodes six names itself (`&amp;`, `&lt;`, `&gt;`, `&quot;`,
+  `&apos;`, `&nbsp;`) and every numeric reference; wired, every other name reads back as the text a browser gives in
+  `textContent`, attributes, `.value` and a bound `<select>`'s options, by the tokenizer's rules: a legacy name without
+  its `;` decodes too (`&amp` in text is `&`), the longest name wins (`&notin` in text is `¬in`), and in an attribute
+  value a legacy name before `=` or a letter or digit stays as written (`&ampx=1`). A server that does not wire it never
+  loads the table and reads such a name back as written, as before, and now says so once per name written with its `;`
+  (`ssr-named-reference-unwired`). The served markup is unchanged. `'reference'` is the new insert point the module wires
+  on (types only).
+- c9ea6c6: A nested component reads its attributes as every parser reads the tag. Whitespace around `=` (`<x-kid title = "a b">`)
+  gave it `title=""`, `a=""` and `b=""`; a quote or `<` inside a name (`<x-kid x"title="v">`) gave it `x` plus a `title`
+  nobody wrote. Attribute names now follow HTML's tokenizer rule, shared by the rebuild and the DOM's parser, which also
+  reads `<p a"b="v">` in assigned markup as the one attribute `a"b`.
+- 92d50c1: A `URL` or `Set` made in another realm (jsdom's window's `URL`, a `vm` context's `Set`) is accepted as the module URL,
+  `base`, `location` or `seen`; `instanceof` refused it as the wrong kind of option.
+- 53d346d: The server reads markup where the browser does in three more places. A `<` inside a template's own quoted attribute
+  value, in a tag the server edits (a name written twice, a spread), is served as `&#60;` (the same character to every
+  parser), so a value bound to a name written earlier in the same tag stays inside its quotes, and a static value that
+  reads like a tag (`title="<i value=1>"`) is no longer cut short. A `<script>`'s end is found by the parser's escaped and double-escaped script states, in
+  the template compiler and the DOM parser alike, so a hole after `<!--…<script>…</script>` is a script hole and is
+  refused. And a `<style>` or `<script>` appended inside an `<svg>` through the DOM has its text escaped, as the browser
+  reads that text as markup there.
+- c9ea6c6: The server's DOM reads the content of `<xmp>`, `<noembed>`, `<noframes>` and `<plaintext>` as text, as every engine
+  does, when it parses markup assigned through `innerHTML`: a query found elements inside them that a browser never
+  builds. Their text is still served escaped.
+- b0a997b: Markup the server DOM parses no longer reads a name `Object.prototype` holds as a character reference: `&constructor;`,
+  `&valueOf;` or `&toString;` in text or an attribute value read back (and was served from `textContent`) as a function's
+  source text. They now stay as written, as in every engine.
+- 040a1b6: A render that follows a failed one no longer ships the next module's CSS under the wrong page. A component that threw
+  left its tag current, so a sheet the next render's module adopted on the document at import was filed under the
+  failed component, and came back in that component's `styles` on its next successful render. Every render now ends,
+  thrown or not, with no tag current.
+- 2628e50: A page component whose constructor throws now rejects the render naming its tag (`ssr-render-threw`), with the
+  thrown error as the cause, as a nested component's constructor and every component's callbacks already did; it
+  rejected with the bare error.
+- bff46a9: Two places where the served page cannot match the client now say so, once per template and never per render. A bound
+  `<select>` value or `selectedIndex` that matches no option (`ssr-select-no-match`): the client shows nothing selected,
+  while a served select with no `selected` option shows its first, and markup has no way to say "none". The line names the
+  binding and the option count, never the value, which is often a user's own input. A bound `color`, `face` or `size` on
+  a `<font>` inside `<svg>` or `<math>` (`ssr-font-in-foreign`): the client builds that `<font>` as SVG, while the
+  browser's parse of the served page leaves the `<svg>` at it. Nothing served changes.
+- cbf6b05: A bound `<select>`'s option value decodes `&nbsp;` and every reference the page decodes. The server read its options
+  with a decoder of its own that knew five names, so `<option value="a&nbsp;b">` never matched `.value="a b"` and
+  the page was served with nothing selected, where a browser selects that option. Options are now read with the decoder
+  the rest of the server DOM uses: an option's `value` as an attribute value, its text as text.
+- c310a99: A `<style>` a component appends to its own shadow root is served with its attributes: `media="print"` was dropped, so
+  print-only CSS applied on screen, and `nonce` was dropped, so a nonce-based Content-Security-Policy blocked the style.
+  A style with no attributes is served as before.
+- 2027f8c: What every render shares is put back when it ends, as the title already was: the `<html>` and `<body>` elements and
+  their attributes (`lang`, a body flag), and `document.cookie` (still `undefined` until a render writes it). A value one render's component set
+  there was what the next render's components read, whether the render finished in time or had timed out with work
+  still running; such late writes are now refused. A page module's own top-level writes stay.
+- a8df165: A binding that writes nothing after a `/` in a tag no longer makes the served tag self-closing. A binding takes the
+  space before its name, so `<g/ @click=${fn}>` (and a dropped `.prop`, a false `?bool`, a refused handler, a nullish
+  value or a ref in element position) was served `<g/>`, which in SVG and MathML closes the element, so its children
+  were served after it while the client kept them inside. A `/` there now keeps one space after it, which no parser
+  reads as self-closing, and an unquoted value ending in `/` (`a=x/`) keeps its `/`.
+- 049957a: A component that throws a value `String()` cannot read (an object with no prototype) is named by `ssr-render-threw`
+  like any other; the render rejected with `Cannot convert object to primitive value`. The `base` option asks for what
+  it can use, a URL or an absolute URL string: a path was offered by its message and then failed inside the check with
+  `Invalid URL`. The README's first example escapes the title with a function it defines. The server's DOM accepts in an
+  element or attribute name the controls and DEL every engine accepts (`a\vb`), refusing, as engines do, the parser's
+  whitespace and NUL.
+- f2393b9: Work a timed-out `renderToStringAsync` render left running can no longer write the next render's document: a late
+  `document.title` write or frame request from it is refused, so the next page keeps its own title. Each render runs in
+  its own async context (`AsyncLocalStorage`).
+- dce70ad: A bound attribute written again in a tag whose static text holds a `<` in a name or an unquoted value
+  (`<b id=a title=x<c id=${v}>`) replaces the earlier write, as `setAttribute` does on the client: the server found the
+  tag by its last `<`, missed the earlier `id=a`, and served it first, so the page read `a`.
+- cfad9cf: Inside `<template>` content, a value bound in a comment now leaves one space where it was, as it already did
+  everywhere else. Without it the text on either side could join into a different token: `<template><!${v}--!>` was
+  served as `<!--!>`, which opens a comment that hid the rest of the page after the template.
+- c4a2845: A `<template>` in the server's DOM has its markup as its `content`, a fragment of its own, as in browsers: its
+  `children` and `childNodes` are empty, a query on the template finds nothing inside it, and `template.content`
+  holds what was parsed, so `template.content.cloneNode(true)`, the usual way a component stamps a template, works on
+  the server, where it threw. `innerHTML` reads and writes the content, a deep `cloneNode` copies it, and a fragment
+  can be cloned. What the page receives is unchanged.
+- 5612973: A URL property of the server's DOM (`a.href`, `img.src`, `link.href`, `script.src`, `q.cite` and 15 more) reads back
+  resolved against the document's URL, as in a browser: `a.href = '/x'` then read answered `/x`, where every engine
+  answers an absolute URL. The served markup is unchanged: the attribute keeps what was written.
+- Updated dependencies [4bf8b98]
+- Updated dependencies [4bf8b98]
+- Updated dependencies [45a880c]
+- Updated dependencies [dd8245c]
+- Updated dependencies [ec43d4c]
+- Updated dependencies [bb0c5e3]
+- Updated dependencies [3cb419e]
+- Updated dependencies [4bf8b98]
+- Updated dependencies [eaab014]
+- Updated dependencies [cbf6b05]
+- Updated dependencies [b691e7c]
+- Updated dependencies [e5908ae]
+- Updated dependencies [c0a7183]
+- Updated dependencies [e13b7b7]
+  - @verajs/core@0.5.1
+  - @verajs/styles@0.1.5
+
 ## 0.3.8
 
 ### Patch Changes

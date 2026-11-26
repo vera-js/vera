@@ -1,5 +1,20 @@
 # @verajs/styles
 
+## 0.1.5
+
+### Patch Changes
+
+- b691e7c: `:host(…)` in a light component's styles keeps its whole argument when it holds a nested call: `:host(:not(.a):hover)`
+  now becomes `:scope:not(.a):hover`. The rewrite stopped at the first `)`, which gave `:scope:not(.a:hover)`, a
+  different selector.
+- e5908ae: A light component's `:host(…)` rewrite skips an attribute selector inside the argument, so a `)` in its value
+  (`:host([data-x=")"])`) no longer ends it early and turns the selector into a different one.
+- c0a7183: A light component's scoped styles are built once per class instead of for every instance it renders, so a page of
+  many instances hoists them faster. A class keeps the first styles it is given, as its adopted sheet already did.
+- e13b7b7: A light component whose name holds `.` (`x-a.b`, a valid custom element name) is styled: its `@scope` selector
+  escapes the name, where `@scope (x-a.b)` had read `.b` as a class, styling nothing inside `<x-a.b>` and styling an
+  `<x-a class="b">` instead.
+
 ## 0.1.4
 
 ### Patch Changes
