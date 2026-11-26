@@ -12,6 +12,9 @@
  *
  * It never runs. Everything here exists to be compiled.
  */
+import '@vera-components/select';
+import '@vera-components/input';
+import '@vera-components/kbd';
 
 /** A dash-named tag: bare props are properties, and anything is accepted. */
 const element = <order-row item={{ id: 1 }} count={2} active />;
@@ -74,7 +77,22 @@ const wrongEvent = <input onKeyDown={(e) => e.button} />;
 // @ts-expect-error — `currentTarget` is the input, which has no `viewBox`
 const wrongElement = <input onClick={(e) => e.currentTarget.viewBox} />;
 
+/**
+ * **A component's tag is typed by importing its package**, whose register entry merges the tag into
+ * `HTMLElementTagNameMap`: `e.currentTarget` is the element's own class. Without the declarations each read below
+ * is an error (`value` and `keys` are not on `HTMLElement`).
+ */
+const tagged = (
+  <div>
+    <vera-select onInput={(e) => e.currentTarget.value} />
+    <vera-input onChange={(e) => e.type} />
+  </div>
+);
+const created = document.createElement('vera-select').value;
+const queried = document.querySelector('vera-kbd')?.keys;
+
 export {
   element, keyedElement, keyedComponent, stringKey, objectKey, withChildren, declared,
   handlers, notAHandler, wrongEvent, wrongElement,
+  tagged, created, queried,
 };

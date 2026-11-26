@@ -382,6 +382,10 @@ a custom event — gets a plain `Event`, which is what `addEventListener` gives 
 (`(e: CustomEvent<Item>) => …`) when you need more. A number or a string where a handler belongs
 is an error.
 
+A Vera component's tag is typed the same way once its package is imported: each one merges its tag
+into the DOM library's `HTMLElementTagNameMap`, so `e.currentTarget` is the component's own element
+(`<vera-select onInput={(e) => e.currentTarget.value} />`).
+
 Everything else accepts every prop, so `key={id}` and bare props on a component type-check, and a
 dash-named tag (a custom element) is fully permissive. A typed per-attribute surface is the known
 long tail. Three consequences worth knowing:
