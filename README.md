@@ -8,7 +8,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 21.26 KB | **8.18 KB** |
+| `@verajs/core` | 21.37 KB | **8.21 KB** |
 | `@verajs/lite` | 9.68 KB | 4.21 KB |
 | `@verajs/static` | 3.50 KB | 1.74 KB |
 | `@verajs/renderer` | 15.07 KB | 6.30 KB |
@@ -34,7 +34,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/hydrate-slots` | 3.53 KB | 1.64 KB |
 | `@verajs/inserts` | 496 B | 363 B |
 | `@verajs/directives` | 15.79 KB | 6.17 KB |
-| `@verajs/directives/directives-standalone` | 32.49 KB | 12.06 KB |
+| `@verajs/directives/directives-standalone` | 32.58 KB | 12.10 KB |
 | `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |

@@ -6,7 +6,7 @@ wire.
 | Package | gzipped | A render | For |
 | --- | ---: | --- | --- |
 | `@verajs/lite` | <!--size:lite.gzip-->4.21 KB<!--/size:lite.gzip--> | patches the values that changed, in place | small sites |
-| `@verajs/core` + `@verajs/renderer` | <!--size:core.gzip-->8.18 KB<!--/size:core.gzip--> + <!--size:renderer.gzip-->6.30 KB<!--/size:renderer.gzip--> | patches in place, keyed lists, hydration | everything else |
+| `@verajs/core` + `@verajs/renderer` | <!--size:core.gzip-->8.21 KB<!--/size:core.gzip--> + <!--size:renderer.gzip-->6.30 KB<!--/size:renderer.gzip--> | patches in place, keyed lists, hydration | everything else |
 
 <!-- recipe -->
 ```js
