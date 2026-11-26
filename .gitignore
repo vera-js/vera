@@ -52,5 +52,5 @@ examples/media/
 # `node bench/ssr-scan.mjs --compare <ref>` builds the ref's @verajs/ssr here, inside the tree so it resolves the same core.
 bench/.cache/
 
-# The field race's competitor bundles, written by `node bench/components/field-race.mjs`.
+# The component races' competitor bundles, written by `node bench/components/race.mjs`.
 bench/components/.out/

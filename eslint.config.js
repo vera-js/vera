@@ -26,7 +26,7 @@ export default [
       'vera-studio/**',
       '**/*.min.js',
       'bench/.size-*/**',
-      // The field race's competitor bundles (MUI, Chakra, Shoelace, minified), written beside it and gitignored.
+      // The component races' competitor bundles (MUI, Chakra, Shoelace, minified), written beside the race and gitignored.
       'bench/components/.out/**',
       /**
        * Ad-hoc audit probes. `.gitignore` has carried `.probe/` since the day a probe was swept into

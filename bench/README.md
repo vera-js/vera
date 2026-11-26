@@ -97,31 +97,45 @@ driven with `flushSync` so its work lands inside the measurement.
 All four implementations are verified to emit **identical markup** from one seeded generator across
 create / select / update / swap / remove / clear. If they diverge, the comparison is invalid.
 
-## Components: a form field against the component libraries
+## Components against the component libraries
 
 ```bash
 cd bench && npm install
-node components/field-race.mjs 15 chromium     # or firefox, webkit; VERA_ROOT=<checkout> to race another build
+node components/race.mjs field 15 chromium     # or checkbox; firefox, webkit; VERA_ROOT=<checkout> to race another build
 ```
 
-Mounts 300 form fields (a label, an email input, a hint) in each arm: Vera's `<vera-field>` around a `<vera-input>`,
-Vera's field around a plain input, MUI's `TextField`, Chakra's `Field` with `Input`, Shoelace's `<sl-input>`, and
-hand-written HTML with no script or look as the floor. The time runs from the mount to the library's own "done" (React's
-first commit by `flushSync`, Shoelace's `updateComplete`, Vera's `flush()`) plus one forced layout, each sample in a
-fresh page, the arms shuffled by a seed, in a real headed browser. Every sample must hold 300 textboxes whose accessible
-name is "Email", or the run reports the arm as failed: an arm that rendered nothing cannot read as fast.
+One harness, one race per component. The **field** race mounts 300 form fields (a label, an email input, a hint) in
+each arm: Vera's `<vera-field>` around a `<vera-input>`, Vera's field around a plain input, MUI's `TextField`, Chakra's
+`Field` with `Input`, Shoelace's `<sl-input>`, and hand-written HTML with no script or look as the floor. The
+**checkbox** race mounts 200 labeled checkboxes: `<vera-checkbox>`, MUI's `Checkbox` in a `FormControlLabel`,
+Chakra's `Checkbox`, Shoelace's `<sl-checkbox>`, and the floor. The time runs from the mount to the library's own
+"done" (React's first commit by `flushSync`, Shoelace's `updateComplete`, Vera's `flush()`) plus one forced layout,
+each sample in a fresh page that has settled first (two frames and 100 ms: an arm whose script runs inline would
+otherwise start before the page's first render and read about 3x cheap), the arms shuffled by a seed, in a real headed
+browser. Every sample must hold N controls with the race's role and accessible name, or the run reports the arm as
+failed: an arm that rendered nothing cannot read as fast. Each Vera arm must also hold N of the marks its setup writes
+(`data-vera-field`, `data-vera-input`, `data-vera-checkbox`): the plain inputs inside their labels hold the role and
+name with no script at all, so without it an arm whose script never ran read as the fastest.
 
-Measured 2026-11-25, Windows 11, Playwright's engines, 15 pages per arm, medians in ms (React 19.2.8, MUI 9.6.0,
-Chakra 3.38.0, Shoelace 2.20.1):
+Measured 2026-11-25, Windows 11, Playwright's engines, 15 settled pages per arm, medians in ms (React 19.2.8, MUI
+9.6.0, Chakra 3.38.0, Shoelace 2.20.1; Firefox and WebKit report whole milliseconds):
 
 | 300 fields | Chromium 159 | Firefox 159 | WebKit 27.2 |
 | --- | --- | --- | --- |
-| HTML, no script (floor) | 36.2 | 34 | 23 |
-| Vera field, plain input | 50.4 | 38 | 43 |
-| Vera field + Vera input | 58.1 | 50 | 60 |
-| Shoelace `sl-input` | 88.6 | 98 | 106 |
-| Chakra `Field` | 134.5 | 344 | 155 |
-| MUI `TextField` | 148.1 | 195 | 159 |
+| HTML, no script (floor) | 33.5 | 33 | 26 |
+| Vera field, plain input | 45.5 | 63 | 46 |
+| Vera field + Vera input | 57.5 | 77 | 58 |
+| Shoelace `sl-input` | 104.1 | 135 | 107 |
+| Chakra `Field` | 146.2 | 407 | 180 |
+| MUI `TextField` | 161.3 | 280 | 158 |
+
+| 200 checkboxes | Chromium 159 | Firefox 159 | WebKit 27.2 |
+| --- | --- | --- | --- |
+| HTML, no script (floor) | 14.3 | 7 | 9 |
+| Vera `vera-checkbox` | 23.6 | 29 | 23 |
+| Shoelace `sl-checkbox` | 57.7 | 90 | 63 |
+| MUI `Checkbox` | 99.6 | 161 | 102 |
+| Chakra `Checkbox` | 160.7 | 377 | 161 |
 
 ## Caveats
 
