@@ -595,6 +595,10 @@ markup itself is served byte for byte as it was written.
   renderer writes it fully encoded (every ASCII non-word character as a character reference), so the bytes differ and
   hydration rewrites that text. Both are inert after a save and reload; a template inside a `<noscript>` is refused
   here as one inside a text-only element is.
+- **An HTML `<script>` written in a template is served as written, so it runs on a server-rendered page, while a page
+  rendered in the browser never runs it** (core's, lite's and static's renderers alike): the parser marks a script it
+  reads inside a `<template>` as already started, and a clone keeps the mark. A script that must run either way belongs
+  in the served page, or is made with `document.createElement('script')`.
 - **What a render creates leaves every store when its render ends.** Its components are reactive DURING the render
   (a write in a setup or a router's first navigation re-renders before the markup is written), and nothing they read
   keeps them alive afterwards. Module-scope state — a store, a `computed` — belongs to the process and stays live; a

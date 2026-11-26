@@ -57,6 +57,18 @@ const LIMITATIONS = [
     'both shapes `addEventListener` accepts',
     'an object with handleEvent is valid DOM and easy to assume is not supported',
   ],
+  [
+    'a template\'s script runs on a server-rendered page and never from a browser render',
+    'packages/ssr/README.md',
+    'rendered in the browser never runs it** (core\'s, lite\'s and static\'s renderers alike)',
+    'both halves are correct on their own, and nothing but a page that renders both ways shows they disagree',
+  ],
+  [
+    'a template\'s script runs on a server-rendered page and never from a browser render (agents)',
+    'llms.txt',
+    'server-rendered page, while a page rendered in the browser never runs it, in every renderer',
+    'llms.txt is what an agent reads instead of the README, and an agent writes the analytics snippet',
+  ],
 ];
 
 for (const [what, file, phrase, why] of LIMITATIONS) {

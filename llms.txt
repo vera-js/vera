@@ -917,6 +917,10 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   SVG script runs from a template in Chromium and WebKit (refused even with a JSON type). A data block's text is
   written with `<` as `\u003c`, a style's with `</style` as `<\/style` — on the composed text, by the server and
   the client alike, byte for byte (hydration adopts it): neither can end its element if the page is saved and parsed again.
+- An HTML `<script>` written in a template (no value in it) is served as written by `@verajs/ssr`, so it RUNS on a
+  server-rendered page, while a page rendered in the browser never runs it, in every renderer: the parser marks a
+  template's script as already started and a clone keeps the mark. A recorded difference: put a script that must run
+  either way in the served page, or create it with `document.createElement('script')`.
 - Where a parser could read it either way, `@verajs/ssr` writes no value as raw text and no value into code: inside
   `<svg>`, `<math>`, `<noscript>` or an open `<select>` (the select parser before customizable select, jsdom's and older
   browsers', reads a `<style>` there as markup), a `<style>`'s value is served ESCAPED and hydration replaces it; a
