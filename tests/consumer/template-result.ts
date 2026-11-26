@@ -17,14 +17,14 @@ type Served = Parameters<typeof serializeTemplate>[0];
 type Assignable<A, B> = [A] extends [B] ? true : false;
 type Expect<T extends true> = T;
 
-const tagged = [html`<b></b>`, svg`<g></g>`, mathml`<mi></mi>`];
+const _tagged = [html`<b></b>`, svg`<g></g>`, mathml`<mi></mi>`];
 
 export type TemplateResultPins = [
   Expect<Assignable<Produced<ResultType>, Rendered>>,
   Expect<Assignable<Produced<ResultType>, Served>>,
   Expect<Assignable<Rendered, Served>>,
   /** The tags' own return types too, not only the declared name. */
-  Expect<Assignable<(typeof tagged)[number], Rendered>>,
+  Expect<Assignable<(typeof _tagged)[number], Rendered>>,
   /** CONTROL: the helper can answer false. The renderer's shape is wider than core's, so it is not assignable back. */
   Expect<Assignable<Assignable<Rendered, Produced<ResultType>>, false>>,
 ];
