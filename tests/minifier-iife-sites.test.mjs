@@ -58,6 +58,13 @@ const PINS = {
   'packages/components/spinner/dist/vera-spinner.min.js': 1,
   'packages/components/dialog/dist/vera-dialog-element.min.js': 1,
   'packages/components/dialog/dist/vera-dialog.min.js': 1,
+  /**
+   * 6 each (2026-11-25, new): checkbox's one-caller helpers (the input lookup, the tracking, the marks and their writes,
+   * the serving, the mixed listener) run once per input served, never per frame; these bytes were raced headed on
+   * three engines, against core's floor and against Shoelace, MUI and Chakra.
+   */
+  'packages/components/checkbox/dist/vera-checkbox-element.min.js': 6,
+  'packages/components/checkbox/dist/vera-checkbox.min.js': 6,
   'packages/components/menu/dist/vera-menu-element.min.js': 2,
   'packages/components/menu/dist/vera-menu.min.js': 2,
   'packages/components/tabs/dist/vera-tabs-element.min.js': 1,

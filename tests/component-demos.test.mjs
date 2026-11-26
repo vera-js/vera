@@ -17,14 +17,17 @@ import { fileURLToPath } from 'node:url';
 import { load } from './dist.mjs';
 
 const ROOT = new URL('../packages/components/', import.meta.url);
-/** Every component package, with the folder its surface sits in (`src/<folder>/surface.ts`). */
-const components = readdirSync(ROOT)
-  .map((name) => {
-    const src = new URL(`${name}/src/`, ROOT);
-    const folder = existsSync(src) ? readdirSync(src).find((entry) => existsSync(new URL(`${entry}/surface.ts`, src))) : undefined;
-    return folder === undefined ? null : { name, dir: new URL(`${folder}/`, src) };
-  })
-  .filter(Boolean);
+/**
+ * Every component's surface, with the package it ships in and the folder it sits in (`src/<folder>/surface.ts`). A
+ * package of two tags (checkbox's `<vera-checkbox>` and `<vera-switch>`) has a folder for each, and each is held to
+ * its own demo; a one-tag package's key is its name.
+ */
+const components = readdirSync(ROOT).flatMap((name) => {
+  const src = new URL(`${name}/src/`, ROOT);
+  /** Sorted, so the rows' order is the same on every filesystem. */
+  const folders = existsSync(src) ? readdirSync(src).filter((entry) => existsSync(new URL(`${entry}/surface.ts`, src))).sort() : [];
+  return folders.map((folder) => ({ name, key: folders.length > 1 ? `${name}/${folder}` : name, dir: new URL(`${folder}/`, src) }));
+});
 
 /**
  * **What a demo leaves out, pure**: the surface's attributes and parts that no state rendered and `interactive` does
@@ -66,11 +69,11 @@ if (COMPONENT) {
   };
   console.warn = (...args) => heard(String(args[0]));
   console.error = (...args) => heard(String(args[0]));
-  const entry = components.find((c) => c.name === COMPONENT);
+  const entry = components.find((c) => c.key === COMPONENT);
   const files = readdirSync(entry.dir);
   const surface = Object.values(await import(new URL('surface.ts', entry.dir).href))[0];
   const demo = files.includes('demo.ts') ? Object.values(await import(new URL('demo.ts', entry.dir).href))[0] : null;
-  const out = { has: demo !== null, said, seen: { attributes: [], parts: [] }, states: 0, hosts: 0, parked: [], instrument: false };
+  const out = { has: demo !== null, said, seen: { attributes: [], parts: [] }, declaredParts: surface.parts.length, states: 0, hosts: 0, parked: [], instrument: false };
   /** The hosts of `tag` under `root` whose own children include a parked carrier holding the author's markup. */
   const parkedIn = (root, tag) =>
     [...root.querySelectorAll(tag)].filter((host) => [...host.children].some((child) => child.hasAttribute('data-vm-unassigned') && child.childNodes.length > 0));
@@ -83,7 +86,7 @@ if (COMPONENT) {
     const { lists } = await load('renderer/keyed');
     const { slots } = await load('renderer/slots');
     wire([(await load('renderer')).renderer, lists, slots, (await load('styles')).styles]);
-    await load(`vera-components/${COMPONENT}`);
+    await load(`vera-components/${entry.name}`);
     const attributes = new Set();
     const parts = new Set();
     /**
@@ -170,12 +173,13 @@ if (COMPONENT) {
     assert.deepEqual(gaps(surface, demo, { attributes: ['label'], parts: ['arc'] }), { attributes: ['tone'], parts: ['hint'] });
   });
 
-  for (const { name } of components)
-    test(`${name}: its demo exists, every state renders with nothing said, and it shows every declared attribute and part`, () => {
-      const out = run(name);
+  for (const { name, key } of components)
+    test(`${key}: its demo exists, every state renders with nothing said, and it shows every declared attribute and part`, () => {
+      const out = run(key);
       assert.equal(out.has, true, `packages/components/${name} has no demo.ts beside its surface.ts`);
       assert.ok(out.states > 0, 'CONTROL: the demo has states');
-      assert.ok(out.seen.parts.length > 0, 'CONTROL: the states rendered parts');
+      /** A surface with no parts (checkbox's: the input and its label are the author's) has none to render. */
+      if (out.declaredParts > 0) assert.ok(out.seen.parts.length > 0, 'CONTROL: the states rendered parts');
       assert.ok(out.hosts > 0, 'CONTROL: the states rendered hosts of the tag');
       assert.equal(out.instrument, true, 'CONTROL: an element without ownsChildren reads as parked (else the parked check sees nothing)');
       assert.deepEqual(out.parked, [], `${name}: the author's markup is parked out of sight under light-DOM slots: declare ownsChildren`);

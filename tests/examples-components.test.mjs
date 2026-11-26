@@ -14,15 +14,22 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const html = await componentsPage(root);
 const demos = await componentDemos(root);
 
-test('every component package with a demo.ts has its plate, and its states each a card', () => {
-  const withDemo = readdirSync(join(root, 'packages/components')).filter((name) => {
+test('every demo.ts has its plate, a package of two tags one per tag, and its states each a card', () => {
+  const withDemo = readdirSync(join(root, 'packages/components')).flatMap((name) => {
     const src = join(root, 'packages/components', name, 'src');
-    return existsSync(src) && readdirSync(src).some((folder) => existsSync(join(src, folder, 'demo.ts')));
+    return existsSync(src) ? readdirSync(src).filter((folder) => existsSync(join(src, folder, 'demo.ts'))).map(() => name) : [];
   });
   assert.ok(withDemo.length >= 9, `positive control: the scan finds the demos (found ${withDemo.length})`);
   assert.deepEqual(demos.map(({ name }) => name), [...withDemo].sort());
-  for (const { name, demo } of demos) {
-    const at = html.indexOf(`<section class="plate" id="${name}">`);
+  assert.deepEqual(
+    demos.filter(({ name }) => name === 'checkbox').map(({ id }) => id),
+    ['checkbox', 'switch'],
+    'CONTROL: the two-tag package has a plate per tag',
+  );
+  assert.equal(new Set(demos.map(({ id }) => id)).size, demos.length, 'every plate has its own anchor');
+  for (const { id, demo } of demos) {
+    const name = id;
+    const at = html.indexOf(`<section class="plate" id="${id}">`);
     assert.notEqual(at, -1, `${name} has a plate`);
     /** To the next plate (or the end of main): a state's markup may hold sections of its own (tabs' panels). */
     const next = html.indexOf('<section class="plate"', at + 1);
@@ -58,5 +65,5 @@ test('a state that wires modules is framed, each module mapped, and its frame wi
 
 test('no template marker is left, and the page loads the components it shows', () => {
   assert.doesNotMatch(html, /<!--(GENERATED|IMPORTMAP|NAV|COUNT|FIRST|PLATES)-->|\/\*(WIRING|COMPONENTS)\*\//);
-  assert.ok(html.includes(JSON.stringify(demos.map(({ name }) => name))), 'the loader list is the plates');
+  assert.ok(html.includes(JSON.stringify([...new Set(demos.map(({ name }) => name))])), 'the loader list is the packages of the plates, each once');
 });

@@ -44,6 +44,7 @@ const PACKAGES = {
   '@vera-hooks/typeahead': 'vera-hooks/typeahead',
   '@vera-components/menu': 'vera-components/menu',
   '@vera-components/dialog': 'vera-components/dialog',
+  '@vera-components/checkbox': 'vera-components/checkbox',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',

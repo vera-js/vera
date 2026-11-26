@@ -287,6 +287,8 @@ const CLAIMS = new Map([
   ['packages/components/icon/README.md#87b616288b', 'icon-two-sources'], // both a child <svg> and src: the child wins — development says so
   ['packages/components/icon/README.md#fe276a1ee1', 'pinned by tests/icon.test.mjs: the decorative default and the label mode switch, both ways'], // naming: aria-hidden by default, role=img + aria-label with label
   ['packages/components/spinner/README.md#a8d4a1ca46', 'pinned by tests/spinner-element.test.mjs: a busy owner keeps the spinner silent, read when the window closes'], // the owner speaks; one that does not leaves the load unspoken
+  ['packages/components/checkbox/README.md#a764b2c6f6', 'pinned by tests/checkbox-element.test.mjs: a host with no input warns checkbox-no-control, an input whose labels give no text checkbox-no-name, every labeled one nothing, production silent'], // In development, a host with no checkbox input warns …
+  ['packages/components/checkbox/README.md#395a0270d3', 'not a promise: it says why the label, which is the author\'s, should name the setting rather than the state; the element changes no label'], // Some screen readers announce a switch as a checkbox …
   ['packages/components/input/README.md#66aa381822', 'input-no-name'], // Development warns when the input has no accessible name.
   ['packages/components/input/README.md#99a0978f84', 'input-host-changed'], // the five are read once; a later host change does not reach the input, and development says so
   ['packages/components/input/README.md#0d3725c949', 'input-size-on-host'], // not size (development warns on a host size)

@@ -413,6 +413,12 @@ from another machine, or after that is undone, has a variable changed.
   leaves no template. A plain `<template>` is a template with content in all three ways. Consequence: `@verajs/ssr`'s
   DOM parses markup as `innerHTML` does (the template keeps its markup as `content`, never its children), and has no
   `setHTMLUnsafe` or `parseHTMLUnsafe`: `renderToString` decides where a declarative root is written.
+- **No native switch in this runner's engines.** `'switch' in HTMLInputElement.prototype` is false on Chromium 159,
+  Firefox 159 and WebKit 27.2 (Playwright 1.65, headless, Windows 11, 2026-11-25): Playwright's WebKit build does not
+  expose the `switch` IDL attribute Safari 17.4 shipped (Safari itself was not measured here). Consequence:
+  `<vera-switch>` feature-detects it on the input and takes `role="switch"` wherever it is absent, which is every engine
+  this runner has; its browser row keeps the measured table and turns red when a runner gains it, and the native branch
+  is exercised in jsdom with the property faked present.
 
 ## CSS and the cascade
 
@@ -517,6 +523,18 @@ from another machine, or after that is undone, has a variable changed.
   the inner input has no block padding and stretches to the box's content height (`align-self: stretch`), so the box
   sets the height; a browser row inheriting `line-height: 2` at a 20px page holds it at 2.25em on all three engines (red
   with the padding: 62 for 45, on Windows and on macOS Firefox and WebKit), and the macOS Firefox box reads 36 with it.
+- **A border width rounds down to whole pixels, so a ring computed to the half pixel loses up to 1 px a side.** An
+  `<input>` drawn with `box-sizing: content-box` and a transparent border of `max(.1875em, calc(12px - 1.125em / 2))`,
+  meant to make a 24px target: at a 12px page (a 13.5px box, a 5.25px border) it read 23.5 px wide on Chromium 159,
+  Firefox 159 and WebKit 27.2, and at the UA's 13.33px input font (a 4.5px border) 23 px on Chromium 159 (Playwright
+  1.65, headless, Windows 11, 2026-11-25). Consequence: `<vera-checkbox>` and `<vera-switch>` size the ring from 13px, a
+  pixel more than the arithmetic, so the target stays at least 24 px after the rounding (26 px at a 16px page), and a
+  browser row holds 24 at 12px and 16px on all three engines (red with 12px on all three).
+- **WebKit does not parse `forced-color-adjust`.** In a rule inside `@media (forced-colors: active)`, the parsed
+  declaration reads `none` on Chromium 159 and Firefox 159 and is dropped on WebKit 27.2, where
+  `CSS.supports('forced-color-adjust', 'none')` is false (Playwright 1.65, headless, Windows 11, 2026-11-25); WebKit has
+  no forced-colors mode for the rule to apply in. Consequence: the checkbox and switch looks' forced-colors rules are
+  checked as parsed, the property where the engine supports it.
 
 ## Rendering, frames and timing
 

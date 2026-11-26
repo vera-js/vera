@@ -30,6 +30,12 @@
     "noEmit": true,
     "target": "ES2022",
     "paths": {
+      "@vera-components/checkbox": [
+        "./packages/components/checkbox/src/register.ts"
+      ],
+      "@vera-components/checkbox/element": [
+        "./packages/components/checkbox/src/index.ts"
+      ],
       "@vera-components/dialog": [
         "./packages/components/dialog/src/register.ts"
       ],

@@ -1,0 +1,17 @@
+{
+  "url": "https://verajs.dev/e/",
+  "entries": [
+    {
+      "code": "checkbox-no-control",
+      "params": [],
+      "message": "holds no <input type=\"checkbox\">, so it has nothing to serve: there is no default render, because a control the script made would be no control before the script runs.",
+      "fix": "Write the input inside it: <vera-checkbox><label><input type=\"checkbox\" name=\"…\"> Label</label></vera-checkbox>."
+    },
+    {
+      "code": "checkbox-no-name",
+      "params": [],
+      "message": "holds an input with no accessible name (its labels, aria-label, aria-labelledby and title give no text), so a screen reader announces only \"checkbox\".",
+      "fix": "Put text in its <label>, give it a <label for>, or wrap it in <vera-field> with a <label>."
+    }
+  ]
+}

@@ -43,21 +43,28 @@ const resolver = (root, dirs) => (specifier) => {
 };
 
 /** A component's source module that exports one value (`demo.ts`, `surface.ts`), read by Node with its types stripped. */
-const sourceValue = async (src, file) => {
-  const folder = readdirSync(src).find((entry) => existsSync(join(src, entry, file)));
-  return folder === undefined ? null : Object.values(await import(pathToFileURL(join(src, folder, file)).href))[0];
-};
+const sourceValue = async (dir, file) =>
+  existsSync(join(dir, file)) ? Object.values(await import(pathToFileURL(join(dir, file)).href))[0] : null;
 
-/** Every component with a demo, in name order, with its surface (for the description the page leads with). */
+/**
+ * Every component with a demo, in name order, with its surface (for the description the page leads with): one per
+ * `src/<folder>/demo.ts`, so a package of two tags (checkbox's `<vera-checkbox>` and `<vera-switch>`) shows both.
+ * `name` is the package, `id` the section (the package's name, or its folder where it has several).
+ */
 export const componentDemos = async (root) => {
   const demos = [];
   const base = join(root, 'packages', 'components');
   for (const name of readdirSync(base).sort()) {
     const src = join(base, name, 'src');
     if (!existsSync(src)) continue;
-    const demo = await sourceValue(src, 'demo.ts');
-    if (demo === null) continue;
-    demos.push({ name, demo, surface: await sourceValue(src, 'surface.ts') });
+    /** Sorted: readdir's order is the filesystem's (alphabetical on NTFS, not on ext4), and the page is checked in. */
+    const folders = readdirSync(src)
+      .filter((entry) => existsSync(join(src, entry, 'demo.ts')))
+      .sort();
+    for (const folder of folders) {
+      const dir = join(src, folder);
+      demos.push({ name, id: folders.length > 1 ? folder : name, demo: await sourceValue(dir, 'demo.ts'), surface: await sourceValue(dir, 'surface.ts') });
+    }
   }
   return demos;
 };
@@ -68,8 +75,8 @@ const WIRING =
   "const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');" +
   "const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);";
 
-/** The components a piece of markup uses, by package name. */
-const usedIn = (markup) => [...new Set([...markup.matchAll(/<vera-([a-z-]+)/g)].map((match) => match[1]))];
+/** The packages a piece of markup uses, each tag found through `packageOf` (a package's second tag is not its name). */
+const usedIn = (markup, packageOf) => [...new Set([...markup.matchAll(/<(vera-[a-z-]+)/g)].map((match) => packageOf[match[1]] ?? match[1].slice(5)))];
 
 /** A state's own modules, wired after the page's and before its components load (a module wired later misses them). */
 const wiresOf = (wires = []) =>
@@ -84,16 +91,16 @@ const wiringCode = (wires = []) =>
  * the components it uses. The page's script hands it the theme (color scheme, accent, radius) when it loads and on
  * every change.
  */
-const frameDoc = (imports, markup, wires) =>
+const frameDoc = (imports, packageOf, markup, wires) =>
   '<!DOCTYPE html><html><head><meta charset="utf-8">' +
   '<style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}</style>' +
   `<script type="importmap">${JSON.stringify({ imports })}</script></head><body>${markup}` +
-  `<script type="module">${WIRING}${wiresOf(wires)}${usedIn(markup).map((name) => `await import('@vera-components/${name}');`).join('')}</script></body></html>`;
+  `<script type="module">${WIRING}${wiresOf(wires)}${usedIn(markup, packageOf).map((name) => `await import('@vera-components/${name}');`).join('')}</script></body></html>`;
 
-const card = (imports) => (state) => {
+const card = (imports, packageOf) => (state) => {
   /** Wiring is page-wide: a state that wires its own modules is framed, so the rest of the page keeps its wiring. */
   const framed = state.framed || (state.wires?.length ?? 0) > 0;
-  const preview = framed ? `<iframe class="frame" title="${escape(state.title)}" srcdoc="${escape(frameDoc(imports, state.markup, state.wires))}"></iframe>` : state.markup;
+  const preview = framed ? `<iframe class="frame" title="${escape(state.title)}" srcdoc="${escape(frameDoc(imports, packageOf, state.markup, state.wires))}"></iframe>` : state.markup;
   const wide = framed || state.markup.length > 220 ? ' wide' : '';
   const code = state.wires?.length ? `${wiringCode(state.wires)}\n\n${state.markup}` : state.markup;
   return [
@@ -107,36 +114,39 @@ const card = (imports) => (state) => {
   ].join('\n');
 };
 
-const plate = (imports) => ({ name, demo, surface }) => {
+const plate = (imports, packageOf) => ({ name, id, demo, surface }) => {
   const reach = demo.interactive?.length
     ? `\n      <p class="try"><strong>Reached by doing</strong> ${demo.interactive.map((i) => `${escape(i.part)} (${escape(i.how)})`).join('; ')}.</p>`
     : '';
   return [
-    `  <section class="plate" id="${name}">`,
+    `  <section class="plate" id="${id}">`,
     `    <header class="plate-head">`,
-    `      <div class="title-row"><h2>${escape(titled(name))}</h2><span class="pill" data-size="@vera-components/${name}">gzip …</span></div>`,
+    `      <div class="title-row"><h2>${escape(titled(id))}</h2><span class="pill" data-size="@vera-components/${name}">gzip …</span></div>`,
     `      <p class="lede">${escape(surface?.description ?? '')}</p>`,
     `      <p class="try"><strong>Try it</strong> ${escape(demo.ask)}</p>${reach}`,
     `      <code class="install">npm i @vera-components/${name}</code>`,
     `    </header>`,
     `    <div class="grid">`,
-    demo.states.map(card(imports)).join('\n'),
+    demo.states.map(card(imports, packageOf)).join('\n'),
     `    </div>`,
     `  </section>`,
   ].join('\n');
 };
 
-const navItem = ({ name }) => `<a href="#${name}">${escape(titled(name))}</a>`;
+const navItem = ({ id }) => `<a href="#${id}">${escape(titled(id))}</a>`;
 
 /** The page's HTML, its import map and sheets addressed from the repo root (`/packages/…`), as the server serves it. */
 export const componentsPage = async (root) => {
   const demos = await componentDemos(root);
   if (demos.length === 0) throw new Error('no component has a demo.ts: nothing to show');
   const resolve = resolver(root, packageDirs(root));
+  /** Each tag's package, from the surfaces: the page and every frame import packages, not tags. */
+  const packageOf = Object.fromEntries(demos.filter(({ surface }) => surface?.tag).map(({ name, surface }) => [surface.tag, name]));
+  const packages = [...new Set(demos.map(({ name }) => name))];
   const imports = {};
   /** Every module a state wires is mapped too: no import of a component's main entry leads to it. */
   const wired = demos.flatMap(({ demo }) => demo.states.flatMap((state) => (state.wires ?? []).map(({ from }) => from)));
-  const queue = ['@verajs/core', '@verajs/renderer', '@verajs/renderer/keyed', '@verajs/renderer/slots', '@verajs/styles', ...demos.map(({ name }) => `@vera-components/${name}`), ...wired];
+  const queue = ['@verajs/core', '@verajs/renderer', '@verajs/renderer/keyed', '@verajs/renderer/slots', '@verajs/styles', ...packages.map((name) => `@vera-components/${name}`), ...wired];
   while (queue.length > 0) {
     const specifier = queue.shift();
     if (imports[specifier]) continue;
@@ -146,8 +156,8 @@ export const componentsPage = async (root) => {
     for (const [, next] of readFileSync(join(root, path), 'utf8').matchAll(/(?:from|import)\s*["'](@ver[a-z-]+\/[^"']+)["']/g)) queue.push(next);
   }
   /** A component's pre-upgrade sheet, where it ships one, so a state looks right before its script runs. */
-  const sheets = demos
-    .map(({ name }) => resolve(`@vera-components/${name}/preupgrade.css`))
+  const sheets = packages
+    .map((name) => resolve(`@vera-components/${name}/preupgrade.css`))
     .filter((path) => path !== null)
     .map((path) => `<link rel="stylesheet" href="/${path}">`);
   const template = readFileSync(join(import.meta.dirname, 'template.html'), 'utf8');
@@ -156,8 +166,8 @@ export const componentsPage = async (root) => {
     .replace('<!--IMPORTMAP-->', () => `${sheets.join('\n')}\n<script type="importmap">${JSON.stringify({ imports }, null, 1)}</script>`)
     .replace('<!--NAV-->', () => demos.map(navItem).join(''))
     .replace('<!--COUNT-->', () => String(demos.length))
-    .replace('<!--FIRST-->', () => demos[0].name)
-    .replace('<!--PLATES-->', () => demos.map(plate(imports)).join('\n\n'))
+    .replace('<!--FIRST-->', () => demos[0].id)
+    .replace('<!--PLATES-->', () => demos.map(plate(imports, packageOf)).join('\n\n'))
     .replace('/*WIRING*/', () => WIRING)
-    .replace('/*COMPONENTS*/[]', () => JSON.stringify(demos.map(({ name }) => name)));
+    .replace('/*COMPONENTS*/[]', () => JSON.stringify(packages));
 };

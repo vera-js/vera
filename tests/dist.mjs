@@ -41,6 +41,8 @@ const NODE_BUILDS = new Set(['jsx', 'cms/content']);
 
 /** Bundle name -> the `filename` its package.json declares. */
 export const ENTRY = {
+  'vera-components/checkbox': ['components/checkbox', 'vera-checkbox'],
+  'vera-components/checkbox/element': ['components/checkbox', 'vera-checkbox-element'],
   'vera-components/dialog': ['components/dialog', 'vera-dialog'],
   'vera-components/dialog/element': ['components/dialog', 'vera-dialog-element'],
   'vera-components/menu': ['components/menu', 'vera-menu'],

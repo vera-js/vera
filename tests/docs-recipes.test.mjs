@@ -51,6 +51,7 @@ const PACKAGES = {
   '@vera-hooks/typeahead': 'vera-hooks/typeahead',
   '@vera-components/menu': 'vera-components/menu',
   '@vera-components/dialog': 'vera-components/dialog',
+  '@vera-components/checkbox': 'vera-components/checkbox',
   '@verajs/core': 'core',
   '@verajs/lite': 'lite',
   '@verajs/static': 'static',
@@ -270,6 +271,7 @@ const recipes = recipeSources.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/components/checkbox/README.md': 1,
   'packages/components/dialog/README.md': 1,
   'packages/components/menu/README.md': 1,
   'packages/components/tabs/README.md': 1,

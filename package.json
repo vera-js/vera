@@ -68,6 +68,7 @@
         "./packages/hooks/typeahead:build",
         "./packages/components/menu:build",
         "./packages/components/dialog:build",
+        "./packages/components/checkbox:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
         "./packages/styles:build",

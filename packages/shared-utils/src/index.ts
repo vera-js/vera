@@ -1,4 +1,5 @@
 export * from './adopt-property.js';
+export * from './control-name.js';
 export * from './diagnostic.js';
 export * as SHARED from './diagnostics.js';
 export * from './markup-grammar.js';

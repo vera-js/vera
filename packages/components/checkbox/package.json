@@ -1,0 +1,116 @@
+{
+  "name": "@vera-components/checkbox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A checkbox and a switch around the author's own <input type=\"checkbox\">: the input stays the form participant and works before the script runs; vera-checkbox adds a mixed state kept in step with the input's indeterminate property, and vera-switch uses the native switch where the engine has it, role=switch where it does not.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/components/checkbox"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./dist/vera-checkbox.min.js",
+  "types": "./dist/development/vera-checkbox.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-checkbox.d.ts",
+      "development": "./dist/development/vera-checkbox.js",
+      "default": "./dist/vera-checkbox.min.js"
+    },
+    "./element": {
+      "types": "./dist/development/vera-checkbox-element.d.ts",
+      "development": "./dist/development/vera-checkbox-element.js",
+      "default": "./dist/vera-checkbox-element.min.js"
+    }
+  },
+  "sideEffects": [
+    "./dist/development/vera-checkbox.js",
+    "./dist/vera-checkbox.min.js"
+  ],
+  "peerDependencies": {
+    "@verajs/core": "^0.5.0"
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "customElements": "custom-elements.json",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../../shared-types/src/**/*{.js,.ts}",
+        "../../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../../tsconfig.json",
+        "rollup.config.js",
+        "../../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-checkbox"
+}

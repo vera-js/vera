@@ -146,6 +146,7 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
   "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js",
   "@verajs/renderer/slots": "/packages/renderer/dist/vera-renderer-slots.min.js",
   "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
+  "@vera-components/checkbox": "/packages/components/checkbox/dist/vera-checkbox.min.js",
   "@vera-components/dialog": "/packages/components/dialog/dist/vera-dialog.min.js",
   "@vera-components/field": "/packages/components/field/dist/vera-field.min.js",
   "@vera-components/icon": "/packages/components/icon/dist/vera-icon.min.js",
@@ -190,19 +191,118 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
   <h1>Components that are <em>fast, tiny and yours</em></h1>
   <p class="sub">Accessible, framework-free building blocks that wire the markup you already write. They work before the script loads, weigh a few kilobytes, and restyle with a handful of CSS variables. Try the controls up top.</p>
   <div class="cta">
-    <a class="btn primary" href="#dialog">Browse components</a>
+    <a class="btn primary" href="#checkbox">Browse components</a>
     <button type="button" class="btn" data-copy-text="npm i @verajs/core @verajs/renderer"><code>npm i @verajs/core</code></button>
   </div>
   <div class="facts">
-    <span><strong>9</strong>components</span>
+    <span><strong>11</strong>components</span>
     <span><strong data-total>…</strong>all of them, gzip</span>
     <span><strong>0</strong>dependencies</span>
   </div>
 </section>
 
 <div class="layout">
-  <nav class="side" aria-label="Components"><p class="label">Components</p><a href="#dialog">Dialog</a><a href="#field">Field</a><a href="#icon">Icon</a><a href="#input">Input</a><a href="#kbd">Kbd</a><a href="#menu">Menu</a><a href="#select">Select</a><a href="#spinner">Spinner</a><a href="#tabs">Tabs</a></nav>
+  <nav class="side" aria-label="Components"><p class="label">Components</p><a href="#checkbox">Checkbox</a><a href="#switch">Switch</a><a href="#dialog">Dialog</a><a href="#field">Field</a><a href="#icon">Icon</a><a href="#input">Input</a><a href="#kbd">Kbd</a><a href="#menu">Menu</a><a href="#select">Select</a><a href="#spinner">Spinner</a><a href="#tabs">Tabs</a></nav>
   <main>
+  <section class="plate" id="checkbox">
+    <header class="plate-head">
+      <div class="title-row"><h2>Checkbox</h2><span class="pill" data-size="@vera-components/checkbox">gzip …</span></div>
+      <p class="lede">Serves the author's own &lt;input type=&quot;checkbox&quot;&gt;, which stays the form participant (submit, reset, disabled, autofill and back/forward restore are the platform's) and works before the script runs; there is no default render. Draws the box on the input itself, a 24px target at any size, with a check and a dash in the platform's own states. Adds a mixed state, kept in step with the input's indeterminate property. It never labels: wrap it in a &lt;label&gt;, give the input a &lt;label for&gt;, or use &lt;vera-field&gt;.</p>
+      <p class="try"><strong>Try it</strong> Judge the box and its check and dash at the page size and larger, the focus ring (Tab to it), and a click on the mixed box: it becomes checked and the mixed mark goes. The whole label is the target.</p>
+      <code class="install">npm i @vera-components/checkbox</code>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <div class="preview"><vera-checkbox><label><input type="checkbox" name="news"> Email me the newsletter</label></vera-checkbox></div>
+        <footer>
+          <h3>Unchecked</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-checkbox&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; name=&quot;news&quot;&gt; Email me the newsletter&lt;/label&gt;&lt;/vera-checkbox&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-checkbox><label><input type="checkbox" name="terms" checked> I accept the terms</label></vera-checkbox></div>
+        <footer>
+          <h3>Checked</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-checkbox&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; name=&quot;terms&quot; checked&gt; I accept the terms&lt;/label&gt;&lt;/vera-checkbox&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-checkbox indeterminate><label><input type="checkbox" name="all"> Select all (some selected)</label></vera-checkbox></div>
+        <footer>
+          <h3>Mixed</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-checkbox indeterminate&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; name=&quot;all&quot;&gt; Select all (some selected)&lt;/label&gt;&lt;/vera-checkbox&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-checkbox><label><input type="checkbox" disabled> Disabled</label></vera-checkbox> <vera-checkbox><label><input type="checkbox" checked disabled> Disabled and checked</label></vera-checkbox></div>
+        <footer>
+          <h3>Disabled</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-checkbox&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; disabled&gt; Disabled&lt;/label&gt;&lt;/vera-checkbox&gt; &lt;vera-checkbox&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked disabled&gt; Disabled and checked&lt;/label&gt;&lt;/vera-checkbox&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><div style="font-size: 1.5em"><vera-checkbox><label><input type="checkbox" checked> At 1.5em</label></vera-checkbox></div></div>
+        <footer>
+          <h3>Larger text</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;div style=&quot;font-size: 1.5em&quot;&gt;&lt;vera-checkbox&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked&gt; At 1.5em&lt;/label&gt;&lt;/vera-checkbox&gt;&lt;/div&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-checkbox data-vera-look="none"><label><input type="checkbox" checked> The platform's box</label></vera-checkbox></div>
+        <footer>
+          <h3>Look none (the engine's own checkbox)</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-checkbox data-vera-look=&quot;none&quot;&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked&gt; The platform's box&lt;/label&gt;&lt;/vera-checkbox&gt;</code></pre></details>
+        </footer>
+      </article>
+    </div>
+  </section>
+
+  <section class="plate" id="switch">
+    <header class="plate-head">
+      <div class="title-row"><h2>Switch</h2><span class="pill" data-size="@vera-components/checkbox">gzip …</span></div>
+      <p class="lede">Serves the author's own &lt;input type=&quot;checkbox&quot;&gt; as a switch: the platform's switch attribute where the engine has it, role=&quot;switch&quot; where it does not, never both. The input stays the form participant and submits exactly as a checkbox does. Draws a track and a thumb on the input itself, a 24px target at any size; the thumb moves to the inline end when on, mirrors under rtl, and jumps instead of sliding under reduced motion. Its label never changes with its state: wrap it in a &lt;label&gt;, give the input a &lt;label for&gt;, or use &lt;vera-field&gt;.</p>
+      <p class="try"><strong>Try it</strong> Judge the track and thumb off and on, the slide (and that it jumps under reduced motion), the focus ring (Tab to it, then Space), and the mirrored thumb under right-to-left. The label stays the same in both states.</p>
+      <code class="install">npm i @vera-components/checkbox</code>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <div class="preview"><vera-switch><label><input type="checkbox" name="wifi"> Wi-Fi</label></vera-switch></div>
+        <footer>
+          <h3>Off</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-switch&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; name=&quot;wifi&quot;&gt; Wi-Fi&lt;/label&gt;&lt;/vera-switch&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-switch><label><input type="checkbox" name="sync" checked> Sync over mobile data</label></vera-switch></div>
+        <footer>
+          <h3>On</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-switch&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; name=&quot;sync&quot; checked&gt; Sync over mobile data&lt;/label&gt;&lt;/vera-switch&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-switch><label><input type="checkbox" disabled> Disabled</label></vera-switch> <vera-switch><label><input type="checkbox" checked disabled> Disabled and on</label></vera-switch></div>
+        <footer>
+          <h3>Disabled</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-switch&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; disabled&gt; Disabled&lt;/label&gt;&lt;/vera-switch&gt; &lt;vera-switch&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked disabled&gt; Disabled and on&lt;/label&gt;&lt;/vera-switch&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><div dir="rtl"><vera-switch><label><input type="checkbox"> مزامنة</label></vera-switch> <vera-switch><label><input type="checkbox" checked> مزامنة</label></vera-switch></div></div>
+        <footer>
+          <h3>Right to left</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;div dir=&quot;rtl&quot;&gt;&lt;vera-switch&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot;&gt; مزامنة&lt;/label&gt;&lt;/vera-switch&gt; &lt;vera-switch&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked&gt; مزامنة&lt;/label&gt;&lt;/vera-switch&gt;&lt;/div&gt;</code></pre></details>
+        </footer>
+      </article>
+      <article class="card">
+        <div class="preview"><vera-switch data-vera-look="none"><label><input type="checkbox" checked> The platform's control</label></vera-switch></div>
+        <footer>
+          <h3>Look none (the engine's own control)</h3>
+          <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-switch data-vera-look=&quot;none&quot;&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked&gt; The platform's control&lt;/label&gt;&lt;/vera-switch&gt;</code></pre></details>
+        </footer>
+      </article>
+    </div>
+  </section>
+
   <section class="plate" id="dialog">
     <header class="plate-head">
       <div class="title-row"><h2>Dialog</h2><span class="pill" data-size="@vera-components/dialog">gzip …</span></div>
@@ -233,7 +333,7 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
         </footer>
       </article>
       <article class="card wide">
-        <div class="preview"><iframe class="frame" title="Open at load" srcdoc="&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}&lt;/style&gt;&lt;script type=&quot;importmap&quot;&gt;{&quot;imports&quot;:{&quot;@verajs/core&quot;:&quot;/packages/core/dist/vera.min.js&quot;,&quot;@verajs/renderer&quot;:&quot;/packages/renderer/dist/vera-renderer.min.js&quot;,&quot;@verajs/renderer/keyed&quot;:&quot;/packages/renderer/dist/vera-renderer-keyed.min.js&quot;,&quot;@verajs/renderer/slots&quot;:&quot;/packages/renderer/dist/vera-renderer-slots.min.js&quot;,&quot;@verajs/styles&quot;:&quot;/packages/styles/dist/vera-styles.min.js&quot;,&quot;@vera-components/dialog&quot;:&quot;/packages/components/dialog/dist/vera-dialog.min.js&quot;,&quot;@vera-components/field&quot;:&quot;/packages/components/field/dist/vera-field.min.js&quot;,&quot;@vera-components/icon&quot;:&quot;/packages/components/icon/dist/vera-icon.min.js&quot;,&quot;@vera-components/input&quot;:&quot;/packages/components/input/dist/vera-input.min.js&quot;,&quot;@vera-components/kbd&quot;:&quot;/packages/components/kbd/dist/vera-kbd.min.js&quot;,&quot;@vera-components/menu&quot;:&quot;/packages/components/menu/dist/vera-menu.min.js&quot;,&quot;@vera-components/select&quot;:&quot;/packages/components/select/dist/vera-select.min.js&quot;,&quot;@vera-components/spinner&quot;:&quot;/packages/components/spinner/dist/vera-spinner.min.js&quot;,&quot;@vera-components/tabs&quot;:&quot;/packages/components/tabs/dist/vera-tabs.min.js&quot;,&quot;@vera-components/input/stepper&quot;:&quot;/packages/components/input/dist/vera-input-stepper.min.js&quot;,&quot;@vera-hooks/announce&quot;:&quot;/packages/hooks/announce/dist/vera-announce.min.js&quot;,&quot;@vera-hooks/labeled&quot;:&quot;/packages/hooks/labeled/dist/vera-labeled.min.js&quot;,&quot;@vera-hooks/roving-focus&quot;:&quot;/packages/hooks/roving-focus/dist/vera-roving-focus.min.js&quot;,&quot;@vera-hooks/typeahead&quot;:&quot;/packages/hooks/typeahead/dist/vera-typeahead.min.js&quot;,&quot;@verajs/renderer/spread&quot;:&quot;/packages/renderer/dist/vera-renderer-spread.min.js&quot;,&quot;@vera-hooks/listbox&quot;:&quot;/packages/hooks/listbox/dist/vera-listbox.min.js&quot;,&quot;@vera-hooks/light-dismiss&quot;:&quot;/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js&quot;}}&lt;/script&gt;&lt;/head&gt;&lt;body&gt;&lt;vera-dialog open&gt;&lt;dialog&gt;&lt;h2&gt;Welcome&lt;/h2&gt;&lt;form method=&quot;dialog&quot;&gt;&lt;button autofocus&gt;Start&lt;/button&gt;&lt;/form&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;&lt;script type=&quot;module&quot;&gt;const{wire}=await import('@verajs/core');const{renderer}=await import('@verajs/renderer');const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);await import('@vera-components/dialog');&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div>
+        <div class="preview"><iframe class="frame" title="Open at load" srcdoc="&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}&lt;/style&gt;&lt;script type=&quot;importmap&quot;&gt;{&quot;imports&quot;:{&quot;@verajs/core&quot;:&quot;/packages/core/dist/vera.min.js&quot;,&quot;@verajs/renderer&quot;:&quot;/packages/renderer/dist/vera-renderer.min.js&quot;,&quot;@verajs/renderer/keyed&quot;:&quot;/packages/renderer/dist/vera-renderer-keyed.min.js&quot;,&quot;@verajs/renderer/slots&quot;:&quot;/packages/renderer/dist/vera-renderer-slots.min.js&quot;,&quot;@verajs/styles&quot;:&quot;/packages/styles/dist/vera-styles.min.js&quot;,&quot;@vera-components/checkbox&quot;:&quot;/packages/components/checkbox/dist/vera-checkbox.min.js&quot;,&quot;@vera-components/dialog&quot;:&quot;/packages/components/dialog/dist/vera-dialog.min.js&quot;,&quot;@vera-components/field&quot;:&quot;/packages/components/field/dist/vera-field.min.js&quot;,&quot;@vera-components/icon&quot;:&quot;/packages/components/icon/dist/vera-icon.min.js&quot;,&quot;@vera-components/input&quot;:&quot;/packages/components/input/dist/vera-input.min.js&quot;,&quot;@vera-components/kbd&quot;:&quot;/packages/components/kbd/dist/vera-kbd.min.js&quot;,&quot;@vera-components/menu&quot;:&quot;/packages/components/menu/dist/vera-menu.min.js&quot;,&quot;@vera-components/select&quot;:&quot;/packages/components/select/dist/vera-select.min.js&quot;,&quot;@vera-components/spinner&quot;:&quot;/packages/components/spinner/dist/vera-spinner.min.js&quot;,&quot;@vera-components/tabs&quot;:&quot;/packages/components/tabs/dist/vera-tabs.min.js&quot;,&quot;@vera-components/input/stepper&quot;:&quot;/packages/components/input/dist/vera-input-stepper.min.js&quot;,&quot;@vera-hooks/announce&quot;:&quot;/packages/hooks/announce/dist/vera-announce.min.js&quot;,&quot;@vera-hooks/labeled&quot;:&quot;/packages/hooks/labeled/dist/vera-labeled.min.js&quot;,&quot;@vera-hooks/roving-focus&quot;:&quot;/packages/hooks/roving-focus/dist/vera-roving-focus.min.js&quot;,&quot;@vera-hooks/typeahead&quot;:&quot;/packages/hooks/typeahead/dist/vera-typeahead.min.js&quot;,&quot;@verajs/renderer/spread&quot;:&quot;/packages/renderer/dist/vera-renderer-spread.min.js&quot;,&quot;@vera-hooks/listbox&quot;:&quot;/packages/hooks/listbox/dist/vera-listbox.min.js&quot;,&quot;@vera-hooks/light-dismiss&quot;:&quot;/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js&quot;}}&lt;/script&gt;&lt;/head&gt;&lt;body&gt;&lt;vera-dialog open&gt;&lt;dialog&gt;&lt;h2&gt;Welcome&lt;/h2&gt;&lt;form method=&quot;dialog&quot;&gt;&lt;button autofocus&gt;Start&lt;/button&gt;&lt;/form&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;&lt;script type=&quot;module&quot;&gt;const{wire}=await import('@verajs/core');const{renderer}=await import('@verajs/renderer');const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);await import('@vera-components/dialog');&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div>
         <footer>
           <h3>Open at load</h3><p>The host's open: shown as a modal on connect (in a frame of its own here, since a modal makes the rest of its page inert).</p>
           <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>&lt;vera-dialog open&gt;&lt;dialog&gt;&lt;h2&gt;Welcome&lt;/h2&gt;&lt;form method=&quot;dialog&quot;&gt;&lt;button autofocus&gt;Start&lt;/button&gt;&lt;/form&gt;&lt;/dialog&gt;&lt;/vera-dialog&gt;</code></pre></details>
@@ -371,7 +471,7 @@ dialog :where(input, textarea):not(:where(vera-input *, [data-vera-input])) { fo
         </footer>
       </article>
       <article class="card wide">
-        <div class="preview"><iframe class="frame" title="A number, with the stepper wired" srcdoc="&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}&lt;/style&gt;&lt;script type=&quot;importmap&quot;&gt;{&quot;imports&quot;:{&quot;@verajs/core&quot;:&quot;/packages/core/dist/vera.min.js&quot;,&quot;@verajs/renderer&quot;:&quot;/packages/renderer/dist/vera-renderer.min.js&quot;,&quot;@verajs/renderer/keyed&quot;:&quot;/packages/renderer/dist/vera-renderer-keyed.min.js&quot;,&quot;@verajs/renderer/slots&quot;:&quot;/packages/renderer/dist/vera-renderer-slots.min.js&quot;,&quot;@verajs/styles&quot;:&quot;/packages/styles/dist/vera-styles.min.js&quot;,&quot;@vera-components/dialog&quot;:&quot;/packages/components/dialog/dist/vera-dialog.min.js&quot;,&quot;@vera-components/field&quot;:&quot;/packages/components/field/dist/vera-field.min.js&quot;,&quot;@vera-components/icon&quot;:&quot;/packages/components/icon/dist/vera-icon.min.js&quot;,&quot;@vera-components/input&quot;:&quot;/packages/components/input/dist/vera-input.min.js&quot;,&quot;@vera-components/kbd&quot;:&quot;/packages/components/kbd/dist/vera-kbd.min.js&quot;,&quot;@vera-components/menu&quot;:&quot;/packages/components/menu/dist/vera-menu.min.js&quot;,&quot;@vera-components/select&quot;:&quot;/packages/components/select/dist/vera-select.min.js&quot;,&quot;@vera-components/spinner&quot;:&quot;/packages/components/spinner/dist/vera-spinner.min.js&quot;,&quot;@vera-components/tabs&quot;:&quot;/packages/components/tabs/dist/vera-tabs.min.js&quot;,&quot;@vera-components/input/stepper&quot;:&quot;/packages/components/input/dist/vera-input-stepper.min.js&quot;,&quot;@vera-hooks/announce&quot;:&quot;/packages/hooks/announce/dist/vera-announce.min.js&quot;,&quot;@vera-hooks/labeled&quot;:&quot;/packages/hooks/labeled/dist/vera-labeled.min.js&quot;,&quot;@vera-hooks/roving-focus&quot;:&quot;/packages/hooks/roving-focus/dist/vera-roving-focus.min.js&quot;,&quot;@vera-hooks/typeahead&quot;:&quot;/packages/hooks/typeahead/dist/vera-typeahead.min.js&quot;,&quot;@verajs/renderer/spread&quot;:&quot;/packages/renderer/dist/vera-renderer-spread.min.js&quot;,&quot;@vera-hooks/listbox&quot;:&quot;/packages/hooks/listbox/dist/vera-listbox.min.js&quot;,&quot;@vera-hooks/light-dismiss&quot;:&quot;/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js&quot;}}&lt;/script&gt;&lt;/head&gt;&lt;body&gt;&lt;label&gt;Quantity &lt;vera-input&gt;&lt;input type=&quot;number&quot; name=&quot;n&quot; value=&quot;3&quot; min=&quot;0&quot; max=&quot;10&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;&lt;script type=&quot;module&quot;&gt;const{wire}=await import('@verajs/core');const{renderer}=await import('@verajs/renderer');const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);const{stepper:w0}=await import(&quot;@vera-components/input/stepper&quot;);wire([w0]);await import('@vera-components/input');&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div>
+        <div class="preview"><iframe class="frame" title="A number, with the stepper wired" srcdoc="&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif}&lt;/style&gt;&lt;script type=&quot;importmap&quot;&gt;{&quot;imports&quot;:{&quot;@verajs/core&quot;:&quot;/packages/core/dist/vera.min.js&quot;,&quot;@verajs/renderer&quot;:&quot;/packages/renderer/dist/vera-renderer.min.js&quot;,&quot;@verajs/renderer/keyed&quot;:&quot;/packages/renderer/dist/vera-renderer-keyed.min.js&quot;,&quot;@verajs/renderer/slots&quot;:&quot;/packages/renderer/dist/vera-renderer-slots.min.js&quot;,&quot;@verajs/styles&quot;:&quot;/packages/styles/dist/vera-styles.min.js&quot;,&quot;@vera-components/checkbox&quot;:&quot;/packages/components/checkbox/dist/vera-checkbox.min.js&quot;,&quot;@vera-components/dialog&quot;:&quot;/packages/components/dialog/dist/vera-dialog.min.js&quot;,&quot;@vera-components/field&quot;:&quot;/packages/components/field/dist/vera-field.min.js&quot;,&quot;@vera-components/icon&quot;:&quot;/packages/components/icon/dist/vera-icon.min.js&quot;,&quot;@vera-components/input&quot;:&quot;/packages/components/input/dist/vera-input.min.js&quot;,&quot;@vera-components/kbd&quot;:&quot;/packages/components/kbd/dist/vera-kbd.min.js&quot;,&quot;@vera-components/menu&quot;:&quot;/packages/components/menu/dist/vera-menu.min.js&quot;,&quot;@vera-components/select&quot;:&quot;/packages/components/select/dist/vera-select.min.js&quot;,&quot;@vera-components/spinner&quot;:&quot;/packages/components/spinner/dist/vera-spinner.min.js&quot;,&quot;@vera-components/tabs&quot;:&quot;/packages/components/tabs/dist/vera-tabs.min.js&quot;,&quot;@vera-components/input/stepper&quot;:&quot;/packages/components/input/dist/vera-input-stepper.min.js&quot;,&quot;@vera-hooks/announce&quot;:&quot;/packages/hooks/announce/dist/vera-announce.min.js&quot;,&quot;@vera-hooks/labeled&quot;:&quot;/packages/hooks/labeled/dist/vera-labeled.min.js&quot;,&quot;@vera-hooks/roving-focus&quot;:&quot;/packages/hooks/roving-focus/dist/vera-roving-focus.min.js&quot;,&quot;@vera-hooks/typeahead&quot;:&quot;/packages/hooks/typeahead/dist/vera-typeahead.min.js&quot;,&quot;@verajs/renderer/spread&quot;:&quot;/packages/renderer/dist/vera-renderer-spread.min.js&quot;,&quot;@vera-hooks/listbox&quot;:&quot;/packages/hooks/listbox/dist/vera-listbox.min.js&quot;,&quot;@vera-hooks/light-dismiss&quot;:&quot;/packages/hooks/light-dismiss/dist/vera-light-dismiss.min.js&quot;}}&lt;/script&gt;&lt;/head&gt;&lt;body&gt;&lt;label&gt;Quantity &lt;vera-input&gt;&lt;input type=&quot;number&quot; name=&quot;n&quot; value=&quot;3&quot; min=&quot;0&quot; max=&quot;10&quot;&gt;&lt;/vera-input&gt;&lt;/label&gt;&lt;script type=&quot;module&quot;&gt;const{wire}=await import('@verajs/core');const{renderer}=await import('@verajs/renderer');const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);const{stepper:w0}=await import(&quot;@vera-components/input/stepper&quot;);wire([w0]);await import('@vera-components/input');&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe></div>
         <footer>
           <h3>A number, with the stepper wired</h3><p>Opt-in: wire([stepper]) from @vera-components/input/stepper replaces the spinner with − and +; hold one to repeat</p>
           <details class="code"><summary>Code</summary><button type="button" class="copy" data-copy>Copy</button><pre><code>import { stepper } from '@vera-components/input/stepper';
@@ -654,7 +754,7 @@ wire([stepper]);
 <script type="module">
 {
   const{wire}=await import('@verajs/core');const{renderer}=await import('@verajs/renderer');const{lists}=await import('@verajs/renderer/keyed');const{slots}=await import('@verajs/renderer/slots');const{styles}=await import('@verajs/styles');wire([renderer,lists,slots,styles]);
-  for (const name of ["dialog","field","icon","input","kbd","menu","select","spinner","tabs"]) await import('@vera-components/' + name);
+  for (const name of ["checkbox","dialog","field","icon","input","kbd","menu","select","spinner","tabs"]) await import('@vera-components/' + name);
   /**
    * A demo's form has nowhere to go: keep the page, let the component do its part. A form whose method is "dialog" is
    * let through: its submission is what closes its <dialog>, and it goes nowhere.
