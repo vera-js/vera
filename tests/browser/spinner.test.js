@@ -2,10 +2,13 @@
  * **<vera-spinner> in the three engines, with `@verajs/styles` NOT wired**: the arc's rule is adopted by the element
  * itself into whichever root it renders in, keyed on its parts (so a tag of the caller's own draws the same), at zero
  * specificity, with `data-vera-look="none"` dropping it; the label is said once into the spinner's own document's
- * region. Correctness only, headless. This runner has no media emulation, so the reduced-motion and forced-colors
- * rules are read as the engine parsed them (the rule is there and names the pulse), not as matched.
+ * region. Correctness only, headless. Reduced motion and forced colors are emulated (`emulateMedia`) and read as the
+ * engine matched them, each with a `matchMedia` control; WebKit has no forced-colors mode, so there that rule is read as
+ * the engine parsed it.
  */
 import { expect } from '@esm-bundle/chai';
+import { emulateMedia } from '@web/test-runner-commands';
+import { ENGINE, ON } from './engine.js';
 import { flush, wire } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import '../../packages/components/spinner/dist/development/vera-spinner.js';
@@ -98,19 +101,60 @@ describe('vera-spinner: the arc, unwired styles', () => {
     page.remove();
   });
 
-  it('carries a reduced-motion pulse and a forced-colors look, as the engine parsed them', async () => {
+  it('reduced motion, emulated: the arc pulses (CONTROL: with no preference, it turns)', async () => {
     const holder = await mount('<vera-spinner label="A"></vera-spinner>');
-    const sheet = document.adoptedStyleSheets.find((s) => [...s.cssRules].some((r) => r.cssText.includes('vera-spinner-turn')));
-    expect(sheet, 'the arc sheet is adopted into the document').to.not.equal(undefined);
-    const media = [...sheet.cssRules].filter((r) => r.media !== undefined);
-    const motion = media.find((r) => r.conditionText.includes('prefers-reduced-motion'));
-    const forced = media.find((r) => r.conditionText.includes('forced-colors'));
-    expect(motion.cssRules[0].style.animationName).to.equal('vera-spinner-pulse');
-    /** The turning segment is the logical block-start border: declared apart from the physical top the shorthand sets. */
-    const declared = forced.cssRules[0].style;
-    expect(declared.getPropertyValue('border-block-start-color').toLowerCase()).to.equal('canvastext');
-    /** WebKit has no forced-colors mode and drops the property; where an engine knows it, it is kept. */
-    expect(declared.getPropertyValue('forced-color-adjust')).to.equal(CSS.supports('forced-color-adjust', 'none') ? 'none' : '');
+    const arc = arcOf(holder.querySelector('vera-spinner'));
+    try {
+      await emulateMedia({ reducedMotion: 'no-preference' });
+      expect(reduced(), `CONTROL on ${ON}: no preference is emulated`).to.equal(false);
+      expect(style(arc).animationName).to.equal('vera-spinner-turn');
+      await emulateMedia({ reducedMotion: 'reduce' });
+      expect(reduced(), `CONTROL on ${ON}: reduced motion is emulated`).to.equal(true);
+      expect(style(arc).animationName).to.equal('vera-spinner-pulse');
+    } finally {
+      await emulateMedia({ reducedMotion: 'no-preference' });
+    }
+    holder.remove();
+  });
+
+  it('forced colors: the turning segment is drawn in the system text color', async () => {
+    const holder = await mount('<vera-spinner label="A"></vera-spinner>');
+    const arc = arcOf(holder.querySelector('vera-spinner'));
+    /** Where the engine has a forced-colors mode, emulated and read; WebKit has none, so there the parsed rule is read. */
+    if (ENGINE?.name !== 'WebKit') {
+      await emulateMedia({ forcedColors: 'active' });
+      try {
+        expect(matchMedia('(forced-colors: active)').matches, `CONTROL on ${ON}: forced colors are emulated`).to.equal(true);
+        /** Probes that opt out of forcing, so each reads its system color as authored. */
+        const probe = (color) => {
+          const span = document.createElement('span');
+          span.style.cssText = `forced-color-adjust: none; color: ${color}`;
+          document.body.append(span);
+          const read = style(span).color;
+          span.remove();
+          return read;
+        };
+        const text = probe('CanvasText');
+        const canvas = probe('Canvas');
+        expect(text, `CONTROL on ${ON}: CanvasText and Canvas are told apart`).to.not.equal(canvas);
+        /**
+         * What only the rule gives: the engine's own forcing paints every border one system color, so the arc opts out
+         * (forced-color-adjust: none) and draws Canvas sides under a CanvasText turning segment, the logical block-start
+         * border, which is the top in horizontal writing.
+         */
+        expect(style(arc).forcedColorAdjust).to.equal('none');
+        expect(style(arc).borderTopStyle).to.equal('solid');
+        expect(style(arc).borderTopColor).to.equal(text);
+        expect(style(arc).borderBottomColor).to.equal(canvas);
+      } finally {
+        await emulateMedia({ forcedColors: 'none' });
+      }
+    } else {
+      const sheet = document.adoptedStyleSheets.find((s) => [...s.cssRules].some((r) => r.cssText.includes('vera-spinner-turn')));
+      expect(sheet, 'CONTROL: the arc sheet is adopted into the document').to.not.equal(undefined);
+      const forced = [...sheet.cssRules].find((r) => r.media !== undefined && r.conditionText.includes('forced-colors'));
+      expect(forced.cssRules[0].style.getPropertyValue('border-block-start-color').toLowerCase()).to.equal('canvastext');
+    }
     holder.remove();
   });
 

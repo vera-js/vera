@@ -3,10 +3,13 @@
  * `@verajs/ssr` output, `SPINNER_SSR` in the hydration fixture) turns with no script at all, keyframes inside the
  * `@scope` block included; an empty, not yet defined spinner on a page that links `preupgrade.css` turns through its
  * host's generated content; the two never draw two rings; and once defined, the generated ring gives way to the arc
- * part. Each page without script is an iframe whose document never defines the tag. This runner has no media
- * emulation, so the reduced-motion and forced-colors branches are read as the engine parsed them.
+ * part. Each page without script is an iframe whose document never defines the tag. Reduced motion and forced colors
+ * are emulated (`emulateMedia`, which reaches the iframe) and read as matched, each with a `matchMedia` control; WebKit
+ * has no forced-colors mode, so there that branch is read as the engine parsed it.
  */
 import { expect } from '@esm-bundle/chai';
+import { emulateMedia } from '@web/test-runner-commands';
+import { ENGINE, ON } from './engine.js';
 import { flush, wire } from '../../packages/core/dist/development/vera.js';
 import { renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import '../../packages/components/spinner/dist/development/vera-spinner.js';
@@ -95,14 +98,57 @@ describe('vera-spinner: before upgrade', () => {
     sheet.remove();
   });
 
-  it('preupgrade.css carries the reduced-motion pulse and the forced-colors look, in @layer vera', async () => {
+  it('preupgrade.css is one @layer vera', async () => {
     const text = await (await fetch(PREUPGRADE)).text();
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(text);
-    const layer = sheet.cssRules[0];
-    expect(layer.name).to.equal('vera');
-    const media = [...layer.cssRules].filter((rule) => rule.media !== undefined);
-    expect(media.find((r) => r.conditionText.includes('prefers-reduced-motion')).cssRules[0].style.animationName).to.equal('vera-spinner-pulse');
-    expect(media.find((r) => r.conditionText.includes('forced-colors')).cssRules[0].style.getPropertyValue('border-block-start-color').toLowerCase()).to.equal('canvastext');
+    expect(sheet.cssRules.length).to.equal(1);
+    expect(sheet.cssRules[0].name).to.equal('vera');
+  });
+
+  it('reduced motion, emulated: the preupgrade ring pulses (CONTROL: with no preference, it turns)', async () => {
+    const f = await page(`${link}<vera-spinner></vera-spinner>`);
+    const host = f.contentDocument.querySelector('vera-spinner');
+    const reduce = () => f.contentWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    try {
+      await emulateMedia({ reducedMotion: 'no-preference' });
+      expect(reduce(), `CONTROL on ${ON}: no preference is emulated in the page`).to.equal(false);
+      await until(() => computed(host, '::before').animationName === 'vera-spinner-turn', 'the preupgrade ring to turn', 4000);
+      await emulateMedia({ reducedMotion: 'reduce' });
+      expect(reduce(), `CONTROL on ${ON}: reduced motion is emulated in the page`).to.equal(true);
+      expect(computed(host, '::before').animationName).to.equal('vera-spinner-pulse');
+    } finally {
+      await emulateMedia({ reducedMotion: 'no-preference' });
+    }
+    f.remove();
+  });
+
+  it('forced colors: the preupgrade ring is drawn in the system text color', async () => {
+    const f = await page(`${link}<vera-spinner></vera-spinner><span style="forced-color-adjust: none; color: CanvasText">probe</span><span style="forced-color-adjust: none; color: Canvas">probe</span>`);
+    const host = f.contentDocument.querySelector('vera-spinner');
+    await until(() => ANIMATIONS.includes(computed(host, '::before').animationName), 'the preupgrade ring', 4000);
+    /** Where the engine has a forced-colors mode, emulated and read; WebKit has none, so there the parsed rule is read. */
+    if (ENGINE?.name !== 'WebKit') {
+      await emulateMedia({ forcedColors: 'active' });
+      try {
+        expect(f.contentWindow.matchMedia('(forced-colors: active)').matches, `CONTROL on ${ON}: forced colors are emulated in the page`).to.equal(true);
+        const [text, canvas] = [...f.contentDocument.querySelectorAll('span')].map((span) => computed(span).color);
+        expect(text, `CONTROL on ${ON}: CanvasText and Canvas are told apart`).to.not.equal(canvas);
+        /** What only the rule gives: the engine's own forcing paints every border one system color; the ring opts out. */
+        const ring = computed(host, '::before');
+        expect(ring.forcedColorAdjust).to.equal('none');
+        expect(ring.borderTopStyle).to.equal('solid');
+        expect(ring.borderTopColor).to.equal(text);
+        expect(ring.borderBottomColor).to.equal(canvas);
+      } finally {
+        await emulateMedia({ forcedColors: 'none' });
+      }
+    } else {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(await (await fetch(PREUPGRADE)).text());
+      const forced = [...sheet.cssRules[0].cssRules].find((r) => r.media !== undefined && r.conditionText.includes('forced-colors'));
+      expect(forced.cssRules[0].style.getPropertyValue('border-block-start-color').toLowerCase()).to.equal('canvastext');
+    }
+    f.remove();
   });
 });

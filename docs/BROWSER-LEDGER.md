@@ -1390,6 +1390,14 @@ from another machine, or after that is undone, has a variable changed.
   `<vera-input>`'s row for hiding the native cancel button reads the kept rule and whether its subject matches the
   input, never a computed style; that the button is then not painted is not measured. (Playwright's Chromium,
   Firefox 159 and WebKit, Windows 11, 2026-11-21.)
+- **Under emulated forced colors, a border's color cannot tell an author's forced-colors rule from the engine.** With
+  `emulateMedia({ forcedColors: 'active' })` (`matchMedia` matching), `<vera-spinner>`'s arc read its top border as
+  `CanvasText` on Chromium and Firefox both with its `@media (forced-colors: active)` rule and with that rule's query
+  made invalid in the built bytes: the engine forces the border colors to system colors itself. Consequence: a row that
+  claims an author's forced-colors rule reads what only the rule gives (spinner's `forced-color-adjust: none`, and its
+  `Canvas` sides under a `CanvasText` turning segment, which the engine's forcing would paint one color), with
+  probes that opt out of forcing; a row that claims the engine's outcome (kbd ships no rule) reads the color as is.
+  (Playwright's Chromium and Firefox 159, Windows 11, 2026-11-25.)
 
 ## Competitors, as their own benchmark entries write them
 
