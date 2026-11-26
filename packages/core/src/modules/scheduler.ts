@@ -153,9 +153,18 @@ export const enqueue = (pass: HookRecord) => {
   }
   if (scheduled || flushing) return;
   scheduled = true;
+  const before = flushes;
   try {
     renderScheduler(drain, pass._owner ?? undefined);
   } catch (error) {
+    /**
+     * **One report per error** (2026-11-26): a scheduler that runs the flush at once carries a pass's error here AFTER
+     * the pass's own run reported it (an `'error'` handler that rethrows); handed back, the writing hook reported it to
+     * the chain a second time. A flush ran (`flushes` moved), so it is thrown as uncaught, as the default scheduler's
+     * flush leaves it, and the flush's own state is left as it set it. A scheduler that threw before running anything
+     * is the writer's error, as before.
+     */
+    if (flushes !== before) return /*@__NOINLINE__*/ uncaught(error);
     scheduled = false;
     throw error;
   }
@@ -266,10 +275,15 @@ const strandedNone = () => {
      * platform reports an uncaught error, after this one has left.
      */
     scheduled = false;
-    queueMicrotask(() => {
-      throw error;
-    });
+    /*@__NOINLINE__*/ uncaught(error);
   }
+};
+
+/** **Thrown where the platform reports an uncaught error**, after the current task — the one way core lets an error go that it may not drop. */
+export const uncaught = (error: unknown) => {
+  queueMicrotask(() => {
+    throw error;
+  });
 };
 
 /**

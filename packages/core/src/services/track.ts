@@ -4,6 +4,7 @@ import { isWeakCollection } from '@verajs/shared-utils';
 import type { StoreKit } from '@verajs/inserts';
 import type { Cell, Change } from '../types.js';
 import { seams } from './seams.js';
+import { uncaught } from '../modules/scheduler.js';
 
 /**
  * The channel an object's **shape** is published on, as distinct from any one key: a key added or
@@ -112,16 +113,6 @@ export const track = (obj: object, prop: unknown) => {
  * at index 0 changed) restarts the walk from the start: every hook already reached carries this wake's number and is
  * skipped, so none is missed and none runs twice. A hook that JOINS during the walk is reached too.
  */
-/**
- * **A hook's error never leaves a write** (2026-11-23): an `'error'` handler that rethrows, under a `'sync'` effect or a
- * scheduler that runs the flush at once, threw out of this loop, and every subscriber after it missed the write. It is
- * reported as uncaught, as the default scheduler's flush reports it, and the loop goes on.
- */
-const escaped = (error: unknown) => {
-  queueMicrotask(() => {
-    throw error;
-  });
-};
 export const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
   let m = cell._moves;
   for (let p = 0; p < cell._positions; p++) {
@@ -132,7 +123,12 @@ export const wake = (cell: Cell, signal: Change<unknown>, epoch: number) => {
     try {
       hook.$n(signal);
     } catch (error) {
-      /*@__NOINLINE__*/ escaped(error);
+      /**
+       * **A hook's error never leaves a write** (2026-11-23): an `'error'` handler that rethrows, under a `'sync'` effect
+       * or a scheduler that runs the flush at once, threw out of this loop, and every subscriber after it missed the
+       * write. It is reported as uncaught, as the default scheduler's flush reports it, and the loop goes on.
+       */
+      /*@__NOINLINE__*/ uncaught(error);
     }
     /**
      * **The stamp again, after the run.** A raw or sync hook runs INSIDE this call, and a write it makes to a key it

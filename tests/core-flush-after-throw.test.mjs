@@ -197,3 +197,30 @@ console.log(rows.join(' | ') + ' | uncaught ' + seen.join(','));`);
     'CONTROL: later 1, write threw none | sync effect: later 1, write threw none | scheduler at once: later 1, write threw none | two channels: key set heard 1 | uncaught sync effect,scheduler at once,key',
   );
 });
+
+/**
+ * **One report per error** (2026-11-26; the inserts README's `'error'` row). With a scheduler that runs the flush at
+ * once, a pass's error reached the `'error'` chain twice: its own run reported it, the handler rethrew it out of the
+ * flush and the scheduler, and the writing hook reported it again. It is reported once and then thrown as uncaught, as
+ * the default scheduler leaves it, and the write itself does not throw. A scheduler that throws BEFORE running anything
+ * is still the writer's error, reported once.
+ */
+test("with a scheduler that runs at once, a pass's error reaches the 'error' chain once", () => {
+  const body = (scheduler) => `
+const { signal, effect, wire, setRenderScheduler } = core;
+const seen = {};
+const count = (k) => { seen[k] = (seen[k] ?? 0) + 1; };
+wire({ on: 'error', fn: (e) => { count(e.message); throw e; }, priority: 50 });
+process.on('uncaughtException', (e) => count('uncaught ' + e.message));
+const s = signal(0);
+effect(() => { if (s.value === 1) throw new Error('pass broke'); }, { owner: {} })?.run();
+setRenderScheduler(${scheduler});
+try { s.value = 1; } catch (e) { count('write threw ' + e.message); }
+await new Promise((r) => setTimeout(r, 20));
+console.log(JSON.stringify(seen));`;
+  assert.equal(child(body('(run) => run()')), '{"pass broke":1,"uncaught pass broke":1}', 'at once');
+  /** CONTROL: the default scheduler, by microtask: one report, then uncaught. */
+  assert.equal(child(body('core.microtask')), '{"pass broke":1,"uncaught pass broke":1}', 'microtask');
+  /** A scheduler that throws without running the flush: the writer's error, once to the chain, then uncaught from the write's wake. */
+  assert.equal(child(body('() => { throw new Error("scheduler broke"); }')), '{"scheduler broke":1,"uncaught scheduler broke":1}', 'broken scheduler');
+});
