@@ -115,27 +115,31 @@ otherwise start before the page's first render and read about 3x cheap), the arm
 browser. Every sample must hold N controls with the race's role and accessible name, or the run reports the arm as
 failed: an arm that rendered nothing cannot read as fast. Each Vera arm must also hold N of the marks its setup writes
 (`data-vera-field`, `data-vera-input`, `data-vera-checkbox`): the plain inputs inside their labels hold the role and
-name with no script at all, so without it an arm whose script never ran read as the fastest.
+name with no script at all, so without it an arm whose script never ran read as the fastest. And the clock must have
+seen the work: in the same task as the timer's stop, with nothing able to run in between, every sample counts the
+controls already rendered, through every shadow root, so a library that renders in a later frame fails rather than
+reading fast (with Vera's mount deferred to a timer, that count read 0 of 200). A failed control makes the run's
+verdict VOID.
 
-Measured 2026-11-25, Windows 11, Playwright's engines, 15 settled pages per arm, medians in ms (React 19.2.8, MUI
-9.6.0, Chakra 3.38.0, Shoelace 2.20.1; Firefox and WebKit report whole milliseconds):
+Measured 2026-11-26, Windows 11, Playwright's engines, 15 settled pages per arm, every control held, medians in ms
+(React 19.2.8, MUI 9.6.0, Chakra 3.38.0, Shoelace 2.20.1; Firefox and WebKit report whole milliseconds):
 
 | 300 fields | Chromium 159 | Firefox 159 | WebKit 27.2 |
 | --- | --- | --- | --- |
-| HTML, no script (floor) | 33.5 | 33 | 26 |
-| Vera field, plain input | 45.5 | 63 | 46 |
-| Vera field + Vera input | 57.5 | 77 | 58 |
-| Shoelace `sl-input` | 104.1 | 135 | 107 |
-| Chakra `Field` | 146.2 | 407 | 180 |
-| MUI `TextField` | 161.3 | 280 | 158 |
+| HTML, no script (floor) | 26.6 | 35 | 17 |
+| Vera field, plain input | 36.4 | 59 | 31 |
+| Vera field + Vera input | 48.6 | 69 | 46 |
+| Shoelace `sl-input` | 110.6 | 127 | 90 |
+| Chakra `Field` | 173.8 | 320 | 159 |
+| MUI `TextField` | 180.4 | 251 | 154 |
 
 | 200 checkboxes | Chromium 159 | Firefox 159 | WebKit 27.2 |
 | --- | --- | --- | --- |
-| HTML, no script (floor) | 14.3 | 7 | 9 |
-| Vera `vera-checkbox` | 23.6 | 29 | 23 |
-| Shoelace `sl-checkbox` | 57.7 | 90 | 63 |
-| MUI `Checkbox` | 99.6 | 161 | 102 |
-| Chakra `Checkbox` | 160.7 | 377 | 161 |
+| HTML, no script (floor) | 12.3 | 5 | 6 |
+| Vera `vera-checkbox` | 17.9 | 25 | 15 |
+| Shoelace `sl-checkbox` | 47.4 | 75 | 49 |
+| MUI `Checkbox` | 93.3 | 166 | 96 |
+| Chakra `Checkbox` | 181.7 | 281 | 169 |
 
 ## Caveats
 
