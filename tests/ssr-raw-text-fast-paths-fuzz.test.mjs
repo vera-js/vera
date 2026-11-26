@@ -13,11 +13,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeTemplate } from '@verajs/ssr';
+import { JSDOM } from 'jsdom';
 import { extendSeeds } from './fuzz-seeds.mjs';
 
 const { closedRawText } = await import(new URL('../packages/ssr/dist/vera/escaping.js', import.meta.url));
 
-const SEEDS = extendSeeds([1, 7, 42, 2026, 31337]);
+/** 1146854909: a rotated seed's find (2026-11-26), the oracle's, not the server's — see `blockBefore`. */
+const SEEDS = extendSeeds([1, 7, 42, 2026, 31337, 1146854909]);
 const CASES_PER_SEED = 3000;
 
 const lcg = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x80000000);
@@ -306,6 +308,28 @@ test("openingTags: the tag at every hole is exactly the per-hole function's", ()
  */
 const MARK = 'VALUEMARK';
 const escapeCuts = { refused: 0, served: 0 };
+/**
+ * The text of the HTML `<script>` the value is served in, up to the value, as a spec parser reads the page (jsdom's
+ * parse5, independent of the tokenizer under test) — `null` when the value is in no HTML script's text. A regex for the
+ * opener (`/<script\b[^>]*>/gi`) was quote-blind: in `<script <!-- type="application/json" encoding="a>b"</math>VALUEMARK`
+ * (a rotated seed, 1146854909 case 1474) it stopped at the QUOTED `>` and read `b"</math>` as block text, a raw `<` the
+ * page does not have — the tag runs to `</math>`'s `>`, so the value is the block's first byte. A quote-aware regex
+ * cannot stand in (a quote opens a value only after `=`, and these statics put quotes in names and unquoted values), and
+ * the server's own `scanTag` would be the code under test reading itself.
+ */
+const parser = new JSDOM('<!doctype html><body></body>').window.document;
+const blockBefore = (html) => {
+  const host = parser.createElement('div');
+  host.innerHTML = html;
+  const walker = parser.createTreeWalker(host, 4 /* SHOW_TEXT */);
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    const at = node.data.indexOf(MARK);
+    if (at === -1) continue;
+    const script = node.parentNode;
+    return script.localName === 'script' && script.namespaceURI === 'http://www.w3.org/1999/xhtml' ? script.textContent.slice(0, script.textContent.indexOf(MARK)) : null;
+  }
+  return null;
+};
 const servedWithoutEscape = (text, cut, label) => {
   const strings = Object.assign([text.slice(0, cut), text.slice(cut)], { raw: [text.slice(0, cut), text.slice(cut)] });
   let html;
@@ -318,12 +342,25 @@ const servedWithoutEscape = (text, cut, label) => {
   }
   const at = html.indexOf(MARK);
   if (at === -1) return;
-  const opener = [...html.slice(0, at).matchAll(/<script\b[^>]*>/gi)].pop();
-  assert.ok(opener, `a value served in script text has its script (${label}): ${html}`);
-  const before = html.slice(opener.index + opener[0].length, at);
+  const before = blockBefore(html);
+  assert.notEqual(before, null, `a value served in script text has its script (${label}): ${html}`);
   assert.equal(before.includes('<'), false, `served in a script, with no raw < before it in the block (${label}): ${html}`);
   escapeCuts.served++;
 };
+test('the block a value is read in is the spec parser\'s: a quoted `>` stays in the start tag; a raw `<` in the block is seen (CONTROL)', () => {
+  const found = '<script</mi><script <!-- type="application/json" encoding="a>b"</math>VALUEMARK</script>';
+  assert.equal(blockBefore(found), '', 'the start tag runs to its unquoted `>`: the value is the first byte');
+  const raw = '<script type="application/json">{"a":"<b"}VALUEMARK</script>';
+  assert.equal(blockBefore(raw).includes('<'), true, 'a raw `<` before the value is in the block');
+  assert.equal(blockBefore('<p>VALUEMARK</p>'), null, 'a value in plain text is in no script');
+  assert.equal(blockBefore('<svg><script>VALUEMARK</script></svg>'), null, "an SVG script's content is markup, not a script block");
+});
+test('the found case: the server serves the value in a script, and the spec parser puts it there too', () => {
+  const text = '<script</mi><script <!-- type="application/json" encoding="a>b"</math>';
+  const strings = Object.assign([text, '</script>'], { raw: [text, '</script>'] });
+  const html = serializeTemplate({ _$litType$: 1, strings, values: [MARK] });
+  assert.equal(blockBefore(html), '', `served: ${html}`);
+});
 const FIELDS = ['inTag', 'phase', 'inValue', 'quote', 'rawTag', 'tagName', 'attrName', 'closing', 'inert', 'comment', 'textTag', 'foreign', 'attrRaw'];
 test('scanTag: carried across splits after a `>`, the state is the whole text\'s', () => {
   let compared = 0;
