@@ -261,6 +261,9 @@ console.log(`versions: react ${versionOf('react')}, @mui/material ${versionOf('@
 for (const [arm, ms] of Object.entries(m).sort((a, b) => a[1] - b[1]))
   console.log(`  ${arm.padEnd(22)} ${ms.toFixed(2).padStart(8)} ms   (min ${Math.min(...times[arm]).toFixed(2)}, max ${Math.max(...times[arm]).toFixed(2)})`);
 const fastest = Math.min(...COMPETITORS.map((arm) => m[arm]));
+/** A failed control voids the verdict: an arm that rendered nothing in time reads fast (a plant read 35x "BEATS"). */
 for (const arm of Object.keys(race.vera))
-  console.log(`BAR ${arm} <= fastest competitor (${fastest.toFixed(2)}): ${m[arm] <= fastest ? 'BEATS' : 'LOSES'} (${(fastest / m[arm]).toFixed(1)}x)`);
+  console.log(
+    `BAR ${arm} <= fastest competitor (${fastest.toFixed(2)}): ${failed.length ? 'VOID (a control failed)' : m[arm] <= fastest ? 'BEATS' : 'LOSES'} (${(fastest / m[arm]).toFixed(1)}x)`,
+  );
 console.log(failed.length ? `CONTROL FAILED:\n  ${[...new Set(failed)].join('\n  ')}` : `CONTROL: every sample held ${N} ${race.role}es named "${race.name}"`);
