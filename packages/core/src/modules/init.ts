@@ -323,13 +323,19 @@ const settled = (element: Moving) => {
   element._$w$ = false;
 };
 
-/** The element's own window — its timers belong to it. */
-const windowOf = (element: Element) => element.ownerDocument.defaultView ?? globalThis;
+/**
+ * **The window a pause's timer lives on: the document of its last connect (`_$d$`)**, for the set AND the clear (timer
+ * ids are per window). Not the element's current document: a component taken into another window by `adoptNode` is
+ * disconnected AFTER the adopt, so its `ownerDocument` is already the new one when it pauses (2026-11-23, Chromium,
+ * Firefox, WebKit and jsdom), and a timer set there was never cleared by the resume, which clears on `_$d$`: the timer
+ * fired and tore down a component that was back in the page.
+ */
+const timersOf = (element: Moving) => element._$d$?.defaultView ?? globalThis;
 
 /**
  * **Deferred teardown — ONE mechanism, two uses** (Brian 2026-10-22): a REMOVED component is PAUSED — the author's
  * `disconnectedCallback` runs, every hook's cleanup runs (listeners and intervals stop), its setup state, stores and DOM
- * stay — and a timer (the element's own window's) starts. Re-added in time it RESUMES (`resume`); the timer firing tears
+ * stay — and a timer (on the window of its last connect, `timersOf`) starts. Re-added in time it RESUMES (`resume`); the timer firing tears
  * it down through the one `retireElement`, once (a setup that settled while it was out has its commit HELD for the
  * resume, and dropped at expiry). If that window closes while it is paused, its timer never fires — the element is then
  * garbage with its document, unless it was adopted elsewhere. Used when the
@@ -340,7 +346,7 @@ const windowOf = (element: Element) => element.ownerDocument.defaultView ?? glob
 const pause = (element: Moving, seconds: number) => {
   /** The hooks RETIRED but kept listed: each runs its cleanup and leaves every store (nothing wakes it while out); a resume's first pass links them again. */
   retire(element);
-  element._$m$ = windowOf(element).setTimeout(() => {
+  element._$m$ = timersOf(element).setTimeout(() => {
     element._$m$ = false;
     element._$q$ = undefined;
     if (__DEV__ && element._$w$) console.warn(diagnostic('core', `<${element.localName}>`, 'setup-outlived-removal', __DEV__ && PROSE['setup-outlived-removal'](String(PENDING_SECONDS))));
@@ -353,8 +359,8 @@ const pause = (element: Moving, seconds: number) => {
  * shadow root's adopted sheets; within one, re-applying is a no-op's cost on a rare path).
  */
 const resume = (element: Moving, timer: ReturnType<typeof setTimeout>) => {
-  /** Cleared on the window that SET it — its document of the last connect — before a cross-window resume records the new one (timer ids are per window). */
-  (element._$d$!.defaultView ?? globalThis).clearTimeout(timer);
+  /** Cleared on the window that SET it (`timersOf`) — before a cross-window resume records the new document. */
+  timersOf(element).clearTimeout(timer);
   /** Resumed in ANOTHER window: adopted there (`'adopted'`); resumed where it left, nothing to hear. */
   const moved = element._$d$ !== element.ownerDocument;
   element._$d$ = element.ownerDocument;

@@ -23,7 +23,7 @@ const PINS = {
   'packages/cms/dist/vera-cms-content.min.js': 1,
   'packages/cms/dist/vera-cms-node.min.js': 9,
   'packages/cms/dist/vera-cms-publish.min.js': 2,
-  'packages/core/dist/vera.min.js': 12,
+  'packages/core/dist/vera.min.js': 11, // 12 → 11 (2026-11-23): windowOf (pause's one caller) became timersOf, shared by pause and resume
   /** The lite tier: every site COLD, on `instantiate`'s per-call-site cache miss — `prepare` and the forged-template check
    *  `genuine` (2; 2026-11-23: `literal` has a second caller, a template inside text, so it is a kept function, no
    *  longer pasted into `genuine`). The hot calls (commit, the attribute checks, retire, `patch` in `render`) are kept
@@ -41,8 +41,8 @@ const PINS = {
   'packages/directives/dist/vera-directives-query.min.js': 6,
   'packages/directives/dist/vera-directives-remote.min.js': 3,
   'packages/directives/dist/vera-directives-sensors.min.js': 3,
-  'packages/directives/dist/vera-directives-standalone.min.js': 26,
-  'packages/directives/dist/vera-directives.min.js': 83,
+  'packages/directives/dist/vera-directives-standalone.min.js': 25, // 26 → 25 (2026-11-26): core's pause timer (inlined here) is one shared timersOf
+  'packages/directives/dist/vera-directives.min.js': 82, // 83 → 82 (2026-11-26): the same, core's timersOf
   'packages/components/field/dist/vera-field-element.min.js': 11,
   'packages/components/field/dist/vera-field.min.js': 11,
   'packages/components/icon/dist/vera-icon-element.min.js': 2,

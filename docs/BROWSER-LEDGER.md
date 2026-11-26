@@ -784,6 +784,13 @@ from another machine, or after that is undone, has a variable changed.
   before any submit. Consequence: a composite control cannot style its error state with `:user-invalid`; it sets its
   own `data-user-invalid` after the user's first commit, and the field's selector names both. (2026-11-20, a local
   probe, re-run 2026-11-21 with the same answers)
+- **`adoptNode` runs a connected element's `disconnectedCallback` after the adopt, so it sees the new document.** A
+  custom element connected in window A, then `B.document.adoptNode(el)`: its `disconnectedCallback` read
+  `ownerDocument === B` (the order: `adoptNode()` reached B before `remove()` from A ran its callback) in Chromium 159,
+  Firefox 159, WebKit 27.2 (Playwright 1.65.1, headless) and jsdom, with three controls (a plain remove in A reads A).
+  Consequence: `@verajs/core` sets a paused component's timer on the window of its last connect (`timersOf`), the one
+  its resume clears on; set on the element's current window, the timer survived the resume in B and tore the live
+  component down. (2026-11-23)
 
 ## The engines' compilers
 
