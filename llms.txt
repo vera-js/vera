@@ -514,12 +514,20 @@ wire([renderer, styles]);
 (`[base, compact && compactSheet]`). **Shadow DOM:** sheets adopted by the shadow root, strings as one
 `<style data-vm-sheet="styles">`, closed roots included; re-`init` safe, and a server-rendered `<style>`
 copy is dropped once every style is an adopted sheet. **Light DOM:** hoisted to the element's root (its document, or the shadow root it renders in) once per
-class per root (server-rendered too: the block is served inside each declarative shadow root it renders in), inside `@scope (tag-name) { … }`, with `:host` → `:scope` translated so one sheet works in both
+class per root (server-rendered too: the block is served inside each declarative shadow root it renders in), inside `@scope (tag-name) { … }` (and `@layer vera` around it in the document), with `:host` → `:scope` translated so one sheet works in both
 modes; `::slotted()` has no light-DOM equivalent (use a descendant selector); unscoped (and warned about
 in development) where `@scope` is unsupported. **Windows:** styles go into the element's OWN document
 with its own window's constructor — a component in a popped-out window or iframe is styled there; a
 sheet from another window reaches a shadow root as a `<style>` (a document cannot adopt it). Omit the
 wiring and a component with `static styles` renders unstyled — core warns once, in development.
+
+**Cascade layers (BREAKING in this release):** in the document a light block is `@layer vera`, so ANY unlayered author
+rule beats a component's default, whatever its specificity. A page using a layered framework states the order FIRST in
+its CSS, before the framework's import: `@layer theme, base, vera, components, utilities;` — the defaults then beat
+Tailwind's preflight and its utilities beat the defaults; without it `vera` is declared last (by the adopted sheet) and
+outranks `utilities`, and development warns (`layer-order`). Nothing is inserted to place it (no CSP concern);
+`@verajs/ssr`'s `styles` opens with the statement, so a server-rendered page needs nothing. A shadow root's block is
+unlayered, as before. Engines without cascade layers ignore the whole block.
 
 **Take `wire` from `@verajs/core`, never from `@verajs/inserts`.** A production `.min.js` inlines
 the registry into every bundle, so registering through your own copy writes to a map core never
@@ -1881,7 +1889,9 @@ const { html, styles, title } = await renderToString(new URL('./app.js', import.
 | `static` | `true` = a page that will not be interactive: store reads skip tracking (faster in proportion to the tracked reads: 47.1 vs 118.6 µs, fastest of 7, on a 100-row table reading 300 store properties; little gain where a render tracks little), identical markup. A store *write* during such a render throws (both builds) |
 
 A wrong option type, or a name that is not an option, throws a `TypeError` naming it. Returns `{ html, styles, title }`:
-`styles` is the light-DOM `@scope` CSS for the page's `<style>`, already escaped for that element.
+`styles` is the light-DOM `@scope` CSS for the page's `<style>`, already escaped for that element, opening with the
+layer-order statement (`@layer theme, base, vera, components, utilities;`) whenever it holds any: serve that `<style>`
+first in `<head>`, before any other layered CSS, or `vera` lands last.
 
 Rules an assistant must not guess around:
 

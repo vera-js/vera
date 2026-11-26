@@ -105,8 +105,54 @@ const HOISTED = '_$veraStyles$';
  * read.
  */
 const LIGHT = '_$veraLight$';
-/** Each light class's constructed sheet per document (see the light hoist). */
+/** Each light class's constructed sheet per document, for its shadow roots (see the light hoist). */
 const LIGHT_SHEETS = '_$veraLightSheets$';
+/** Each light class's constructed sheet per document, for the document itself: the block inside `@layer vera`. */
+const LAYERED_SHEETS = '_$veraLayeredSheets$';
+
+/**
+ * **The layer order that places a light component's defaults among a layered framework's CSS** (2026-11-26). In the
+ * document every light block is `@layer vera { … }`, so any unlayered author rule beats a component's default. A page
+ * whose CSS is layered (Tailwind v4: `theme, base, components, utilities`) places `vera` by stating this order FIRST,
+ * before the framework's own statement: our defaults then beat its preflight (`base`) and its utilities beat them.
+ * Unstated, `vera` is declared by our adopted sheets, which come after every document sheet, so it would come last and
+ * outrank `utilities`. **Nothing is inserted for it**: `@verajs/ssr` serves it first in a render's `styles` (a deliberate
+ * twin there, held equal by a test; the packages may not import each other at runtime, CODE-PRINCIPLES #6), and a page
+ * rendered only on the client states it in its own CSS. Inserting it here, and reading the cascade to avoid a second
+ * copy, cost a cold page of 400 light elements 5.8% on Chromium (the read and the insert about half each; the wrap alone
+ * nothing measurable), measured headed against the same build without them. Development reads the cascade to say so
+ * when a page holds layers and does not place `vera`.
+ */
+const LAYER_ORDER = '@layer theme, base, vera, components, utilities;';
+
+/**
+ * Development: **whether the document's CSS holds cascade layers and states no place for `vera`**: a layer statement or
+ * block of another name, or an `@import` into a layer, and no layer statement naming `vera` (anywhere: this names the
+ * omission, it does not check the order). Our own `@layer vera` blocks are not the page's layers. Each sheet's top-level
+ * rules only; a cross-origin sheet's rules cannot be read and are skipped, and a `<link>` still loading has none yet.
+ */
+const layersUnplaced = (doc: Document, view: Window): boolean => {
+  const kinds = view as unknown as { CSSLayerBlockRule: typeof CSSLayerBlockRule; CSSImportRule: typeof CSSImportRule };
+  let layered = false;
+  for (const list of [doc.styleSheets, doc.adoptedStyleSheets ?? []])
+    for (let i = 0; i < list.length; i++) {
+      let rules: CSSRuleList;
+      try {
+        rules = list[i].cssRules;
+      } catch {
+        continue;
+      }
+      for (let r = 0; r < rules.length; r++) {
+        const rule = rules[r];
+        const names = (rule as CSSLayerStatementRule).nameList;
+        if (names !== undefined) {
+          if (Array.prototype.includes.call(names, 'vera')) return false;
+          layered = true;
+        } else if ((rule instanceof kinds.CSSLayerBlockRule && rule.name !== 'vera') || (rule instanceof kinds.CSSImportRule && rule.layerName != null)) layered = true;
+      }
+    }
+  return layered;
+};
 
 /**
  * Adopts a component's styles — the `'init'` insert `styles` registers, so a component never calls it and core never
@@ -258,7 +304,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
    * roots already do. Building both for every instance made the light hoist 15-19% slower than a per-class copy
    * (measured, Chromium, client and served, cold and steady, 2026-11-25).
    */
-  const memo = owner as unknown as Record<string, [boolean, string, string, string]>;
+  const memo = owner as unknown as Record<string, [boolean, string, string, string, string, string]>;
   let known = Object.prototype.hasOwnProperty.call(memo, SCOPED) ? memo[SCOPED] : undefined;
   if (known === undefined || known[0] !== supported || known[1] !== element.localName) {
     const cssText = forLightDom(list.map((style) => (typeof style === 'string' ? style : style.cssText)).join('\n'));
@@ -266,10 +312,14 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
      * The tag as a selector: a custom element name may hold `.`, which CSS reads as a class: `@scope (x-a.b)` scoped
      * nothing of `<x-a.b>` and styled a stray `<x-a class="b">` (Chromium, Firefox, WebKit, 2026-11-23). Every ASCII
      * character outside an identifier is escaped, by hand (no `CSS.escape` on a server), so a name rule that allows
-     * more punctuation needs no second fix; the server serves this same text, so the client still finds its copy.
+     * more punctuation needs no second fix; the server serves this same text, so the client still finds its copy. The
+     * DOCUMENT's copy is that block inside `@layer vera` (see `LAYER_ORDER`); a shadow root's is the block alone, as
+     * before: wrapped there it cost creating a shadow root of 20 light classes 2–5% on WebKit, measured headed, and a
+     * root's own CSS still overrides a default by specificity, as it always has.
      */
     const text = supported ? `@scope (${element.localName.replace(/[^\w\-\x80-\uffff]/g, '\\$&')}) {\n${cssText}\n}` : cssText;
-    memo[SCOPED] = known = [supported, element.localName, text, escapeStyleText(text)];
+    const layered = `@layer vera {\n${text}\n}`;
+    memo[SCOPED] = known = [supported, element.localName, text, escapeStyleText(text), layered, escapeStyleText(layered)];
   }
   const scoped = known[2];
   /**
@@ -287,7 +337,12 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
         served = child;
         break;
       }
-  }
+  } else if (__DEV__ && view !== null && typeof (view as Window & { CSSLayerStatementRule?: unknown }).CSSLayerStatementRule === 'function' && layersUnplaced(doc, view))
+    /**
+     * Development: re-checked at each new class, so CSS that arrives later is read too. Only where the engine has the
+     * rule's class: an environment without one (the server's DOM, jsdom) parses no layers, so there is nothing to read.
+     */
+    warnOnce('styles', '<head>', 'layer-order', __DEV__ && (() => PROSE['layer-order'](LAYER_ORDER)));
   /**
    * One constructed sheet per class per DOCUMENT, in that document's own window: a root adopts only a sheet its document
    * constructed (one sheet shared across documents would throw for a root in an iframe or a popped-out window), and every
@@ -297,19 +352,20 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
    */
   if (root.adoptedStyleSheets && view) {
     const sheets = owner as unknown as Record<string, WeakMap<Document, CSSStyleSheet>>;
-    if (!Object.prototype.hasOwnProperty.call(sheets, LIGHT_SHEETS)) sheets[LIGHT_SHEETS] = new WeakMap();
-    let sheet = sheets[LIGHT_SHEETS].get(doc);
+    const key = root === doc ? LAYERED_SHEETS : LIGHT_SHEETS;
+    if (!Object.prototype.hasOwnProperty.call(sheets, key)) sheets[key] = new WeakMap();
+    let sheet = sheets[key].get(doc);
     if (sheet === undefined) {
       sheet = new view.CSSStyleSheet();
-      sheet.replaceSync(scoped);
-      sheets[LIGHT_SHEETS].set(doc, sheet);
+      sheet.replaceSync(root === doc ? known[4] : scoped);
+      sheets[key].set(doc, sheet);
     }
     if (root !== doc) (sheet as unknown as Record<string, boolean>)[LIGHT] = (root as unknown as Record<string, boolean>)[LIGHT] = true;
     root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
     served?.remove();
   } else if (served === null) {
     const styleElement = doc.createElement('style');
-    styleElement.textContent = known[3];
+    styleElement.textContent = root === doc ? known[5] : known[3];
     (root === doc ? doc.head : root).appendChild(styleElement);
   }
 };

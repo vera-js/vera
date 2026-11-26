@@ -26,6 +26,10 @@ export const PROSE: Record<string, Prose> = {
     `this engine has no \`@scope\`, so light-DOM \`static styles\` are hoisted to the document **unscoped** — every rule applies page-wide here and only to <${tag}> elsewhere.`,
     'Attach a shadow root to scope them everywhere, or write selectors that carry the tag.',
   ],
+  'layer-order': (order) => [
+    "this page's CSS uses cascade layers but does not say where `vera` goes, so a light component's defaults (in `@layer vera`) come after every other layer and beat its utilities.",
+    `State the order first in your CSS, before the framework's import: \`${order}\` (a \`@verajs/ssr\` render's \`styles\` opens with it).`,
+  ],
   'slotted-light': () => [
     'has no shadow root, and `::slotted()` only ever matches inside one — those rules do nothing here.',
     'In light DOM you do not need it: slotted content is in the same tree, so an ordinary descendant selector reaches it. For a component that renders BOTH ways, write both — `::slotted(img), [part="body"] img`.',

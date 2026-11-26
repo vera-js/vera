@@ -34,6 +34,14 @@
       "fix": "It is a tagged template — write css`p { color: red }`, not css('p { color: red }')."
     },
     {
+      "code": "layer-order",
+      "params": [
+        "order"
+      ],
+      "message": "this page's CSS uses cascade layers but does not say where `vera` goes, so a light component's defaults (in `@layer vera`) come after every other layer and beat its utilities.",
+      "fix": "State the order first in your CSS, before the framework's import: `{order}` (a `@verajs/ssr` render's `styles` opens with it)."
+    },
+    {
       "code": "no-scope",
       "params": [
         "tag"

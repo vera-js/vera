@@ -44,7 +44,7 @@ import { connectServer, decode as decodeEntities, heldAt } from './parse.js';
 import { ATTRIBUTE, ATTRIBUTE_TIGHT, renderComponentTags, spacedEquals } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
-import { currentRenderingTag } from './stylesheets.js';
+import { LAYER_ORDER, currentRenderingTag } from './stylesheets.js';
 import { discard as discardFrames } from './frames.js';
 import { inRender, stale } from './render-context.js';
 import type { ElementShim, ShadowRootShim } from './nodes.js';
@@ -735,7 +735,8 @@ const finishPage = (rendered: string, tag: string, seen: Set<string> | undefined
     seen?.add(done);
     css.push(...(hoistedStyles.get(done) ?? []));
   }
-  return { html, styles: css.map(escapeStyleText).join('\n'), title: globalThis.document.title };
+  /** The layer order first, wherever this render returns document CSS: the caller serves `styles` first in `<head>`. */
+  return { html, styles: css.length ? `${LAYER_ORDER}\n${css.map(escapeStyleText).join('\n')}` : '', title: globalThis.document.title };
 };
 
 /**

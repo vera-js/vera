@@ -1,8 +1,9 @@
 # @verajs/styles
 
-Styles for VeraJS components (<!--size:styles.gzip-->1.34 KB<!--/size:styles.gzip--> gzip): the `css` tag, and
+Styles for VeraJS components (<!--size:styles.gzip-->1.39 KB<!--/size:styles.gzip--> gzip): the `css` tag, and
 `static styles` adopted into every component as it comes to life — constructed stylesheets in a shadow
-root, `@scope`-wrapped hoisting for light DOM, in whatever window the component lives in.
+root, `@scope`-wrapped hoisting for light DOM (in `@layer vera` in the document), in whatever window the component
+lives in.
 
 <!-- recipe -->
 ```js
@@ -68,12 +69,12 @@ created is used.
 
 With no shadow root, styles are **hoisted to the document once per component class**, wrapped in
 `@scope (tag-name) { … }` so they apply only inside that component's subtree — scoping without a shadow
-root, done by the platform. A `<style>` inside the element would be wiped by the first render; hoisting
+root, done by the platform — inside `@layer vera` (see [Cascade layers](#cascade-layers--your-css-beats-the-defaults)). A `<style>` inside the element would be wiped by the first render; hoisting
 survives renders.
 
 **Hoisted into the element's root.** A light component rendered inside someone's shadow root is styled there: its
 block is adopted by that shadow root (the document's sheets stop at the boundary), once per class per root (every root of one document adopts the class's one constructed sheet), after that
-root's own sheets (as in the document, where adopted sheets follow the page's), and kept when the root's component
+root's own sheets (as in the document, where adopted sheets follow the page's), the block alone with no layer, and kept when the root's component
 writes its own list again. A host that is not a Vera component and replaces its root's `adoptedStyleSheets` after its
 light children render drops their styles: spread the existing list (`[...root.adoptedStyleSheets, sheet]`). A move into another document hoists it again there. The root is read at setup, so a
 component moved into ANOTHER root after its first render keeps the styles of the first one. Server-rendered, the same
@@ -99,6 +100,34 @@ the tag, to scope them everywhere.
 
 A subclass hoists its own copy for its own tag (it inherits the base's CSS, but `@scope (base-tag)`
 does not match it), and two copies of this package on one page hoist a class once, not twice.
+
+## Cascade layers — your CSS beats the defaults
+
+In the document a light component's block is `@layer vera { @scope (tag-name) { … } }`, and a layered rule loses to an
+unlayered one, so **any rule you write without a layer beats a component's default**, whatever its specificity:
+`.title { color: teal }` overrides the component's own `.title` rule. (Before this release the scoped default won at
+equal specificity.)
+
+**With a layered framework (Tailwind v4), state the order first in your CSS**, before the framework's import:
+
+```css
+@layer theme, base, vera, components, utilities;
+@import "tailwindcss";
+```
+
+The defaults then beat Tailwind's preflight (`base`) and its utilities beat the defaults. Without it, `vera` is
+declared by the component's adopted sheet, which comes after every document sheet, so it comes last and outranks
+`utilities`; development warns (`layer-order`) when a page holds layers and states no place for `vera`. Nothing is
+inserted for you, so a Content-Security-Policy has nothing of ours to refuse.
+
+- **Server-rendered**, `@verajs/ssr`'s `styles` opens with the same statement: serve that `<style>` first in `<head>`,
+  before the framework's CSS, and there is nothing to add.
+- **In a shadow root** the block is the block alone, as before: no layer, so a root's own CSS overrides a default by
+  specificity.
+- **Names.** A page's own layer named `theme` or `base` sorts below the defaults, and an unlayered reset (Tailwind v3's
+  preflight, Bootstrap's reboot) beats them.
+
+An engine without cascade layers (Chrome before 99, Firefox before 97, Safari before 15.4) ignores the whole block.
 
 ## Popped-out windows and iframes
 

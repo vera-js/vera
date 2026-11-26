@@ -14,6 +14,16 @@ import { once, own, ssrMisuse, ssrWarning } from './report.js';
  */
 export const hoistedStyles = new Map<string, string[]>();
 
+/**
+ * **The layer order a light component's defaults sit in, served first in a render's `styles`** (2026-11-26):
+ * `@verajs/styles` puts a light block in the document inside `@layer vera` and inserts nothing to place it, so a page
+ * using a layered framework (Tailwind's names) needs this statement before the framework's own; served first in
+ * `styles`, every render (a class hoists once per process), a server-rendered page needs no setup. **A deliberate twin
+ * of `LAYER_ORDER` in `@verajs/styles`** (no runtime import between the packages, CODE-PRINCIPLES #6);
+ * `tests/styles-layer-order.test.mjs` holds the two equal.
+ */
+export const LAYER_ORDER = '@layer theme, base, vera, components, utilities;';
+
 /** The component rendering right now, so a hoist can be attributed to it (renders take turns). */
 let renderingTag = '';
 export const setRenderingTag = (tag: string): string => {

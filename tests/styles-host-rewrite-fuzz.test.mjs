@@ -132,7 +132,11 @@ test('the :host rewrite never touches a value, an escaped identifier, or the rul
       );
       doc.body.append(doc.createElement(tag));
       await frame();
-      const out = [...doc.head.querySelectorAll('style')].pop()?.textContent ?? '';
+      const hoistedText = [...doc.head.querySelectorAll('style')].pop()?.textContent ?? '';
+      /** The document's block is the rewritten CSS inside `@layer vera { … }` (unscoped here: jsdom has no `@scope`). */
+      const opening = '@layer vera {\n';
+      const wrapped = hoistedText.startsWith(opening) && hoistedText.endsWith('\n}');
+      const out = wrapped ? hoistedText.slice(opening.length, -'\n}'.length) : hoistedText;
 
       if (/(^|[^\\-]):host(\s|\{|\()/.test(source)) withHostSelector++;
       const valuesIn = (source.match(VALUE_HOST) ?? []).length;
@@ -140,6 +144,7 @@ test('the :host rewrite never touches a value, an escaped identifier, or the rul
       if (source.includes('.md\\:host')) withEscaped++;
 
       const problems = [];
+      if (!wrapped) problems.push('not wrapped in `@layer vera { … }`');
       if (out.includes(':scope(')) problems.push('emitted `:scope(`, which is not a selector');
       if (valuesIn !== (out.match(VALUE_HOST) ?? []).length) problems.push('rewrote a value');
       if ((source.match(/:host-context/g) ?? []).length !== (out.match(/:host-context/g) ?? []).length)

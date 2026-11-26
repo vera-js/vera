@@ -480,6 +480,33 @@ from another machine, or after that is undone, has a variable changed.
   `disabled` does not refresh the old ones. The same `<link>` inserted after `load`, before or after adoption, is
   correct on all three, and an inline `<style>` was correct in every timing tried. Not bisected; looks like a missed
   style invalidation. Consequence: the layer-order line is never delivered by an automatically inserted `<link>`.
+- **A script-inserted `<style>` that a CSP refuses has no sheet (`sheet === null`); one carrying the nonce of the page's
+  own `<script nonce>`, copied through the `nonce` property, applies.** Playwright Chromium 159.0.8154.6, Firefox 159.0,
+  WebKit 27.2 (headless, computed style), 2026-11-26. Under `style-src 'self'` (a `<meta>` policy) the inserted style
+  has no sheet and its rule does not apply; under `style-src 'nonce-abc123'` with a `<script nonce="abc123">`, a style
+  whose `.nonce` is set from that script's `.nonce` has its sheet and applies, while a second style without the nonce
+  has none (the control); with no policy both apply. Consequence: `@verajs/styles`' layer-order line takes the page's
+  nonce (or `styles({ nonce })`), and a refused line is absent from `document.styleSheets`, which is what development
+  reads before it warns (`layer-order`). **Consequence superseded, same day:** the package inserts no line at all (the
+  entry below), so it needs no nonce and `styles({ nonce })` was dropped; the measurement stands.
+- **`@layer vera` around a light block costs nothing measurable in the document and 2–5% per shadow root on WebKit;
+  inserting a `<style>` with the layer order, and reading the cascade to avoid a second copy, cost a cold page.**
+  Playwright Chromium 159.0.8154.6, Firefox 159.0, WebKit 27.2, headed, 2026-11-26, against the same build without
+  each piece. A page of 20 light classes × 20 instances (cold build + first style; and one full restyle): the wrap alone
+  within the A/A on Chromium and WebKit, cold and restyle. Inserting the order `<style>` first in `<head>` plus reading
+  `document.styleSheets`' first rules cost Chromium's cold page 5.8% (the read 2.7, the rest the insert) and WebKit's
+  served cold page ~2.5% (the read). Creating shadow roots that each hold 20 light classes: the wrap read +2.1 to +5.2%
+  on WebKit, within the A/A on Chromium and Firefox. Consequence: `@verajs/styles` wraps only the document's blocks,
+  inserts and reads nothing in production, and leaves the order statement to the page (or `@verajs/ssr`'s `styles`).
+- **One more constructed sheet adopted into every shadow root costs that root's creation; the same statement inside a
+  sheet the root adopts anyway costs nothing measurable.** Playwright Chromium 159.0.8154.6, headed, 2026-11-26: creating
+  roots that each adopt 20 light-component sheets read +11–16% (client and served, cold and steady) when each root also
+  adopted a one-rule `@layer theme, base, vera, components, utilities;` sheet first (about half of it the per-root
+  `includes` and spread that placed it, half the sheet itself: with a once-per-root flag instead, +4–7%), and within the
+  identical-copy A/A when the same statement opened each component's own sheet instead. Firefox 159.0 and WebKit 27.2
+  read the separate-sheet form +3–13% and +5–6% in the same race. Consequence: `@verajs/styles` states a root's layer
+  order in its first light block (put first in the root's list), not in a sheet of its own. **Consequence superseded,
+  same day:** a shadow root's block is unchanged and states no order (the entry above); the measurement stands.
 - **At equal specificity, a `@scope (tag)` rule beats an unscoped one by scope proximity, whatever the sheet order.**
   An unscoped `.m { color }` and `@scope (x-prox) { .m { color } }` adopted into the same root, in both orders, in a
   shadow root and in the document: the scoped rule wins all four (an unscoped declaration counts as infinitely far);

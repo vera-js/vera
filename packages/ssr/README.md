@@ -343,6 +343,11 @@ neither may carry anything from a request unsanitized. Everything else is checke
   opt-in because most calls name a constant, and a check that is always trivially satisfied stops
   being read.
 - **`styles` comes back escaped for a `<style>` element**, since that is where a page shell puts it.
+- **`styles` opens with the layer-order statement**, `@layer theme, base, vera, components, utilities;`, whenever it
+  holds any CSS: `@verajs/styles` puts a light component's defaults in the document in `@layer vera` and inserts nothing
+  to place them, and the statement places them between a layered framework's base and its utilities (Tailwind's
+  names). **Serve `styles` first in `<head>`, before any other layered CSS, or `vera` lands last** and outranks the
+  utilities. A light block served in a shadow root is unlayered, as before.
 - **A dynamic attribute *name* is refused** — by the server in every build, and by the client renderer in
   development. `<b ${name}="x">`, `<p data-${k}="1">`, `<p ${k}-x>`: the parser reads a name before any
   value exists, so no position can hold it. Both throw at the template's first use, and the message shows
@@ -367,7 +372,7 @@ neither may carry anything from a request unsanitized. Everything else is checke
   every style is a sheet the client can adopt, it removes that copy, so the rules never apply twice. A
   `<style>` a component appends to its own shadow root is served the same way, in order, with its
   attributes (`media`, `nonce`, …).
-- **Light DOM:** a component's `@scope (tag) { … }` block is returned in `styles` for the page shell,
+- **Light DOM:** a component's `@layer vera { @scope (tag) { … } }` block is returned in `styles` for the page shell,
   **only for the components this render touched**, and — with a shared `seen` — once across a page of
   islands. An instance inside a served declarative shadow root gets the block in THAT root instead (the
   page's sheets stop at the boundary), once per class per root and in every render (`seen` governs the
