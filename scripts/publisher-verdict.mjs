@@ -12,12 +12,15 @@
  * @param {null | { 'dist-tags'?: { latest?: string }, versions?: Record<string, { _npmUser?: { name?: string, trustedPublisher?: unknown } }> }} record
  * @returns {{ verdict: 'skip' | 'ok' | 'red', why: string }}
  */
+/** A version's entry, read as the record's own key only (a version is never a prototype name, but the rule is one rule: `check-publishers`' `--read` takes it from here). */
+export const entry = (record, version) => (record.versions && Object.hasOwn(record.versions, version) ? record.versions[version] : undefined);
+
 export const verdict = (name, version, record) => {
   if (record === null)
     return { verdict: 'red', why: `${name} was never published: publish ${version} by hand and configure its Trusted Publisher, then release it` };
-  if (record.versions?.[version]) return { verdict: 'skip', why: `${name}@${version} is already published` };
+  if (entry(record, version)) return { verdict: 'skip', why: `${name}@${version} is already published` };
   const latest = record['dist-tags']?.latest;
-  const user = latest === undefined ? undefined : record.versions?.[latest]?._npmUser;
+  const user = latest === undefined ? undefined : entry(record, latest)?._npmUser;
   if (user?.trustedPublisher) return { verdict: 'ok', why: `${name}: latest ${latest} came from the trusted publisher, so ${version} can publish from CI` };
   return {
     verdict: 'red',

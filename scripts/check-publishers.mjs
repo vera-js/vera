@@ -17,6 +17,9 @@
  *
  * A registry it cannot read is red too, never a pass: "could not check" must not read as "checked".
  *
+ * What it cannot see: npm binds a package's Trusted Publisher to the publishing workflow BY FILE NAME
+ * (`.github/workflows/release.yml`). Renaming that file breaks every publish while each verdict here still reads ok.
+ *
  *   node scripts/check-publishers.mjs                  # every public package of the working tree
  *   node scripts/check-publishers.mjs --read <name>@<version>   # one published version's publisher (exit 1 if not trusted)
  *
@@ -25,7 +28,7 @@
 import { readFileSync } from 'node:fs';
 import { sep } from 'node:path';
 import { packageDirs } from './packages.mjs';
-import { verdict } from './publisher-verdict.mjs';
+import { entry, verdict } from './publisher-verdict.mjs';
 
 const REGISTRY = (process.env.VERA_NPM_REGISTRY ?? 'https://registry.npmjs.org').replace(/\/$/, '');
 const TIMEOUT_MS = 15_000;
@@ -47,8 +50,9 @@ try {
     const version = spec.slice(at + 1);
     if (at <= 0 || version === '') throw new Error(`--read takes <name>@<version>, got ${JSON.stringify(spec)}`);
     const found = await record(name);
-    const user = found?.versions?.[version]?._npmUser;
-    if (!found?.versions?.[version]) throw new Error(`${spec} is not on the registry`);
+    const published = found ? entry(found, version) : undefined;
+    const user = published?._npmUser;
+    if (!published) throw new Error(`${spec} is not on the registry`);
     console.log(`${spec}: published by ${user?.name ?? 'an unknown user'}${user?.trustedPublisher ? ' (the trusted publisher)' : ''}`);
     process.exit(user?.trustedPublisher ? 0 : 1);
   }

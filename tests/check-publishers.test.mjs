@@ -44,3 +44,8 @@ test('a registry it cannot reach makes the check red', () => {
   assert.equal(run.status, 1, run.stdout + run.stderr);
   assert.match(run.stderr, /could not check the publishers/);
 });
+
+test("a version is read as the record's own key, never through the prototype", () => {
+  assert.equal(verdict('@verajs/x', 'constructor', record('1.0.0', TRUSTED)).verdict, 'ok', 'not taken as already published');
+});
+
