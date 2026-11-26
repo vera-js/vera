@@ -119,6 +119,26 @@ describe('vera-checkbox: mixed', () => {
       });
       wrap.remove();
     });
+
+  /**
+   * Read after one microtask turn, not at the next frame: a page paints only after its microtask checkpoint, so a dash
+   * there is a dash before any paint; and in this runner's Chromium the next frame came more than 500 ms after the
+   * write, so a frame-timed read could not tell a deferred dash from a prompt one.
+   */
+  it('the attribute written by script shows the dash before the page can paint, and its removal clears it there', async () => {
+    const wrap = await mount(`<vera-checkbox>${LABELED()}</vera-checkbox>`);
+    const host = wrap.querySelector('vera-checkbox');
+    const input = wrap.querySelector('input');
+    expect(input.matches(':indeterminate'), `${ON}: CONTROL: not mixed before the write`).to.equal(false);
+    /** No flush(): what a page's own script gets when it sets the attribute and yields. */
+    host.setAttribute('indeterminate', '');
+    await Promise.resolve();
+    expect(input.matches(':indeterminate'), `${ON}: mixed by the end of the microtask checkpoint`).to.equal(true);
+    host.removeAttribute('indeterminate');
+    await Promise.resolve();
+    expect(input.matches(':indeterminate'), `${ON}: no longer mixed by the end of the microtask checkpoint`).to.equal(false);
+    wrap.remove();
+  });
 });
 
 describe('the keyboard: Space only, on both tags', () => {

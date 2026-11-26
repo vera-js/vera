@@ -112,6 +112,22 @@ if (SCENARIO) {
     input.replaceWith(fresh);
     await settle();
     out.moved = { before, after: input.indeterminate, fresh: fresh.indeterminate };
+  } else if (SCENARIO === 'mixed-timing') {
+    document.body.innerHTML = '<vera-checkbox><label><input type="checkbox"> All</label></vera-checkbox>';
+    await settle();
+    const host = document.querySelector('vera-checkbox');
+    const input = host.querySelector('input');
+    /** Read in the same task as the write and its flush(): no microtask, no timer between. */
+    host.setAttribute('indeterminate', '');
+    flush();
+    out.set = input.indeterminate;
+    await Promise.resolve();
+    out.setLater = input.indeterminate;
+    host.removeAttribute('indeterminate');
+    flush();
+    out.unset = input.indeterminate;
+    await Promise.resolve();
+    out.unsetLater = input.indeterminate;
   } else if (SCENARIO === 'warnings') {
     document.body.innerHTML =
       '<vera-checkbox id="none"><label>No input</label></vera-checkbox>' +
@@ -163,6 +179,14 @@ if (SCENARIO) {
     assert.deepEqual(served[0], { type: 'checkbox', 'data-vera-switch': '', switch: '' });
     assert.equal(served[0].role, undefined, 'no role beside the native switch');
     assert.deepEqual(released, { type: 'checkbox' });
+    assert.deepEqual(said, []);
+  });
+
+  test('mixed follows the attribute by flush(): written, then flush(), and the input is mixed in the same task, both ways', () => {
+    const { set, setLater, unset, unsetLater, said } = run('mixed-timing');
+    assert.deepEqual({ setLater, unsetLater }, { setLater: true, unsetLater: false }, 'and a microtask later, both ways');
+    assert.equal(set, true, 'set, then flush(): the input is mixed before any microtask');
+    assert.equal(unset, false, 'removed, then flush(): no longer mixed before any microtask');
     assert.deepEqual(said, []);
   });
 

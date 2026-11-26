@@ -1416,6 +1416,13 @@ from another machine, or after that is undone, has a variable changed.
   `Canvas` sides under a `CanvasText` turning segment, which the engine's forcing would paint one color), with
   probes that opt out of forcing; a row that claims the engine's outcome (kbd ships no rule) reads the color as is.
   (Playwright's Chromium and Firefox 159, Windows 11, 2026-11-25.)
+- **In the browser suite's Chromium, the next animation frame can come more than 500 ms after a write.** A row set an
+  attribute, awaited one `requestAnimationFrame`, and read a property the element writes; with that write deferred by a
+  `setTimeout` of 50 ms and then of 500 ms in the built bundle, the row still read it set on Chromium, while Firefox and
+  WebKit read it unset at 50 ms. So on Chromium a frame-timed read cannot tell a deferred write from a prompt one.
+  Consequence: a row claiming "before paint" reads after one microtask turn (a page paints only after its microtask
+  checkpoint), which a write deferred even to a 0 ms timer reddens on all three engines. (Web Test Runner with
+  Playwright's Chromium 159, Firefox 159 and WebKit 27, headless, Windows 11, 2026-11-26.)
 
 ## Competitors, as their own benchmark entries write them
 
