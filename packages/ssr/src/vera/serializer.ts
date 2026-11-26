@@ -1013,8 +1013,8 @@ const compile = (strings: unknown, depth: number): Plan | null => {
       element = elements[i]!;
       bound = [];
     }
-    bound.push(names[i]!);
-    parts[i + 1] = withoutNames(parts[i + 1]!, bound);
+    bound.push(asciiLower(names[i]!));
+    if (mayRepeat(parts[i + 1]!, bound)) parts[i + 1] = withoutNames(parts[i + 1]!, bound);
   }
 
   /**
@@ -1927,6 +1927,23 @@ const nextTag = (text: string, name: string, from: number): number => {
     if (c === first && isTagAt(text, at, name)) return at;
   }
   return -1;
+};
+
+/**
+ * Whether the rest of the tag in `part` CAN hold an attribute named in `names` (lowercase) — the gate that keeps
+ * `withoutNames`' exact read off every other binding (reading every binding's tail cost cold compiles 0.4–0.9%,
+ * measured 2026-11-26). Up to the first `>`, with no quote before it, that `>` is the tag's end, so a name found
+ * nowhere in that span is in no attribute of the tag: answered `false`. A quote there, or any hit (`subtitle` holds
+ * `title`), answers `true`, and the exact read decides. The usual tail, `>` first, answers at once.
+ */
+const mayRepeat = (part: string, names: readonly string[]): boolean => {
+  const close = part.indexOf('>');
+  if (close === 0) return false;
+  const head = close === -1 ? part : part.slice(0, close);
+  if (head.indexOf('"') !== -1 || head.indexOf("'") !== -1) return true;
+  const lower = asciiLower(head);
+  for (let n = 0; n < names.length; n++) if (lower.indexOf(names[n]!) !== -1) return true;
+  return false;
 };
 
 /**

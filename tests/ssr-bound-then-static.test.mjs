@@ -27,6 +27,10 @@ const ROWS = [
   ['boolean: ?hidden=${v} hidden', ['<p ?hidden=', ' hidden>t</p>'], [true, false]],
   ['class: class=${v} class=x', ['<p class=', ' class=x>t</p>'], ['y', null]],
   ['a different element keeps its own: <p title=${v}><i title=x>', ['<p title=', '><i title=x>t</i></p>'], ['y', null]],
+  /** The gate in front of the exact read (`mayRepeat`): each of these must still reach it. */
+  ['a quoted hole, then the name: title="${v}" title=x', ['<p title="', '" title=x>t</p>'], ['y', null]],
+  ['a quoted `>` before the name: title=${v} data-q=">" title=x', ['<p title=', ' data-q=">" title=x>t</p>'], ['y', null]],
+  ['the name in the tag\'s third static: title=${v} lang=${v} title=x', ['<p title=', ' lang=', ' title=x>t</p>'], ['y', null]],
   ['CONTROL reverse order: title=x title=${v}', ['<p title=x title=', '>t</p>'], ['y', null]],
   ['CONTROL no binding: title=x title=z', ['<p title=x title=z>', '</p>'], ['y']],
 ];
@@ -67,7 +71,7 @@ const shapeOf = (root) =>
     .join(' ') + ` | ${JSON.stringify(root.textContent)}`;
 
 test('the table is exercised: every row, every value, both sides', () => {
-  assert.equal(CASES.length, 21);
+  assert.equal(CASES.length, 27);
   assert.equal(served.length, CASES.length, 'the server rendered every case');
 });
 
