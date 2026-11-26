@@ -154,14 +154,15 @@ it('play runs end-to-end at a threshold, and reverses coming back up past it', a
   expect(opacityOf(el), 'back above the line: reversed').to.equal(0.2);
 });
 
-it('ease composes with play: the ramp sweeps, so mid-play sits on the CURVE, not the line', async () => {
+it('ease composes with play: mid-play sits on the CURVE, not the line', async () => {
   /**
-   * The ratified lift's value half. The refusal this replaces guarded the old play — a transition
-   * stepping end-to-end without visiting the keyframes — and the rAF ramp killed its premise: the
-   * ramp writes the seek linearly over `play` seconds, and the CSS timing function reshapes each
-   * segment as it is swept. Sampled mid-ramp: under ease-in the value must sit WELL below the
-   * linear midpoint. The control is the same play with no ease, read at the same instant — the
-   * comparison is what makes a slow machine unable to fake a pass in either direction.
+   * The ratified lift's value half: `ease` shapes a play, never only its end. These two plays have one base and one
+   * active value each and a single ease, so they compile to TRANSITION mode (motion's generator): the play is the
+   * platform's transition on `filter` (it carries opacity()), and `ease` is that transition's timing function. (A
+   * play with more keyframes runs on motion's rAF ramp instead, whose linear seek the keyframes' own timing reshapes.)
+   * Under ease-in the value at half the play must sit WELL below the linear midpoint. The control is the same play
+   * with no ease, read at the same instant — the comparison is what makes a slow machine unable to fake a pass in
+   * either direction.
    */
   const host = page(`
     <div id="eased" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, scroll: '50%', play: 0.6, ease: 'ease-in' }" style="height:50px">x</div>
@@ -172,23 +173,46 @@ it('ease composes with play: the ramp sweeps, so mid-play sits on the CURVE, not
   await settle();
   expect(opacityOf(eased), 'zero refusals, the authored start paints').to.equal(0);
 
-  await scrollTo(eased.offsetTop);
-  /** Sample while BOTH ramps run, no chosen instant: wait until the control is mid-flight. */
-  let guard = 200;
-  while (guard-- > 0) {
-    await new Promise((r) => requestAnimationFrame(r));
-    const at = opacityOf(line);
-    if (at > 0.35 && at < 0.75) break;
+  /**
+   * **Read from the TRANSITIONS, paused at half their duration, not caught by polling frames** (2026-11-26). The play
+   * is the platform's transition on `filter` (it carries opacity()); polled by frames, one long frame under a loaded
+   * gate carried the control from below the mid-range to its end between two samples (WebKit, Windows), while the row
+   * passed alone. Paused and seeked to the same fraction, both values are read at the same instant of their curves on
+   * every engine and machine; an engine that snapped would make no transition, so the reading still fails it.
+   */
+  const running = () => {
+    const curve = eased.getAnimations().find((a) => a.transitionProperty === 'filter');
+    const control = line.getAnimations().find((a) => a.transitionProperty === 'filter');
+    return curve && control ? { curve, control } : undefined;
+  };
+  /** A stall longer than the 0.6 s play can let it finish before it is found (a finished one leaves getAnimations()): up to three entries, each from rest. */
+  let pair;
+  for (let attempt = 0; attempt < 3 && pair === undefined; attempt++) {
+    if (attempt > 0) {
+      await scrollTo(0);
+      await until(() => opacityOf(eased) === 0 && opacityOf(line) === 0, 'back at rest before the entry', 5000);
+    }
+    window.scrollTo(0, eased.offsetTop);
+    await ever(() => (pair = running()) !== undefined, 2000);
   }
+  expect(pair, 'both plays were caught running, in three tries').to.be.an('object');
+  const { curve, control } = pair;
+  curve.pause();
+  control.pause();
+  /** Half of the play AFTER its delay: transition mode emits a `transition-delay` for a staggered play (0 here). */
+  const half = (transition) => transition.effect.getTiming().delay + transition.effect.getTiming().duration * 0.5;
+  curve.currentTime = half(curve);
+  control.currentTime = half(control);
   const linear = opacityOf(line);
-  expect(linear, 'the CONTROL entered the mid-range — the sample measured something')
-    .to.be.within(0.3, 0.8);
-  expect(opacityOf(eased), 'ease-in lags the line — the curve is real during a play')
-    .to.be.below(linear - 0.05);
+  const bent = opacityOf(eased);
+  curve.play();
+  control.play();
+  expect(linear, 'the CONTROL sits mid-range at half the play — the sample measured something').to.be.within(0.3, 0.8);
+  expect(bent, 'ease-in lags the line — the curve is real during a play').to.be.below(linear - 0.05);
 
   await settle();
-  await until(() => opacityOf(eased) === 1, 'the eased ramp landed on its end', 5000);
-  expect(opacityOf(eased), 'and the ramp still lands on the authored end').to.equal(1);
+  await until(() => opacityOf(eased) === 1, 'the eased play landed on its end', 5000);
+  expect(opacityOf(eased), 'and the play still lands on the authored end').to.equal(1);
 });
 
 it('paint blends natively (8c): red→blue reads MIXED mid-scroll, not stepped', async () => {
