@@ -7,7 +7,7 @@
  * once, and every copy drifted from the tokenizer differently; one scanner cannot disagree with itself.
  */
 import type { Open, ScanResult, ScanStart, ScanState, ScannedTag } from './types.js';
-import { asciiLower } from './escaping.js';
+import { VOID_ELEMENTS, asciiLower } from './escaping.js';
 import { PROSE } from './diagnostics.js';
 import { own, ssrMisuse } from './report.js';
 
@@ -53,6 +53,20 @@ const RAWTEXT = new Set(['style', 'script']);
  * recognized inside, so every value in it is escaped — which is safe under both parses.
  */
 const TEXT_ONLY = new Set(['textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes', 'plaintext']);
+/**
+ * **The HTML elements never open around markup** (2026-11-26, a rotated-seed find): a raw-text or text-only element
+ * holds only text, which its own end tag ends, and a void element is closed as it opens, so neither is ever an ancestor
+ * of a tag. An end tag of one of these names, in SVG or MathML, that closes no element the template opened is handed to
+ * the HTML rules and closes nothing there either: it is ignored, and the namespace stays known (see the end-tag rule in
+ * `structural`). Made unknown, `<math></style><p><x-kid>` left the `<p>` no breakout to act on, and the scan missed a
+ * component the browser upgrades (Chromium, Firefox and WebKit: the `<p>` leaves MathML). `br` is left out (`</br>` is
+ * a breakout), and so is `noscript`, whose content is markup with scripting off.
+ * **That holds for HTML elements only.** In SVG or MathML these names (`link`, `input`, `wbr`, `style`… none a breakout)
+ * are foreign elements, which hold markup, and a parent template's `<svg><link>` can be open around a child whose
+ * `</link>` really closes it. Ignoring the tag is still safe: a foreign element's parent is always foreign (only
+ * `<svg>` and `<math>` leave HTML, and the rule leaves both out), so closing one keeps the parse in SVG or MathML.
+ */
+const NEVER_AROUND_MARKUP = new Set([...RAWTEXT, ...TEXT_ONLY, ...[...VOID_ELEMENTS].filter((name) => name !== 'br')]);
 /**
  * **The HTML integration points: foreign elements whose content the parser reads as HTML.** In SVG, `foreignObject`,
  * `desc` and `title`; in MathML, the text integration points `mi`, `mo`, `mn`, `ms` and `mtext`, and an
@@ -158,8 +172,12 @@ const closeTo = (opens: Open[], name: string): number => {
  * scan's pop to depth 0 wrote the value raw, and its `</title>` closed the browser's title and injected (Chromium,
  * Firefox and WebKit; the older select parser, parse5's, ignores the title, which is why jsdom never showed it). So no
  * other end tag closes past it; the content is still scanned as markup, which over-escapes in every reading.
+ * **A `<script>` there holds the same way** (2026-11-26, a rotated-seed find): with scripting off, `<noscript><script>` is an
+ * HTML script, whose text only `</script>` ends, so in `<noscript><script></noscript><script type=application/json>${v}`
+ * the scan's pop out of the noscript served the value as a JSON block's first byte while that reading had it in the
+ * first script's text, after a raw `<` (jsdom, scripting off). Held, the hole is inside a tracked script and refused.
  */
-export const holdsText = (open: Open): boolean => (open.space === '' || open.space === '?') && (TEXT_ONLY.has(open.name) || open.name === 'style');
+export const holdsText = (open: Open): boolean => (open.space === '' || open.space === '?') && (TEXT_ONLY.has(open.name) || RAWTEXT.has(open.name));
 
 /**
  * Pops `opens` to the element a breakout lands in and answers the foreign depth there, or `-1` — leaving `opens` alone
@@ -167,6 +185,8 @@ export const holdsText = (open: Open): boolean => (open.space === '' || open.spa
  */
 const breakOut = (opens: Open[]): number => {
   let at = opens.length - 1;
+  /** A stray end tag's unknown entry above the foreign content is popped with it (see the breakout in `structural`). */
+  if (at >= 0 && opens[at].space === '?' && opens[at].name === '') at--;
   while (at >= 0 && (opens[at].space === 'svg' || opens[at].space === 'math')) at--;
   if (!(at >= 0 ? opens[at].space === 'html' : opens.length > 0 && opens[0].foreign === 0)) return -1;
   const depth = opens[at + 1].foreign;
@@ -288,13 +308,25 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
   let top = opens.length === 0 ? undefined : opens[opens.length - 1];
   let space = foreign === 0 ? 'html' : top !== undefined && top.space !== 'html' ? top.space : '?';
   /**
+   * **After a stray end tag in SVG or MathML, a breakout still reaches HTML** (2026-11-26, rotated seeds): the namespace
+   * there is unknown (see the end-tag rule below) because the tag was either ignored, and the parse is still in the
+   * foreign content, which the breakout leaves for the element `breakOut` finds, or it closed an HTML element above, and
+   * the parse is already in HTML. Every HTML element this scan tracks (`table`, `object`, `noscript`, `select`,
+   * `template`, an integration point…) is one the parser's end-tag walk stops at, so the tag can have closed something
+   * only past the template's own HTML root: both readings end in HTML at depth 0 there, and at the tracked element
+   * otherwise. Left unknown, `<math><font id=size></foreignObject><p><x-kid>` missed a component every engine upgrades.
+   * Only the unknown entry an end tag in foreign content leaves (the one above an SVG or MathML entry); at an
+   * integration point's, the parser may be back in the foreign content above the point or still in it.
+   */
+  const strayEnd = space === '?' && top!.name === '' && opens.length > 1 && (opens[opens.length - 2].space === 'svg' || opens[opens.length - 2].space === 'math');
+  /**
    * **A breakout** — see `BREAKOUT`. The ONE rule here that moves the scan from foreign content toward HTML, the
-   * dangerous direction, so it acts only where its target is certain: inside SVG or MathML content (never at an
-   * integration point, where these tags are HTML already), popping to the nearest element whose content is HTML. It
-   * stops — and changes nothing — at `<noscript>` or anywhere the namespace is unknown, and at the template's own
+   * dangerous direction, so it acts only where its target is certain: inside SVG or MathML content, or at the unknown
+   * namespace a stray end tag left there (`strayEnd`; never at an integration point, where these tags are HTML already), popping to the nearest element whose content is HTML. It
+   * stops — and changes nothing — at `<noscript>` or anywhere else the namespace is unknown, and at the template's own
    * root unless that root is HTML: a template that inherited its depth cannot know what is outside it.
    */
-  if ((space === 'svg' || space === 'math') && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName) || font === 1)) {
+  if ((space === 'svg' || space === 'math' || strayEnd) && (closing ? tagName === 'p' || tagName === 'br' : BREAKOUT.has(tagName) || font === 1)) {
     const depth = breakOut(opens);
     if (depth !== -1) {
       foreign = depth;
@@ -354,7 +386,7 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
     opens.push({ name: tagName, foreign, inert, space });
     return foreign;
   }
-  if (closing && (space === 'svg' || space === 'math') && tagName !== 'svg' && tagName !== 'math' && closeTo(opens, tagName) === -1) {
+  if (closing && (space === 'svg' || space === 'math') && tagName !== 'svg' && tagName !== 'math' && !NEVER_AROUND_MARKUP.has(tagName) && closeTo(opens, tagName) === -1) {
     /**
      * **An end tag in SVG or MathML that closes no element this scan opened** (2026-11-26, the browser fuzz on a
      * rotated seed). The parser walks up the open elements, and at the first HTML one it hands the tag to the HTML

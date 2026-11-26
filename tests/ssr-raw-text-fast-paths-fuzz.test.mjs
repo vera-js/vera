@@ -19,7 +19,7 @@ import { extendSeeds } from './fuzz-seeds.mjs';
 const { closedRawText } = await import(new URL('../packages/ssr/dist/vera/escaping.js', import.meta.url));
 
 /** 1146854909: a rotated seed's find (2026-11-26), the oracle's, not the server's — see `blockBefore`. */
-const SEEDS = extendSeeds([1, 7, 42, 2026, 31337, 1146854909]);
+const SEEDS = extendSeeds([1, 7, 42, 2026, 31337, 1146854909, 1903715759]);
 const CASES_PER_SEED = 3000;
 
 const lcg = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x80000000);
@@ -359,6 +359,15 @@ test('the found case: the server serves the value in a script, and the spec pars
   const text = '<script</mi><script <!-- type="application/json" encoding="a>b"</math>';
   const strings = Object.assign([text, '</script>'], { raw: [text, '</script>'] });
   const html = serializeTemplate({ _$litType$: 1, strings, values: [MARK] });
+  assert.equal(blockBefore(html), '', `served: ${html}`);
+});
+test('a `<script>` in `<noscript>` markup holds until its own end tag: a value after `</noscript>` in it is refused, never served after a raw `<` (rotated seed 1903715759 case 839)', () => {
+  const text = '=</scripts><!-- <script type=application/json> --><noscript>/><script --></noscript>"><script type=application/json>';
+  const strings = Object.assign([text, "--><script type='application/ld+json'>"], { raw: [text, "--><script type='application/ld+json'>"] });
+  assert.throws(() => serializeTemplate({ _$litType$: 1, strings, values: [MARK] }), /\(ssr-script-hole\)/);
+  /** CONTROL: the noscript's script closed by its own `</script>`, the JSON block after it is served, its value first. */
+  const closed = '<noscript><script></script></noscript><script type=application/json>';
+  const html = serializeTemplate({ _$litType$: 1, strings: Object.assign([closed, '</script>'], { raw: [closed, '</script>'] }), values: [MARK] });
   assert.equal(blockBefore(html), '', `served: ${html}`);
 });
 const FIELDS = ['inTag', 'phase', 'inValue', 'quote', 'rawTag', 'tagName', 'attrName', 'closing', 'inert', 'comment', 'textTag', 'foreign', 'attrRaw'];

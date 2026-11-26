@@ -158,7 +158,7 @@ test('a <noscript> in SVG/MathML content is foreign (a breakout after it reaches
   }
 });
 
-const SEEDS = extendSeeds([3, 17, 404, 8086]);
+const SEEDS = extendSeeds([3, 17, 404, 8086, 99, 407020937]);
 const CASES_PER_SEED = 250;
 /** Breakout tags are in (`<p>`, `<b>`, `</p>`…), `<font color>` and its look-alikes too. */
 const TOKENS = [
@@ -169,6 +169,40 @@ const TOKENS = [
   '<p>', '<b>', '</p>', '<div>', "<b x'", '<font color=x>', '<font face>', '<font id=size>', '<font>',
 ];
 const lcg = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x80000000);
+
+/**
+ * **An end tag of an element never open around markup is ignored in SVG or MathML** (a rotated seed, 2026-11-26): no
+ * raw-text, text-only or void element is ever an ancestor, so `</style>` in `<math>` closes nothing in any reading and
+ * the parse stays in MathML, where a `<p>` breaks out and the component after it is an HTML element the definition
+ * upgrades. Read as an unknown namespace, the `<p>` had nothing to act on and the component went unrendered.
+ */
+test('after a stray end tag of a raw-text, text-only or void element in SVG or MathML, a breakout reaches HTML and its component is rendered', async () => {
+  for (const found of ['<font>x x="><math></style><p> a=<scan-kid><font id=size><mtext>', '<math><font id=size>=</foreignObject><p><scan-kid/></template>/>']) {
+    assert.deepEqual(disagreements(await serve(found)), [], found);
+    assert.ok((await serve(found)).includes('<i>kid</i>'), `rendered: ${found}`);
+  }
+  /** Any other name may close an element above, so the namespace is unknown, but the breakout reaches HTML in both readings. */
+  for (const name of ['foreignObject', 'div', 'span', 'g', 'mi']) {
+    const shape = `<math></${name}><p><scan-kid></scan-kid></math>`;
+    assert.ok((await serve(shape)).includes('<i>kid</i>'), `rendered: ${shape}`);
+  }
+  /** With no breakout after it, only a KNOWN namespace sees that `<mi>` is a text integration point, whose child is HTML. */
+  for (const name of ['style', 'img', 'title']) {
+    const shape = `<math></${name}><mi><scan-kid></scan-kid></mi></math>`;
+    const served = await serve(shape);
+    assert.deepEqual(disagreements(served), [], shape);
+    assert.ok(served.includes('<i>kid</i>'), `rendered: ${shape} -> ${served}`);
+  }
+  const names = ['style', 'script', 'textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes', 'plaintext', 'area', 'base', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+  for (const space of ['math', 'svg']) {
+    for (const name of names) {
+      const shape = `<${space}></${name}><p><scan-kid></scan-kid></${space}>`;
+      const served = await serve(shape);
+      assert.deepEqual(disagreements(served), [], shape);
+      assert.ok(served.includes('<i>kid</i>'), `rendered: ${shape} -> ${served}`);
+    }
+  }
+});
 
 test('random markup: no component rendered where the browser would not upgrade it, none missed in HTML', async () => {
   let live = 0;

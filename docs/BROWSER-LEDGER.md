@@ -282,11 +282,27 @@ from another machine, or after that is undone, has a variable changed.
   MathML, an end tag that closes no element the scan opened makes the namespace unknown at that depth (the scan tracks
   every foreign element, so a matched `</g>` keeps it known). (The browser fuzz on two rotated seeds, Chromium and
   Firefox in CI, 2026-11-26; replayed here on Chromium and Firefox 159, and the rows read with jsdom's parser.)
+- **After such a stray end tag, a breakout tag reaches HTML whichever way the tag went, and an end tag of a raw-text,
+  text-only or void element is always ignored.** Ignored, the tag leaves the parse in SVG or MathML, which `<p>`, `<b>`,
+  `</p>` or `<font color>` leaves for the nearest HTML element; or it closed an HTML element above, and the parse is
+  already in HTML. The HTML rules' walk for it stops at the first "special" element, and every HTML element the SSR
+  scan tracks (`table`, `object`, `template`, `noscript`, `select`, an integration point) is one, so it can close
+  something only past the template's own HTML root. And no `<style>`, `<script>`, `<textarea>`, `<title>`, `<img>`,
+  `<input>`… is ever open around markup (text or void), so `</style>` in `<math>` closes nothing anywhere and the parse
+  stays in MathML, where `<mi>` is a text integration point whose child is HTML. Measured: `<x-kid>` is an HTML element
+  after `<math></style><p>`, `<math></style><mi>`, `<math></img><mi>`, `<svg></textarea><foreignObject>`,
+  `<math><font id=size></foreignObject><p>`, `<math></div><p>`, `<span><math></span><b>` and `<svg></g><p>`, inside a
+  host div. Consequence: the scan lets a breakout act at the unknown namespace such a tag leaves, and keeps the
+  namespace known after an end tag of those names; read as unknown with no breakout, a component the browser upgrades
+  went unrendered. (A rotated fuzz seed in CI, 2026-11-26; Chromium 159, Firefox 159, WebKit 27.2, Playwright,
+  headless, macOS, 2026-11-26.)
 - **With scripting off, `<noscript>` content is HTML, and a text element left open in it takes the `</noscript>`.**
   `<noscript><textarea>`, `<title>`, `<style>` or `<xmp>` left open makes the server's `</noscript>`, and the page after
   it, the element's text. The `/` of `<textarea/>` is ignored, as on any HTML element. Consequence: the SSR scan tracks
   those elements inside `<noscript>`/`<select>` for their closers. (jsdom with scripting off; Chromium 159 with
-  JavaScript disabled, 2026-11-22.)
+  JavaScript disabled, 2026-11-22.) **A `<script>` there too** (2026-11-26, a rotated fuzz seed): with scripting off
+  `<noscript><script></noscript>` keeps the `</noscript>` as script text, so a JSON block after it is inside the first
+  script; the scan holds a script there until its own `</script>` and refuses a hole in it. (jsdom with scripting off.)
 - **Inside `<select>`, current engines read `<title>` as an HTML title (RCDATA); the older select parser ignores it.**
   So in `<select><title></select>` the `</select>` is the title's text in Chromium 159, Firefox 159 and WebKit 27.2,
   while parse5 and jsdom close the select; the same holds for `<title>` under an `<object>`, `<div>` or `<option>` in

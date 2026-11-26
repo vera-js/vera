@@ -112,3 +112,64 @@ test('a child template that begins with an end tag of its PARENT\'s foreign elem
   assert.deepEqual(injected(served), [0, 0], `served ${JSON.stringify(served)}`);
   assert.equal(serializeTemplate(draw(HOSTILE)), served, 'the same both renders');
 });
+
+test('a stray end tag of an element never open around markup (`</style>`, `</img>`…) is ignored: the namespace stays known, and a breakout after it reaches HTML in both readings', () => {
+  for (const [space, name] of [['math', 'style'], ['svg', 'textarea'], ['math', 'img'], ['svg', 'script']]) {
+    const strings = [`<${space}></${name}><p><style>`, '</style>'];
+    assert.deepEqual(outcome(strings), [0, 0], `${strings.join('${v}')}`);
+    const served = serve(strings, ['.a > .b {}']);
+    for (const body of [`<div id="host">${served}</div>`, served]) {
+      const style = new JSDOM(`<!doctype html><body>${body}</body>`).window.document.querySelector('style');
+      assert.equal(style?.namespaceURI, 'http://www.w3.org/1999/xhtml', `served ${JSON.stringify(served)}`);
+      assert.equal(style.textContent, '.a > .b {}', 'HTML raw text after the breakout, written raw, not over-escaped as at an unknown namespace');
+    }
+  }
+  /** CONTROL: a name an HTML element above can have (`</div>`) still makes the namespace unknown: a style there, with no breakout, is over-escaped. */
+  assert.equal(serve(['<math></div><style>', '</style>'], ['.a > .b {}']).includes('.a > .b {}'), false);
+});
+
+test('after a stray end tag that may close an element above, a breakout reaches HTML in both readings: a style after it is HTML raw text, and the hostile value injects nothing', () => {
+  for (const [space, name] of [['math', 'div'], ['math', 'foreignObject'], ['svg', 'span'], ['svg', 'g']]) {
+    for (const breakout of ['<p>', '<b>', '</p>', '<font color=x>']) {
+      const strings = [`<${space}></${name}>${breakout}<style>`, '</style>'];
+      assert.deepEqual(outcome(strings), [0, 0], `${strings.join('${v}')}`);
+      const served = serve(strings, ['.a > .b {}']);
+      for (const body of [`<div id="host">${served}</div>`, served]) {
+        const style = new JSDOM(`<!doctype html><body>${body}</body>`).window.document.querySelector('style');
+        assert.equal(style?.namespaceURI, 'http://www.w3.org/1999/xhtml', `served ${JSON.stringify(served)}`);
+        assert.equal(style.textContent, '.a > .b {}', `HTML raw text after the breakout: ${JSON.stringify(served)}`);
+      }
+    }
+  }
+});
+
+test('the breakout at a stray end tag acts only where its target is certain: a child template at its parent\'s SVG depth, and a template\'s own untracked element closed', () => {
+  /** A child that inherited the SVG depth cannot know what is outside it: `</g><p>` breaks out to nothing it can see, so the style stays over-escaped. */
+  const CHILD = literal(['</g><p><style>', '</style>']);
+  const PARENT = literal(['<svg><g>', '</g></svg>']);
+  const draw = (value) => ({ _$litType$: 1, strings: PARENT, values: [{ _$litType$: 1, strings: CHILD, values: [value] }] });
+  assert.deepEqual(injected(serializeTemplate(draw(HOSTILE))), [0, 0]);
+  assert.equal(serializeTemplate(draw('.a > .b {}')).includes('.a > .b {}'), false, 'over-escaped: the child cannot see its parent');
+  /** The template's own `<span>` around the `<math>`, closed by the stray `</span>`: HTML after it in both readings. */
+  const strings = ['<span><math></span><b><style>', '</style>'];
+  assert.deepEqual(outcome(strings), [0, 0]);
+  const served = serve(strings, ['.a > .b {}']);
+  for (const body of [`<div id="host">${served}</div>`, served]) {
+    const style = new JSDOM(`<!doctype html><body>${body}</body>`).window.document.querySelector('style');
+    assert.equal(style?.namespaceURI, 'http://www.w3.org/1999/xhtml', `served ${JSON.stringify(served)}`);
+    assert.equal(style.textContent, '.a > .b {}');
+  }
+});
+
+test('a child\'s stray `</link>` that closes its PARENT\'s SVG `<link>` keeps the parse in SVG: a style after it is SVG markup, its value escaped, never raw', () => {
+  const CHILD = literal(['</link><style>', '</style>']);
+  const PARENT = literal(['<svg><link>', '</link></svg>']);
+  const draw = (value) => ({ _$litType$: 1, strings: PARENT, values: [{ _$litType$: 1, strings: CHILD, values: [value] }] });
+  assert.deepEqual(injected(serializeTemplate(draw(HOSTILE))), [0, 0]);
+  const served = serializeTemplate(draw('.a > .b {}'));
+  for (const body of [`<div id="host">${served}</div>`, served]) {
+    const style = new JSDOM(`<!doctype html><body>${body}</body>`).window.document.querySelector('style');
+    assert.equal(style?.namespaceURI, 'http://www.w3.org/2000/svg', `served ${JSON.stringify(served)}`);
+  }
+  assert.equal(served.includes('.a > .b {}'), false, `escaped as SVG text: ${served}`);
+});
