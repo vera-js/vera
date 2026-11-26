@@ -436,7 +436,9 @@ from another machine, or after that is undone, has a variable changed.
   WebKit 27.2 on Windows 11 and on the Linux CI runner; Chromium 159 and Firefox 159 have it on none of them. So the
   switch is a platform's choice within one engine build, not the engine's. Consequence: `<vera-switch>`'s browser row
   keys its measured table by engine and platform, and on macOS WebKit the native branch (the `switch` attribute, no
-  `role`) is met for real.
+  `role`) is met for real. The platform is read from `navigator.platform` (`Win32` on Windows), never the user agent:
+  Playwright's WebKit 27.2 on Windows 11 sends `Macintosh; Intel Mac OS X 10_15_7` in its user agent (a probe, the same
+  day), so a row that sniffed it read "a Mac" there and went red.
 
 ## CSS and the cascade
 

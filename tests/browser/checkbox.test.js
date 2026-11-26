@@ -49,7 +49,8 @@ describe('vera-switch: the platform switch where it exists', () => {
    * Firefox 159 have it nowhere (2026-11-26). Safari 17.4 ships it. A runner that gains or loses it turns this red, so the
    * table is updated with the browser ledger; where it is absent, the native branch is met in jsdom with it faked present.
    */
-  const MAC = /Macintosh|Mac OS X/.test(navigator.userAgent);
+  /** The OS from `navigator.platform`: Playwright's WebKit says "Macintosh" in its user agent on Windows too (measured). */
+  const MAC = navigator.platform.startsWith('Mac');
   const NATIVE = { Chromium: false, Firefox: false, WebKit: MAC };
 
   it('the input carries exactly one of the native switch and role="switch": the switch where the engine has it, the role elsewhere', async () => {
