@@ -273,6 +273,26 @@ export const dataBlock = (openTag: string) => {
 };
 
 /**
+ * The written form nearly every data block has, `<script type="…">` with nothing else in the tag and no `"` in the type,
+ * answered directly — `dataBlock`'s own answer for that shape (its first attribute is that `type`), without its match,
+ * which was a tenth of what 0.3.2's compile cost over 0.3.0's (2026-11-20). `undefined` for any other shape, which
+ * `dataBlock` reads. Kept beside `dataBlock`, not in it: `dataBlock` stays the exact twin of the client's.
+ */
+export const writtenDataBlock = (tag: string): boolean | undefined => {
+  if (!tag.startsWith('<script type="') || !tag.endsWith('">') || tag.indexOf('"', 14) !== tag.length - 2) return undefined;
+  const type = tag.slice(14, -2);
+  return !type.includes('&') && JSON_BLOCK.test(type);
+};
+
+/**
+ * **The server's one question of a script start tag: does it open a JSON data block?** `writtenDataBlock` for the
+ * written form, `dataBlock` for every other shape: the same answer as `dataBlock` alone, without its match on the shape
+ * nearly every block has. Asked by `compile` (a script hole is served only in a data block) and by the tokenizer (a data
+ * block in bound markup keeps its type).
+ */
+export const opensDataBlock = (tag: string): boolean => writtenDataBlock(tag) ?? dataBlock(tag);
+
+/**
  * The character references that can spell part of a scheme, decoded — enough to give the verdict a
  * browser gives on an attribute's static text, without a full entity table. Numeric references (with
  * or without their `;`) and the three named ones that are scheme-relevant (`&colon;`, `&Tab;`,

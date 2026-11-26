@@ -289,8 +289,9 @@ neither may carry anything from a request unsanitized. Everything else is checke
 - **`.innerHTML` and `.textContent` render on the server**, so trusted markup bound the sanctioned way
   (`<div .innerHTML=${markup}>`) is in the served page rather than filled in after hydration. It is made to behave
   as an `innerHTML` assignment, not as parsed page markup: a `<script>` in it is served with an inert `type` (an
-  assignment never runs one), and a `<template shadowrootmode>` cannot attach a shadow root (an assignment never
-  does) — wherever the tokenizer reads a start tag, which the server finds with the same scanner it reads every
+  assignment never runs one), except a JSON data block (`type="application/json"`, any type ending in `json`), which
+  never runs anywhere and is served with its own `type`, and a `<template shadowrootmode>` cannot attach a shadow root
+  (an assignment never does) — wherever the tokenizer reads a start tag, which the server finds with the same scanner it reads every
   template with. Whatever the markup leaves open is closed before the element's own end tag, and an unfinished tag
   at its end is dropped, as an assignment drops it, so it cannot reach the markup after it. On a `<style>` host the value is raw text with its end tag neutralized; on a
   `<textarea>`, `<title>` or other text-only host, inside `<svg>`/`<math>`, on or inside a `<select>`, and for any `.textContent`, it is

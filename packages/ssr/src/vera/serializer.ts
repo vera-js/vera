@@ -1,5 +1,5 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { HELD_COMMENT, INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, asciiLower, closedRawText, dataBlock, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
+import { HELD_COMMENT, INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, asciiLower, closedRawText, decodeSchemeReferences, opensDataBlock, normalizeNewlines, thrownMessage } from './escaping.js';
 import { decode, decodeAttribute } from './parse.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
@@ -72,7 +72,6 @@ const BOOLEAN_FORM_PROPERTIES = new Set(['checked', 'selected']);
  * which is what it already was.
  */
 const FORM_ELEMENTS = new Set(['input', 'textarea', 'select', 'option']);
-
 
 /**
  * Whether a character code is the first of a sigil binding's name — `.`, `?`, `@`, `&` or `!` (see `compile`). Codes,
@@ -228,7 +227,6 @@ const nameHole = (before: string, after: string): never => {
   throw own(new Error(ssrMisuse('name-expression', TWINS.nameExpression(`${prefix}${'${…}'}${suffix}`, given))));
 };
 
-
 /** Slot kinds: text, boolean, form-prop, dropped binding, plain attribute. */
 const TEXT = 0;
 const BOOLEAN = 1;
@@ -380,7 +378,6 @@ const deliverProperty = (node: ElementShim, tag: string, name: string, value: un
   }
 };
 
-
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
 /**
  * Preceded by whitespace, so a **tag name** is not counted as an attribute of itself, and allowed to
@@ -430,18 +427,6 @@ const takesNewline = (text: string, before: ScanStart | ScanResult): boolean => 
   return (
     at.inTag && !at.closing && !(at.inValue && at.quote !== '') && at.comment === '' && NEWLINE_TAKERS.has(at.tagName)
   );
-};
-
-/**
- * The written form nearly every data block has, `<script type="…">` with nothing else in the tag and no `"` in the type,
- * answered directly — `dataBlock`'s own answer for that shape (its first attribute is that `type`), without its match,
- * which was a tenth of what 0.3.2's compile cost over 0.3.0's (2026-11-20). `undefined` for any other shape, which
- * `dataBlock` reads. Kept here, not in `dataBlock`, which stays the exact twin of the client's.
- */
-const writtenDataBlock = (tag: string): boolean | undefined => {
-  if (!tag.startsWith('<script type="') || !tag.endsWith('">') || tag.indexOf('"', 14) !== tag.length - 2) return undefined;
-  const type = tag.slice(14, -2);
-  return !type.includes('&') && JSON_BLOCK.test(type);
 };
 
 /**
@@ -1057,7 +1042,7 @@ const compile = (strings: unknown, depth: number): Plan | null => {
        * `.type` — changes the type after it was judged, and the script is then served (or saved) as code.
        */
       const tag = openings[i]!;
-      if (!(writtenDataBlock(tag) ?? dataBlock(tag)) || tag.includes('\uFFFF')) throw refusal('ssr-script-hole');
+      if (!opensDataBlock(tag) || tag.includes('\uFFFF')) throw refusal('ssr-script-hole');
       raws[i] = 'json';
     }
     if (raws[i] === 'json' || raws[i] === 'style') closeRawSlot(parts, strings, rawFroms[i]!, i, raws[i] === 'json');

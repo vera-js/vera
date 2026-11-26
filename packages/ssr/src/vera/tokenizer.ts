@@ -7,7 +7,7 @@
  * once, and every copy drifted from the tokenizer differently; one scanner cannot disagree with itself.
  */
 import type { Open, ScanResult, ScanStart, ScanState, ScannedTag } from './types.js';
-import { VOID_ELEMENTS, asciiLower } from './escaping.js';
+import { VOID_ELEMENTS, asciiLower, opensDataBlock } from './escaping.js';
 import { PROSE } from './diagnostics.js';
 import { own, ssrMisuse } from './report.js';
 
@@ -178,6 +178,68 @@ const closeTo = (opens: Open[], name: string): number => {
  * first script's text, after a raw `<` (jsdom, scripting off). Held, the hole is inside a tracked script and refused.
  */
 export const holdsText = (open: Open): boolean => (open.space === '' || open.space === '?') && (TEXT_ONLY.has(open.name) || RAWTEXT.has(open.name));
+
+/**
+ * **Whether a start tag holds the letters `json`, in any ASCII case** — the cheap half of asking whether a script in
+ * bound markup is a data block (see the data-block rule in `scanTag`): a data block's `type` ends in `json` and holds no
+ * `&`, so those four letters are written in the tag as they are; `JSON_BLOCK`'s `/i`, without `u`, matches no other
+ * character to them. Every other script answers here, with no slice and no match: asked of all of them, `dataBlock` cost
+ * +5% on a page of 40 bindings that each hold a script and a JSON block (and nothing with the call replaced by `false`).
+ *
+ * @param text The static being scanned
+ * @param from The tag's `<`
+ * @param to The tag's `>`
+ * @return Whether `json` appears between them, ASCII case-insensitively
+ */
+const namesJson = (text: string, from: number, to: number): boolean => {
+  for (let k = from + 7; k + 3 < to; k++) {
+    if (letterAt(text, k, 106) && letterAt(text, k + 1, 115) && letterAt(text, k + 2, 111) && letterAt(text, k + 3, 110)) return true;
+  }
+  return false;
+};
+/**
+ * **The two start tags nearly every data block is written as**, found in place: `opensDataBlock` answers `true` for
+ * both (held by `tests/ssr-innerhtml-data-block.test.mjs`), so matching them first changes no answer, only skips the
+ * slice and the match that cost ~0.3 µs per block (+3% on a page of 40 bindings each holding one).
+ */
+export const WRITTEN_BLOCKS = ['<script type="application/json">', '<script type="application/ld+json">'];
+/**
+ * Whether the start tag from `from` to its `>` at `to` is exactly one of `WRITTEN_BLOCKS`.
+ *
+ * @param text The static being scanned
+ * @param from The tag's `<`
+ * @param to The tag's `>`
+ * @return Whether the tag is one of them, byte for byte
+ */
+const writtenBlock = (text: string, from: number, to: number): boolean => {
+  for (let k = 0; k < WRITTEN_BLOCKS.length; k++) {
+    const tag = WRITTEN_BLOCKS[k]!;
+    if (to - from + 1 === tag.length && text.startsWith(tag, from)) return true;
+  }
+  return false;
+};
+/** Whether the character at `at` is the ASCII letter whose lowercase code is `lower`, in either case. */
+const letterAt = (text: string, at: number, lower: number): boolean => {
+  const code = text.charCodeAt(at);
+  return code === lower || code === lower - 32;
+};
+/**
+ * **A JSON data block keeps its type** (Brian, 2026-11-26): it never runs, in a page or in an assignment, so there is
+ * nothing for `fortify` to make inert, and the inert type it wrote first replaced the `type` a reader looks it up by. So
+ * the script's own edit, the last one pushed (no other is recorded inside a `<script>` start tag), is taken back when
+ * the whole start tag is a data block: one of the two written tags (`WRITTEN_BLOCKS`), matched in place, or else, when
+ * `namesJson` says it could be one, `opensDataBlock`, the server's one test (the first `type`, read in attribute order,
+ * ending in `json` with no `&`).
+ *
+ * @param text The static being scanned
+ * @param tagAt The start tag's `<`, or -1 when it began in an earlier static
+ * @param end The start tag's `>`
+ * @param edits The edits `fortify` will write, the script's own last
+ */
+const keepBlockType = (text: string, tagAt: number, end: number, edits: number[]): void => {
+  if (tagAt === -1 || edits[edits.length - 1] !== EDIT_INERT) return;
+  if (writtenBlock(text, tagAt, end) || (namesJson(text, tagAt, end) && opensDataBlock(text.slice(tagAt, end + 1)))) edits.length -= 2;
+};
 
 /**
  * Pops `opens` to the element a breakout lands in and answers the foreign depth there, or `-1` — leaving `opens` alone
@@ -767,6 +829,12 @@ export const scanTag = (text: string, state: ScanState, edits?: number[], tags?:
       encoding = '';
       continue;
     }
+    /**
+     * **A JSON data block keeps its type** (Brian, 2026-11-26): see `keepBlockType`. Asked here, past the fast path above,
+     * which a `<script>` never takes (it is `STRUCTURAL`): at the emit every tag passes, the same test cost +3.5% on 50 KB
+     * of bound table markup that holds no script at all (the tokenizer alone; its code shape, not its work).
+     */
+    if (edits !== undefined && !closing && tagName === 'script') keepBlockType(text, tagAt, i, edits);
     /**
      * The raw-text and text-only elements, read as such only in HTML (depth 0; see `structural` for why foreign content
      * has none, and why nothing else can take these names there): settled here, before the structural work.
