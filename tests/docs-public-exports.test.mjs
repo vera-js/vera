@@ -67,6 +67,7 @@ const PACKAGES = {
  */
 const SOURCE_PACKAGES = {
   '@verajs/ssr': '../packages/ssr/dist/vera/index.js',
+  '@verajs/ssr/named-references': '../packages/ssr/dist/vera/named-references.js',
 };
 
 const root = fsPath(new URL('..', import.meta.url));

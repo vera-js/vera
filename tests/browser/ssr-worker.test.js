@@ -21,7 +21,7 @@ import { SERVER_HTML } from './fixtures/hello-ssr.html.js';
  * the fixes safe.
  */
 
-const render = (options) =>
+const render = (options, component) =>
   new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./workers/ssr-render.worker.js', import.meta.url), { type: 'module' });
     const done = (fn) => (value) => {
@@ -35,7 +35,7 @@ const render = (options) =>
      * suite would report a timeout for `node:crypto` failing to resolve, which names nothing.
      */
     worker.onerror = (event) => done(reject)(new Error(event.message ?? 'the worker failed to start'));
-    worker.postMessage({ options });
+    worker.postMessage({ options, component });
   });
 
 it('renders in a worker byte-for-byte identically to the server', async () => {
@@ -68,3 +68,10 @@ it('leaves the host its channel back to the page', async () => {
   expect(html, 'a reply arrived at all').to.be.a('string');
   expect(html.length).to.be.greaterThan(50);
 });
+
+it("decodes a named reference outside the six from the standard's table inside the worker", async () => {
+  /** The fixture wires the table's module; one a worker could not load would reject the render. */
+  const html = await render(undefined, '/tests/fixtures/ssr/named-ref-ssr.js');
+  expect(html).to.include('<output>a\u2026b \u00acin c</output>');
+});
+

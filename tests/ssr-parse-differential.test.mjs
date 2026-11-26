@@ -19,6 +19,8 @@ import { defaultTreeAdapter, html as parse5Html, parseFragment as parse5Fragment
 import { contentSpace, parseFragment } from '../packages/ssr/dist/vera/parse.js';
 import { TextShim, CommentShim } from '../packages/ssr/dist/vera/nodes.js';
 import '@verajs/ssr';
+import { wire } from '@verajs/core';
+import { namedReferences } from '@verajs/ssr/named-references';
 import { printed } from './console-args.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -260,14 +262,31 @@ const CORPUS = [
 ];
 
 /**
- * **Named references beyond the six this parser decodes** — the full WHATWG table, and its legacy no-semicolon rule
- * with the attribute-value exception. Undecided (2026-10-06): vendoring the table is install size for `@verajs/ssr`;
- * declining the parse would cost ordinary content its node view. Recorded here so the gap is visible, not silent.
+ * **Every named reference of the HTML Standard, read by its tokenizer's rules** (2026-11-25; the table was a gap here
+ * from 2026-10-06 until it shipped as `@verajs/ssr/named-references`, wired here). Names past the six this parser always knew; a legacy name
+ * without its `;` in text (`&amp`); the same in an attribute value before `=` or a letter, where it is no reference
+ * (`&ampx=1`, a query string's shape); the longest-name rule (`&notin;` is one name, `&notin` in text is `not` then
+ * `in`, `&notit;` is `not` then `it;`); and a decoded `&amp;` that must come back as it was written. Each parses, agrees
+ * with parse5 and reproduces its input.
  */
-test('named references beyond the six-entry table', { todo: 'pending a decision: vendor the WHATWG table, or not' }, () => {
-  for (const markup of ['<p>&copy; &hellip; &mdash;</p>', '<p>&amp</p>', '<p title="&ampx=1">x</p>', '<p>&notin; &notit;</p>']) {
+test('named references: the whole table, the legacy names, and the attribute exception', () => {
+  wire([namedReferences]);
+  const cases = [
+    '<p>&copy; &hellip; &mdash; &Tab;|&NewLine;|</p>',
+    '<p>&amp</p>',
+    '<p title="&ampx=1">x</p>',
+    '<p title="&amp=1&amp;b&amp">x</p>',
+    '<p>&notin; &notin &notit;</p>',
+    '<p>&amp;amp; &CounterClockwiseContourIntegral; &unknown; &</p>',
+    '<p title="x&valueOf;y&constructor">A&constructor;B &valueOf; &hasOwnProperty; &toString; &__proto__; &constructor</p>',
+  ];
+  for (const markup of cases) {
     const parsed = parseFragment(markup, factories);
+    assert.notEqual(parsed, null, `declined ${JSON.stringify(markup)}`);
     assert.deepEqual(ours(parsed), theirs(parse5Fragment(markup).childNodes), markup);
+    let round = '';
+    for (const entry of parsed) round += typeof entry === 'string' ? entry : entry.markup();
+    assert.equal(round, markup, `did not round-trip ${JSON.stringify(markup)}`);
   }
 });
 

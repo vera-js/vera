@@ -401,6 +401,23 @@ Importing `@verajs/ssr` installs a DOM on `globalThis`: `document`, `window`, `c
   process. The client renderer cannot draw into this DOM itself: it holds strings, not a tree. A renderer that is not vera's would displace the server's and is refused at render time; guard
   its wiring (`if (!isServer())`, `isServer` from `@verajs/core`).
 
+- **A parsed node decodes six named references by itself**: `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` and
+  `&nbsp;`, and every numeric one. For any other (`&copy;`, `&hellip;`, a legacy `&amp` with no `;`), wire the HTML
+  Standard's whole table, before the first render:
+
+  ```js
+  import { wire } from '@verajs/core';
+  import { namedReferences } from '@verajs/ssr/named-references';
+  wire([namedReferences]);
+  ```
+
+  It decodes by the tokenizer's rules: the longest name wins (`&notin` in text is `¬in`), and in an attribute value a
+  legacy name before `=` or a letter or digit stays as written (`&ampx=1`). A server that does not wire it never loads
+  the table (2,231 names); there, such a name reads back as written in `textContent`, attributes, `.value` and a bound
+  `<select>`'s options, and a name written with its `;` is said once (`ssr-named-reference-unwired`). The served markup
+  is the same either way; only what a server component READS differs. A template rendered before the wire keeps the
+  name as written in its static text, since a template is compiled once.
+
 **It is complete, and checked twice.** Every member a real element, shadow root, document,
 `CSSStyleSheet`, `DOMTokenList` or window exposes in Chromium, Firefox and WebKit is either
 implemented or listed as out of scope with a reason — and every implemented member is compared against
@@ -557,11 +574,6 @@ markup itself is served byte for byte as it was written.
   covered by `tests/ssr-text-boundary.test.mjs`, alongside twenty-odd cases that do round-trip exactly.
 
 ## Known limits
-
-- **A parsed node decodes six named references**: `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` and `&nbsp;`, and
-  every numeric one. Any other (`&copy;`, `&mdash;`, a legacy `&amp` with no `;`) reads back as written in that node's
-  `textContent` and attributes. The markup is served unchanged, so the page is right; only what a server component
-  READS from such markup differs.
 
 - `keyed()` and `hold()` are client-renderer constructs; templates that must also server-render use
   plain `.map`.

@@ -11,6 +11,12 @@ import { renderToString, renderToStringAsync, serializeTemplate, registry } from
 import type { SsrRenderOptions, SsrRenderResult } from '@verajs/ssr';
 import { html, svg, mathml } from '@verajs/core';
 import { html as tagHtml, tag } from '@verajs/renderer/tag';
+import { wire } from '@verajs/core';
+import { namedReferences } from '@verajs/ssr/named-references';
+
+/** The named-reference table is a module core's `wire` takes: its `on` is a declared insert point. */
+wire([namedReferences]);
+wire(namedReferences);
 
 const out: Promise<{ html: string; styles: string; title: string }> = renderToString(new URL('file:///x.js'), {});
 void out;

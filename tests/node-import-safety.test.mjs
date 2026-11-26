@@ -80,6 +80,8 @@ const SAFE = [
   '@verajs/autoloader',
   '@verajs/jsx',
   '@verajs/ssr',
+  /** The named-reference table: a string and a Map, no DOM at all. */
+  '@verajs/ssr/named-references',
 ];
 
 /**

@@ -1,6 +1,6 @@
 import { escapeHtml, escapeRawText } from './shim.js';
-import { HELD_COMMENT, INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, asciiLower, closedRawText, dataBlock, decodeCodePoint, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
-import { decode } from './parse.js';
+import { HELD_COMMENT, INLINE_HANDLER, NEWLINE_TAKERS, SCRIPT_URL, SCRIPT_URL_ITEM, URL_SINK, JSON_BLOCK, asciiLower, closedRawText, dataBlock, decodeSchemeReferences, normalizeNewlines, thrownMessage } from './escaping.js';
+import { decode, decodeAttribute } from './parse.js';
 import { registry } from './registry.js';
 import { PROSE, TWINS } from './diagnostics.js';
 import { once, own, quoted, ssrMisuse, ssrWarning } from './report.js';
@@ -155,7 +155,7 @@ const closeJoin = (
   return joins;
 };
 /** A static of a sigil binding's value, as the client's parser hands it over. */
-const valueText = (text: string): string => decode(normalizeNewlines(text));
+const valueText = (text: string): string => decodeAttribute(normalizeNewlines(text));
 /** The value's statics once it has a static before its first hole, or a second hole. */
 const leadPieces = (text: string, start: number): string[] => [valueText(text.slice(start))];
 const morePieces = (pieces: string[] | undefined, text: string): string[] => {
@@ -1536,24 +1536,6 @@ const SELECT_MARK = 'data-vm-select';
  */
 // eslint-disable-next-line no-bitwise -- ToInt32, exactly the WebIDL `long` conversion described above
 const selection = (name: string, value: unknown): string | number => (name === 'value' ? `${value}` : (value as number) | 0);
-const NAMED: Partial<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
-
-/**
- * Enough of a decoder to compare an option against a value.
- *
- * Everything this serializer writes is escaped as a numeric reference, and the five named ones are
- * what an author writes by hand. A full entity table would be several kilobytes to decide which
- * `<option>` is selected, and anything it missed would simply fail to match — which is the same
- * outcome as an option that genuinely does not match, and is already a documented divergence.
- */
-const decodeRefs = (text: string): string =>
-  /** Most option text holds no reference: one native search, and no regex or callback, answers it. */
-  text.indexOf('&') === -1
-    ? text
-    : text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));/g, (whole: string, dec?: string, hex?: string, name?: string) =>
-    /** Neither number matched, so the name did. */
-    dec ? decodeCodePoint(+dec) : hex ? decodeCodePoint(parseInt(hex, 16)) : NAMED[name!] ?? whole
-  );
 
 /**
  * What an engine reports for `option.value` when the option has no `value` attribute: its text **stripped and
@@ -1576,7 +1558,7 @@ const optionText = (content: string, from: number): string => {
    * collapse at most one space sits at each end, so they are cut by a character test, not a second regex (which cost a
    * render with a `<select>` 1.3%, measured 2026-11-22).
    */
-  const text = decodeRefs(content.slice(from, to)).replace(/[\t\n\f\r ]+/g, ' ');
+  const text = decode(content.slice(from, to)).replace(/[\t\n\f\r ]+/g, ' ');
   return text.slice(text.charCodeAt(0) === 32 ? 1 : 0, text.length > 1 && text.charCodeAt(text.length - 1) === 32 ? -1 : text.length);
 };
 
@@ -1634,7 +1616,7 @@ const markSelected = (content: string, wanted: string | number, site: unknown): 
       } else {
         insertAt = spans[k + 5]!;
         if (value === undefined && nameIs(content, spans[k + 1]!, spans[k + 2]!, 'value'))
-          value = spans[k + 3] === -1 ? '' : decodeRefs(content.slice(spans[k + 3], spans[k + 4]));
+          value = spans[k + 3] === -1 ? '' : decodeAttribute(content.slice(spans[k + 3], spans[k + 4]));
       }
     }
     const chosen = !marked && (typeof wanted === 'number' ? index === wanted : (value ?? optionText(content, end)) === wanted);

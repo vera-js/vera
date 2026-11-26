@@ -103,6 +103,8 @@ for (const [specifier, bundle] of Object.entries(PACKAGES)) {
  */
 exportsOf['@verajs/eslint-config'] = await import('../packages/eslint-config/index.js');
 exportsOf['@verajs/ssr'] = await import('../packages/ssr/dist/vera/index.js');
+/** Its one other entry, the named-reference table a server wires: from source, like `ssr` itself. */
+exportsOf['@verajs/ssr/named-references'] = await import('../packages/ssr/dist/vera/named-references.js');
 
 /** Markdown and text docs, minus changelogs — those describe releases, not the current API. */
 const docs = [];

@@ -54,6 +54,14 @@
       "fix": "This DOM parses markup it can reproduce exactly and declines the rest, rather than building a tree the browser would not — a mismatched or stray closing tag is the usual cause. Make the markup well-formed, or build the children with createElement/appendChild if a component needs to read them back."
     },
     {
+      "code": "ssr-named-reference-unwired",
+      "params": [
+        "written"
+      ],
+      "message": "parsed {written}, a named character reference this server reads back as written (it decodes six names itself), while a browser decodes it: what a server component reads from that markup differs from what the browser shows. The served markup is unchanged.",
+      "fix": "Wire the HTML Standard's whole table before the first render: `wire([namedReferences])`, from @verajs/ssr/named-references. A template rendered before the wire keeps the name as written. Said once per name."
+    },
+    {
       "code": "ssr-nesting-depth",
       "params": [
         "max"

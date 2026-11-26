@@ -1881,6 +1881,9 @@ Rules an assistant must not guess around:
 - **Import order:** `@verajs/ssr` installs the DOM shims, so import it before any module that
   imports `@verajs/renderer` (which needs a DOM at import time). It REPLACES any DOM already on
   `globalThis` — never import it into a jsdom test process.
+- **Named references beyond six**: the server DOM decodes `&amp;` `&lt;` `&gt;` `&quot;` `&apos;` `&nbsp;` and
+  numeric ones; for `&copy;`, `&hellip;` and the rest, `wire([namedReferences])` from `@verajs/ssr/named-references`
+  before the first render. Unwired, such a name reads back as written (served markup is unchanged either way).
 - **Two entry points, same options and output.** `renderToString` is synchronous end to end and
   refuses an `async connectedCallback` (its markup would be empty). **`renderToStringAsync`**
   awaits the lifecycle and lets promises settle between frame rounds, for at most `timeout` ms — use it

@@ -86,6 +86,9 @@ jobs:
       # in Vera Studio's inspector, which runs a production bundle where the prose has folded away.
       # Generated from the table in the package, so it drifts the moment nothing checks it.
       - run: node scripts/sync-diagnostics.mjs --check
+      # @verajs/ssr decodes named character references from the HTML Standard's table, generated
+      # into entities.ts from a vendored copy pinned by sha256: a stale file or an edited copy is red.
+      - run: node scripts/gen-entities.mjs --check
       # The browser suite hydrates a committed snapshot of real @verajs/ssr output, because the
       # browser cannot run the server pipeline. Unverified, that snapshot drifts and hydration is
       # validated against markup no server emits — passing green.

@@ -19,6 +19,10 @@
     ".": {
       "types": "./dist/vera/index.d.ts",
       "default": "./dist/vera/index.js"
+    },
+    "./named-references": {
+      "types": "./dist/vera/named-references.d.ts",
+      "default": "./dist/vera/named-references.js"
     }
   },
   "peerDependencies": {

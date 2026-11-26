@@ -172,6 +172,16 @@ export type LoaderInsert = (name: string, element: Element) => boolean | Promise
 export type SettleInsert = (element: HTMLElement) => void;
 
 /**
+ * Reads a named character reference for the SERVER DOM: `run` is what follows the `&` (`hellip;`, `notin`, `ampx`),
+ * `attribute` says the run is in an attribute value, `after` is the code after the run in the source. Returns the text
+ * the HTML tokenizer makes of `&` + `run`. The server's parser answers six names itself (`amp`, `lt`, `gt`, `quot`,
+ * `apos`, `nbsp`, each with its `;`) and asks this chain only for any other; with nothing wired, such a name reads back
+ * as written. `@verajs/ssr/named-references` is the one consumer: the HTML Standard's whole table, paid for only by a
+ * server that wires it.
+ */
+export type ReferenceInsert = (run: string, attribute: boolean, after: number) => string;
+
+/**
  * Called once as the renderer BUILDS each template — the cold path, cached for the life of the page.
  * A hook may set `_$at$` on the template: a resolver the renderer asks, once per instance created,
  * which template to build at a position given that position's parent node — `null`/an element, or
@@ -211,6 +221,7 @@ export type InsertFunctionMap = {
   'element': ElementInsert;
   'loader': LoaderInsert;
   'settle': SettleInsert;
+  'reference': ReferenceInsert;
 };
 
 /**
@@ -235,6 +246,7 @@ export type Inserts = Map<
     | ElementInsert
     | LoaderInsert
     | SettleInsert
+    | ReferenceInsert
   )[]
 >;
 

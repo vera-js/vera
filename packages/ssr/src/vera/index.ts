@@ -40,7 +40,7 @@ import {
   restoreDocument,
 } from './shim.js';
 import { UNSAFE_ATTRIBUTE_NAME, serializeTemplate, serializeValue } from './serializer.js';
-import { decode as decodeEntities, heldAt } from './parse.js';
+import { connectServer, decode as decodeEntities, heldAt } from './parse.js';
 import { ATTRIBUTE, ATTRIBUTE_TIGHT, renderComponentTags, spacedEquals } from './scan.js';
 import type { InsertFunctionMap, SettleInsert, SlotInsert } from '@verajs/core';
 import { distributeLight } from './slots.js';
@@ -107,6 +107,18 @@ if (
 )
   console.warn(ssrWarning('the server', 'ssr-process-storage', PROSE['ssr-process-storage']!()));
 setCoreFlush(flush);
+/**
+ * The parser reads a name outside its six from the `'reference'` chain (`@verajs/ssr/named-references`), and says once
+ * per name that one was read as written when nothing is wired there.
+ */
+connectServer({
+  registry: inserts as unknown as Parameters<typeof connectServer>[0]['registry'],
+  unwired: (written) => {
+    if (!once('ssr-named-reference-unwired', written)) return;
+    const tag = currentRenderingTag();
+    console.warn(ssrWarning(tag ? `<${tag}>` : 'the page', 'ssr-named-reference-unwired', PROSE['ssr-named-reference-unwired']!(written)));
+  },
+});
 /** Core's server-render turn: what a render creates leaves every store when its turn ends. */
 const serverTurnOf = (inserts as unknown as { $ss?: (delta: number) => void }).$ss;
 /**

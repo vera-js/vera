@@ -81,6 +81,7 @@ const PACKAGES = {
    * it" — which is a message nobody sees until they try to mark a profiler recipe. */
   '@verajs/renderer/profiler': 'renderer/profiler',
   '@verajs/ssr': 'ssr',
+  '@verajs/ssr/named-references': 'ssr/named-references',
   /** Unpublished, and documented anyway — llms.txt is the most-copied file in the project, so a
    *  directives recipe there is exactly the code that must be proven to run. */
   '@verajs/directives': 'directives',

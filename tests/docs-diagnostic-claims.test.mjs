@@ -84,6 +84,7 @@ const CLAIMS = new Map([
   ['packages/renderer/README.md#f6390335c5', 'script-property'], // a <script> takes no property binding, "development names it" — tests/script-property-binding.test.mjs
   ['packages/ssr/README.md#da3689a88b', 'script-property'], // the server serves no property on a script and "says so once, in every build" — tests/script-property-binding.test.mjs
   ['packages/inserts/README.md#9d7964ee5e', 'pinned by tests/core-flush-after-throw.test.mjs: a rethrown hook error inside a write, a sync effect, an at-once scheduler and a two-channel write each still reach the later subscriber, reported uncaught; flush() still throws it, and the chain hears an error from an at-once flush once'], // a handler that rethrows leaves the flush, never a write
+  ['packages/ssr/README.md#61d5273f03', 'pinned by tests/ssr-named-references.test.mjs: unwired, the table is never split into a Map, a name outside the six reads back as written in text, an attribute and a bound select, and each name written with its `;` is said once'], // A server that does not wire it never loads the table …
   ['packages/static/README.md#efe2267f00', 'pinned by tests/tier-parity-fixes.test.mjs: static says boolean-child and attribute-value where core says them, a control says nothing, production silent'], // **Development says core's warnings in core's words**
   ['packages/static/README.md#799991a53e', "pinned by tests/tier-parity-fixes.test.mjs: static's warnings are said once per site and value, never twice for one value"], // Each is said once — …
   ['llms.txt#329425cf39', 'pinned by tests/tier-parity-fixes.test.mjs: static says boolean-child and attribute-value where core says them, production silent'], // static's iframe/noscript sentence, run on by the sentence splitter into "**Development says core's warnings in core's words**, once each"
@@ -176,7 +177,7 @@ const CLAIMS = new Map([
   ['packages/directives/README.md#4d20f0c981', 'motion-property-at-top-level'], // Put one in the wrong half and it is refused by name with the move spelled out, in both dir
   ['packages/directives/README.md#c54e2c0f10', 'motion-vocabulary-replaced'], // Keys **replace** with a `motion-vocabulary-replaced` warning; inserts (`preset`, `easing`,
   ['packages/inserts/README.md#a56509b716', 'not a promise: a return-value protocol, not a message'], // An insert that wants to change what core does — rather than merely watch — says so through
-  ['packages/inserts/README.md#776c11547b', 'not a promise: what an insert may do, not a message'], // `'init'` is where per-element setup hooks in, so one throwing module keeps the rest from i
+  ['packages/inserts/README.md#e2d3f2559a', 'not a promise: what an insert may do, not a message'], // `'init'` is where per-element setup hooks in, so one throwing module keeps the rest from i
   ['packages/jsx/README.md#a886d0d774', 'jsx-uncontrolled'], // | `onWarning` | the plugin: Vite's own `warn` | `(message) => …`, … as `file:line:col — message (code)`.
   ['packages/jsx/README.md#5a8aa12e19', 'jsx-helper-missing'], // If the renderer's helper files are missing from beside it, the error names the file, where
   ['packages/jsx/README.md#5f9c8908e7', 'jsx-circular-import'], // **One thing it cannot do is a circular import** — it is reported, naming the loop; the Vit

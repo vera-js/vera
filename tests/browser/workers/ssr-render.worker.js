@@ -30,13 +30,15 @@ let handle = (data) => pending.push(data);
 self.addEventListener('message', ({ data }) => handle(data));
 
 /** Read before the shim replaces `globalThis.location` with its own (seeded from this one). */
-const COMPONENT = new URL('/tests/fixtures/ssr/hello-ssr.js', self.location.origin).href;
+const ORIGIN = self.location.origin;
+const COMPONENT = new URL('/tests/fixtures/ssr/hello-ssr.js', ORIGIN).href;
 
 const { renderToString } = await import('@verajs/ssr');
 
 handle = async (data) => {
   try {
-    const result = await renderToString(COMPONENT, data?.options);
+    /** Another fixture by its path, when a row names one. */
+    const result = await renderToString(data?.component ? new URL(data.component, ORIGIN).href : COMPONENT, data?.options);
     self.postMessage({ ok: true, html: result.html });
   } catch (error) {
     self.postMessage({ ok: false, error: `${error?.name}: ${error?.message}` });

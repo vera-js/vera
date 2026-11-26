@@ -103,6 +103,10 @@ export const PROSE: Record<string, Prose> = {
     `was served after its ${timeout} ms \`timeout\` with a promise still pending${pendingIn ? ` in ${pendingIn}` : ''} (an async setup or connectedCallback, or a promise a frame callback returned), so the page is what had rendered by then.${waitingOn ? ` Still waiting on customElements.whenDefined for ${waitingOn}, which the server never defined.` : ''}`,
     `${waitingOn ? 'If only the browser defines it, return before that wait on the server — `if (isServer()) return;`, `isServer` from @verajs/core — so the server serves what the component shows before the wait, as the browser does first. ' : ''}Raise \`timeout\` if the wait is real, or find the promise that never settles. Said once per component for the life of the process.`,
   ],
+  'ssr-named-reference-unwired': (written) => [
+    `parsed ${written}, a named character reference this server reads back as written (it decodes six names itself), while a browser decodes it: what a server component reads from that markup differs from what the browser shows. The served markup is unchanged.`,
+    "Wire the HTML Standard's whole table before the first render: `wire([namedReferences])`, from @verajs/ssr/named-references. A template rendered before the wire keeps the name as written. Said once per name.",
+  ],
   'ssr-process-storage': () => [
     "this process has working web storage — Node 26 gives every process a sessionStorage shared by every request, and --localstorage-file adds a localStorage — and components render against the process's own globals: a `typeof sessionStorage` or `typeof localStorage` guard passes here, and a component can render one visitor's stored state into markup served to everyone.",
     'Guard per-user state with `isServer` from @verajs/core (`if (!isServer()) …`) rather than a `typeof` test of the storage. Said once per process, in every build.',

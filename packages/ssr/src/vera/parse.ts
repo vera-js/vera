@@ -24,32 +24,73 @@
 import { NEWLINE_TAKERS, RAW_TEXT_ELEMENTS, asciiLower, RCDATA_ELEMENTS, VOID_ELEMENTS, commentEnd, commentDataEnd, decodeCodePoint, leadingNewline, normalizeNewlines as normalized, tokenNul } from './escaping.js';
 import type { CommentShim, ElementShim, TextShim } from './nodes.js';
 import { RAW_TEXT_TAGS, TEXT_ONLY_TAGS, rawTextCloserAt as closerAt } from './tokenizer.js';
+import type { InsertFunctionMap, ReferenceInsert } from '@verajs/core';
 
 /**
- * The entity spellings this package emits, plus the handful every document uses. A Map, not a plain object: an object
- * answers for `Object.prototype`'s names too, so `&constructor;` decoded to a function's source text.
+ * The entity spellings this package emits, plus the handful every document uses: answered here, with their `;`. A
+ * `Map`, because a plain object answers for `Object.prototype`'s names too: `&constructor;` decoded to the source text
+ * of `Object` (2026-11-25).
  */
 const NAMED = new Map<string, string>([['amp', '&'], ['lt', '<'], ['gt', '>'], ['quot', '"'], ['apos', "'"], ['nbsp', ' ']]);
-/** A numeric reference decodes without its `;` too, in text and in attribute values alike; a named one here never does. */
-const ENTITY = /&(?:#(\d+);?|#[xX]([0-9a-fA-F]+);?|([a-zA-Z]+);)/g;
+/**
+ * A numeric reference decodes without its `;` too. A named one's run is every letter and digit after the `&` and an
+ * optional `;`: what the `'reference'` chain is handed, since the tokenizer reads the longest NAME the run begins with
+ * and keeps the rest as text (`&notin` is `¬in`).
+ */
+const ENTITY = /&(?:#(\d+);?|#[xX]([0-9a-fA-F]+);?|([a-zA-Z][a-zA-Z0-9]*;?))/g;
 
 /**
- * **Character references, decoded — owned here and shared.** Decimal, hex and the named refs this
- * package can emit. `index.js` kept a lesser copy (decimal only, and `String.fromCharCode`, which
- * TRUNCATES above U+FFFF) that was safe only while `escapeHtml`'s table stayed decimal and BMP —
- * an invariant no test held. One decoder instead, so a change to what this package escapes cannot
- * silently outrun what it can decode.
+ * **What the server hands this file once core has loaded** (`connectServer`, from `index.ts`): core's registry, read only
+ * for a name outside `NAMED`, and the warning for such a name with nothing wired. This file cannot import core, because
+ * core evaluates after the server's shims are installed and this file before them. It imports no diagnostics either:
+ * importing them here, which `index.ts` already does, cost importing `@verajs/ssr` about 0.8% (fresh processes, Node,
+ * 2026-11-26). One value, set once, as `frames.ts` holds core's flush (`setCoreFlush`). Until then, and on a server that
+ * wires nothing on `'reference'`, a name outside the six reads back as written.
  */
-export const decode = (text: string): string =>
-  text.includes('&')
-    ? text.replace(ENTITY, (match: string, decimal?: string, hex?: string, name?: string) =>
-        decimal
-          ? decodeCodePoint(Number(decimal))
-          : hex
-            ? decodeCodePoint(parseInt(hex, 16))
-            : /** Neither number matched, so the name did. */ (NAMED.get(name!) ?? match)
-      )
-    : text;
+let server: { readonly registry: Pick<Map<keyof InsertFunctionMap, unknown[]>, 'get'>; readonly unwired: (written: string) => void } | undefined;
+
+/** Hands this file the server's registry and its warning for an unwired name (`index.ts`, once core has loaded). */
+export const connectServer = (connected: NonNullable<typeof server>): void => {
+  server = connected;
+};
+
+/**
+ * A name outside the six, read by the first `'reference'` module wired (`@verajs/ssr/named-references`: the whole
+ * table, by the tokenizer's rules). With none it reads back as written, as it always did, while a browser decodes
+ * `&hellip;`, so that is said, for a name written with its `;`: without one, the run is as often a query string's
+ * `&b=2` or `AT&T`, which a browser keeps too, and only the table can tell them apart.
+ */
+const namedReference = (run: string, attribute: boolean, after: number): string => {
+  const chain = server?.registry.get('reference') as ReferenceInsert[] | undefined;
+  if (chain !== undefined && chain.length !== 0) return chain[0]!(run, attribute, after);
+  if (run.charCodeAt(run.length - 1) === 59) server?.unwired(`&${run}`);
+  return `&${run}`;
+};
+
+/** One reference, in text or in an attribute value. */
+const reference = (attribute: boolean, match: string, decimal: string | undefined, hex: string | undefined, run: string | undefined, at: number, source: string): string =>
+  decimal
+    ? decodeCodePoint(Number(decimal))
+    : hex
+      ? decodeCodePoint(parseInt(hex, 16))
+      : /** Neither number matched, so a name did: one of the six is answered at once. */
+        (run!.charCodeAt(run!.length - 1) === 59 ? NAMED.get(run!.slice(0, -1)) : undefined) ?? namedReference(run!, attribute, source.charCodeAt(at + match.length));
+/** One callback per context, at module level, so neither closes over `attribute`. */
+const inText = (match: string, decimal?: string, hex?: string, run?: string, at?: number, source?: string): string => reference(false, match, decimal, hex, run, at!, source!);
+const inAttribute = (match: string, decimal?: string, hex?: string, run?: string, at?: number, source?: string): string => reference(true, match, decimal, hex, run, at!, source!);
+/**
+ * **Character references, decoded — owned here and shared.** Decimal, hex and every named reference of the HTML
+ * Standard (every name outside the six through `namedReference`), in text; `decodeAttribute` is the same for an attribute value's
+ * text, where a legacy name before `=` or an alphanumeric stays as written. Two functions of one argument, not one with
+ * an `attribute` flag: the flag's default parameter cost template parsing 2.4–2.8% steady with no `&` in the markup
+ * (measured, Node, 2026-11-25), because every text node pays for it. `index.js` kept a lesser copy (decimal only, and
+ * `String.fromCharCode`, which TRUNCATES above U+FFFF) that was safe only while `escapeHtml`'s table stayed decimal and
+ * BMP — an invariant no test held. One decoder instead, so a change to what this package escapes cannot silently
+ * outrun what it can decode.
+ */
+export const decode = (text: string): string => (text.includes('&') ? text.replace(ENTITY, inText) : text);
+/** `decode` for an attribute value's text: the HTML tokenizer's attribute exception for a legacy name (`&ampx=1`). */
+export const decodeAttribute = (text: string): string => (text.includes('&') ? text.replace(ENTITY, inAttribute) : text);
 
 /**
  * **Implied end tags.** A start tag in the value set closes an open element of the key's name — the
@@ -448,7 +489,7 @@ export const parseFragment = (
         cursor += attribute[0].length;
         continue;
       }
-      attributes.push([named, decode(nul ? tokenNul(normalized(value)) : normalized(value))]);
+      attributes.push([named, decodeAttribute(nul ? tokenNul(normalized(value)) : normalized(value))]);
       cursor += attribute[0].length;
     }
     const selfClosing = markup.startsWith('/>', cursor);
