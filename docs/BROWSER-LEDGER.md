@@ -328,6 +328,91 @@ from another machine, or after that is undone, has a variable changed.
   and WebKit 27.2 (where it stays, on a hidden element). With the opener still there, the platform has returned focus to
   it by `close` on all three (the control). Playwright 1.65, 2026-11-23. Consequence: `<vera-dialog>` moves focus to its
   trigger when focus at `close` is on the body or inside the dialog; a browser row was red on Chromium and WebKit before.
+- **A `<script>`'s URL chooses the code it runs, and an SVG script from a template still runs in WebKit.** A template's
+  content cloned and inserted: WebKit 27.2 runs an SVG `<script>`, inline and by `href` (a `data:` URL); Chromium
+  159 and Firefox 159 run neither; an HTML `<script>`, inline or by `src`, ran in none of the three; a
+  `createElement('script')` ran in all three (the positive control). Playwright 1.65, headless, 2026-11-22. Consequence:
+  a bound script URL (`src`, `.src`; an SVG script's `href`, `xlink:href`) is refused by every renderer and the server
+  (`script-source`): in WebKit a bound SVG script `href` runs the code it names on the client, and a page the server
+  rendered runs any script's `src` on load.
+- **A `<base href>` chooses where every later script loads from, relative and path-absolute alike.** Two origins on
+  localhost: a page whose `<head>` holds `<base href="http://127.0.0.1:8181/">` before `<script type="module" src="rel.js">`
+  and `<script type="module" src="/assets/abs.js">` loaded BOTH from the base's origin in Chromium 159, Firefox 159 and
+  WebKit 27.2 (Playwright 1.65, headed): as `@verajs/ssr` served a bound base, as a static base (the positive control),
+  and on the client when `@verajs/renderer` wrote the base into `<head>` and scripts were added after it; a base written
+  AFTER the scripts left both on the page's own origin (the negative control). Consequence: a bound `href` on a `<base>`
+  is refused by every renderer and the server (`base-href`), as a script's own URL is (`script-source`); a path-only
+  allowance was rejected because the URL parser reads `/\host` and a tab-split `//host` as another origin. (2026-11-23)
+- **A declarative shadow root can be served with manual slot assignment, and only with its attribute.** A host served
+  with `<template shadowrootmode="open"><slot></slot></template>` and two children: the client's
+  `attachShadow({ mode: 'open', slotAssignment: 'manual' })` returned the served root, its `slotAssignment` stayed
+  `'named'`, and `slot.assign(second)` changed nothing (both children slotted) in Chromium 159, Firefox 159 and WebKit
+  27.2 (Playwright 1.65, headed); with no served root (the control) the root was `'manual'` and only the assigned child
+  slotted. Served with `shadowrootslotassignment="manual"` on the template, the root was `'manual'` and `assign()` took
+  effect in all three. Consequence: `@verajs/ssr` writes that attribute for a root opened with `slotAssignment: 'manual'`. (2026-11-23)
+- **A script's text runs on past a `</script>` while it is double-escaped.** `<script><!--` then `var s =
+  '<script src=a.js></script>';` then `//--></script><p>after</p>`, parsed: ONE script, holding every line up to the
+  second `</script>`, then the `<p>`, in Chromium 159, Firefox 159 and WebKit 27.2 (Playwright 1.65, headless); a
+  script with `<!--` but no inner `<script` ended at its first `</script>` (the control). This is the standard's
+  escaped and double-escaped script-data states. Consequence: `@verajs/ssr` finds a script's end by those states, in its
+  template compiler and its DOM parser alike; a hole in such text is a script hole (`ssr-script-hole`). (2026-11-23)
+- **A quote or a leading `=` is part of an attribute name.** `<script x"type="application/json">` has the one
+  attribute `x"type` and `<script =type="application/json">` the one attribute `=type`, neither a `type`, in all three
+  engines (same run); `<script a'b type='application/json'>` keeps its `type` (the control). Consequence: the data-block
+  judgment (`dataBlock`, client and server) reads names as the parser does, so such a script is code, and a hole in it
+  is refused on both sides. 2026-11-23, Chromium, Firefox and WebKit (Playwright 1.65, headless, identical, matching
+  parse5): `<` belongs to a name too (`a<b`), and `a="x"=y` is `a` plus the name `=y`. Consequence: `@verajs/ssr` has
+  one attribute grammar, HTML's tokenizer rule, for its DOM's parser and for the rebuild of a nested component, which
+  had split `x"title="v"` into `x` plus a `title` nobody wrote. A name led by `=` is kept by the parser but refused by
+  `setAttribute`, the server DOM's only way in: its parser declines such markup, and the rebuild skips the name.
+- **A module Web Worker cannot load a graph holding a `node:` import.** A static `import … from 'node:async_hooks'` in
+  `@verajs/ssr` stopped its module loading in a worker in Chromium, Firefox and WebKit (Playwright 1.65, the gate's
+  `ssr-worker` rows, 2026-11-23: "Failed to fetch dynamically imported module" / "error loading dynamically imported
+  module: node:async_hooks"). Consequence: the package, which renders in a worker as well as on Node, takes a Node
+  built-in only through `process.getBuiltinModule` and works without it.
+- **A repeated attribute is its first occurrence.** `<a href="javascript:…" href="/safe">` is a `javascript:` link and
+  `<p title="first" TITLE="second">` has the title `first`, in Chromium, Firefox and WebKit (Playwright 1.65, headless,
+  2026-11-23, identical, matching parse5): the tokenizer drops a later name already on the tag, case-folded.
+  Consequence: `@verajs/ssr`'s parser and its nested-component rebuild keep the first, so what the server's DOM reads
+  is what the served bytes do.
+- **An element's text inside an `<svg>` is markup unless an integration point intervenes.** `<svg><style><img src=x
+  onerror=…></style></svg>` parses the `<img>` as an element, breaking out of the svg, in all three engines (same run):
+  an HTML `<style>` appended to an `<svg>` through the DOM is served there as SVG's. Consequence: `@verajs/ssr` writes a
+  `<style>` or `<script>`'s text raw only where its nearest non-HTML ancestor's content is HTML (`foreignObject`,
+  `desc`, `title`, a MathML text integration point) or there is none, and escapes it elsewhere. (2026-11-23)
+- **`createElement` names follow a relaxed first-character rule, and jsdom does not.** In Chromium 159, Firefox 159
+  and WebKit 27.2 (Playwright 1.65, headless, identical in all three): a name starting with an ASCII letter is refused
+  only for whitespace, `/`, `>` or NUL (`a!`, `a.b`, `A` created); one starting with `:`, `_` or a character from U+0080
+  is created when the rest holds only ASCII letters and digits, `-`, `.`, `:`, `_` and characters from U+0080 (`_a`,
+  `:a`, `éa`, `·a`, `_a·`), else refused (`_a!`, `_a/b`, `éa!`, `éa b`); any other first character is
+  `InvalidCharacterError` (`1a`, `-a`, `.a`). jsdom refuses `·a` and `a!` by the older XML name rule. Consequence:
+  `@verajs/ssr`'s DOM applies the engines' rule; the node differential checks the names jsdom agrees on and a browser
+  row (`ssr-element-names`) the rest. (2026-11-23)
+- **A name keeps VT, the other C0 controls and DEL; the parser's whitespace and NUL are refused.** In Chromium 159,
+  Firefox 159 and WebKit 27.2 (Playwright 1.65, headless, identical): `setAttribute` and `createElement` accept `a\vb`,
+  `a\x01b`, `a\x1fb` and `a\x7fb`, and refuse `a\tb`, `a\nb`, `a\fb`, `a\rb`, `a b` and `a\0b`
+  (`InvalidCharacterError`); a parser reading such a name back keeps it whole. jsdom refuses every control. Consequence:
+  `@verajs/ssr`'s DOM refuses only the parser's whitespace, NUL, `/`, `>` and `=` in a name (and quotes and `<` in a tag
+  name, which markup cannot carry); the spread rule, client and server, still refuses every control on purpose. (2026-11-23)
+- **A URL property reads its attribute resolved against the page's URL, and `about:blank` hides it.** On a page with a
+  real URL, in Chromium 159, Firefox 159 and WebKit 27.2 (Playwright 1.65, headless, 2026-11-23, identical): 20
+  reflected properties (`a.href`, `area.href`, `link.href`, `img.src`, `img.lowsrc`, `img.longDesc`, `iframe.src`,
+  `iframe.longDesc`, `embed.src`, `script.src`, `source.src`, `track.src`, `input.src`, `object.data`,
+  `object.codeBase`, `video.poster`, and `cite` on `blockquote`, `q`, `del`, `ins`) answer `''` when absent, the value
+  resolved against `document.baseURI` when it parses (`zz` → `http://host/dir/zz`, spaces trimmed and encoded), and the
+  value as written when it does not (`http://[bad`). On `about:blank` a relative value does not parse, so each read back
+  exactly what was written. `base.href`, `form.action` and `formAction` answer the document's URL when absent and
+  differ between engines (Chromium keeps the fragment in an absent `base.href` and reads `http://[bad` in `action` as
+  `http://[bad/`). Consequence: `@verajs/ssr`'s DOM reads the 20 as `url` rows, resolved the same way; the four stay
+  out of its table; the reflection table is measured on a page with a URL.
+- **Fragment parsing never attaches a declarative shadow root; the document parser and `setHTMLUnsafe` do.** In Chromium
+  159 (Playwright 1.65, headless, 2026-11-23): `<div><template shadowrootmode="open"><p>x</p><slot></slot></template>
+  <i>l</i></div>` assigned with `innerHTML` keeps the `<template>` as the host's first child, with no children, its
+  markup in `content` (2 nodes) and `shadowRootMode` `'open'`, and no `shadowRoot` on the host; the same markup parsed
+  by the document or by `setHTMLUnsafe` attaches the root (`host.shadowRoot.innerHTML` is the template's markup) and
+  leaves no template. A plain `<template>` is a template with content in all three ways. Consequence: `@verajs/ssr`'s
+  DOM parses markup as `innerHTML` does (the template keeps its markup as `content`, never its children), and has no
+  `setHTMLUnsafe` or `parseHTMLUnsafe`: `renderToString` decides where a declarative root is written.
 
 ## CSS and the cascade
 
@@ -1301,90 +1386,3 @@ For a fair race (each written the way that framework's own js-framework-benchmar
 - **Van.js 1.6:** per-row states, with DOM updates on a microtask.
 - **React:** a swap moves every row in between.
 (2026-10-18)
-- **A `<script>`'s URL chooses the code it runs, and an SVG script from a template still runs in WebKit.** A template's
-  content cloned and inserted: WebKit 27.2 runs an SVG `<script>`, inline and by `href` (a `data:` URL); Chromium
-  159 and Firefox 159 run neither; an HTML `<script>`, inline or by `src`, ran in none of the three; a
-  `createElement('script')` ran in all three (the positive control). Playwright 1.65, headless, 2026-11-22. Consequence:
-  a bound script URL (`src`, `.src`; an SVG script's `href`, `xlink:href`) is refused by every renderer and the server
-  (`script-source`): in WebKit a bound SVG script `href` runs the code it names on the client, and a page the server
-  rendered runs any script's `src` on load.
-
-(2026-11-23)
-- **A `<base href>` chooses where every later script loads from, relative and path-absolute alike.** Two origins on
-  localhost: a page whose `<head>` holds `<base href="http://127.0.0.1:8181/">` before `<script type="module" src="rel.js">`
-  and `<script type="module" src="/assets/abs.js">` loaded BOTH from the base's origin in Chromium 159, Firefox 159 and
-  WebKit 27.2 (Playwright 1.65, headed): as `@verajs/ssr` served a bound base, as a static base (the positive control),
-  and on the client when `@verajs/renderer` wrote the base into `<head>` and scripts were added after it; a base written
-  AFTER the scripts left both on the page's own origin (the negative control). Consequence: a bound `href` on a `<base>`
-  is refused by every renderer and the server (`base-href`), as a script's own URL is (`script-source`); a path-only
-  allowance was rejected because the URL parser reads `/\host` and a tab-split `//host` as another origin.
-- **A declarative shadow root can be served with manual slot assignment, and only with its attribute.** A host served
-  with `<template shadowrootmode="open"><slot></slot></template>` and two children: the client's
-  `attachShadow({ mode: 'open', slotAssignment: 'manual' })` returned the served root, its `slotAssignment` stayed
-  `'named'`, and `slot.assign(second)` changed nothing (both children slotted) in Chromium 159, Firefox 159 and WebKit
-  27.2 (Playwright 1.65, headed); with no served root (the control) the root was `'manual'` and only the assigned child
-  slotted. Served with `shadowrootslotassignment="manual"` on the template, the root was `'manual'` and `assign()` took
-  effect in all three. Consequence: `@verajs/ssr` writes that attribute for a root opened with `slotAssignment: 'manual'`.
-- **A script's text runs on past a `</script>` while it is double-escaped.** `<script><!--` then `var s =
-  '<script src=a.js></script>';` then `//--></script><p>after</p>`, parsed: ONE script, holding every line up to the
-  second `</script>`, then the `<p>`, in Chromium 159, Firefox 159 and WebKit 27.2 (Playwright 1.65, headless); a
-  script with `<!--` but no inner `<script` ended at its first `</script>` (the control). This is the standard's
-  escaped and double-escaped script-data states. Consequence: `@verajs/ssr` finds a script's end by those states, in its
-  template compiler and its DOM parser alike; a hole in such text is a script hole (`ssr-script-hole`).
-- **A quote or a leading `=` is part of an attribute name.** `<script x"type="application/json">` has the one
-  attribute `x"type` and `<script =type="application/json">` the one attribute `=type`, neither a `type`, in all three
-  engines (same run); `<script a'b type='application/json'>` keeps its `type` (the control). Consequence: the data-block
-  judgment (`dataBlock`, client and server) reads names as the parser does, so such a script is code, and a hole in it
-  is refused on both sides. 2026-11-23, Chromium, Firefox and WebKit (Playwright 1.65, headless, identical, matching
-  parse5): `<` belongs to a name too (`a<b`), and `a="x"=y` is `a` plus the name `=y`. Consequence: `@verajs/ssr` has
-  one attribute grammar, HTML's tokenizer rule, for its DOM's parser and for the rebuild of a nested component, which
-  had split `x"title="v"` into `x` plus a `title` nobody wrote. A name led by `=` is kept by the parser but refused by
-  `setAttribute`, the server DOM's only way in: its parser declines such markup, and the rebuild skips the name.
-- **A module Web Worker cannot load a graph holding a `node:` import.** A static `import … from 'node:async_hooks'` in
-  `@verajs/ssr` stopped its module loading in a worker in Chromium, Firefox and WebKit (Playwright 1.65, the gate's
-  `ssr-worker` rows, 2026-11-23: "Failed to fetch dynamically imported module" / "error loading dynamically imported
-  module: node:async_hooks"). Consequence: the package, which renders in a worker as well as on Node, takes a Node
-  built-in only through `process.getBuiltinModule` and works without it.
-- **A repeated attribute is its first occurrence.** `<a href="javascript:…" href="/safe">` is a `javascript:` link and
-  `<p title="first" TITLE="second">` has the title `first`, in Chromium, Firefox and WebKit (Playwright 1.65, headless,
-  2026-11-23, identical, matching parse5): the tokenizer drops a later name already on the tag, case-folded.
-  Consequence: `@verajs/ssr`'s parser and its nested-component rebuild keep the first, so what the server's DOM reads
-  is what the served bytes do.
-- **An element's text inside an `<svg>` is markup unless an integration point intervenes.** `<svg><style><img src=x
-  onerror=…></style></svg>` parses the `<img>` as an element, breaking out of the svg, in all three engines (same run):
-  an HTML `<style>` appended to an `<svg>` through the DOM is served there as SVG's. Consequence: `@verajs/ssr` writes a
-  `<style>` or `<script>`'s text raw only where its nearest non-HTML ancestor's content is HTML (`foreignObject`,
-  `desc`, `title`, a MathML text integration point) or there is none, and escapes it elsewhere.
-- **`createElement` names follow a relaxed first-character rule, and jsdom does not.** In Chromium 159, Firefox 159
-  and WebKit 27.2 (Playwright 1.65, headless, identical in all three): a name starting with an ASCII letter is refused
-  only for whitespace, `/`, `>` or NUL (`a!`, `a.b`, `A` created); one starting with `:`, `_` or a character from U+0080
-  is created when the rest holds only ASCII letters and digits, `-`, `.`, `:`, `_` and characters from U+0080 (`_a`,
-  `:a`, `éa`, `·a`, `_a·`), else refused (`_a!`, `_a/b`, `éa!`, `éa b`); any other first character is
-  `InvalidCharacterError` (`1a`, `-a`, `.a`). jsdom refuses `·a` and `a!` by the older XML name rule. Consequence:
-  `@verajs/ssr`'s DOM applies the engines' rule; the node differential checks the names jsdom agrees on and a browser
-  row (`ssr-element-names`) the rest.
-- **A name keeps VT, the other C0 controls and DEL; the parser's whitespace and NUL are refused.** In Chromium 159,
-  Firefox 159 and WebKit 27.2 (Playwright 1.65, headless, identical): `setAttribute` and `createElement` accept `a\vb`,
-  `a\x01b`, `a\x1fb` and `a\x7fb`, and refuse `a\tb`, `a\nb`, `a\fb`, `a\rb`, `a b` and `a\0b`
-  (`InvalidCharacterError`); a parser reading such a name back keeps it whole. jsdom refuses every control. Consequence:
-  `@verajs/ssr`'s DOM refuses only the parser's whitespace, NUL, `/`, `>` and `=` in a name (and quotes and `<` in a tag
-  name, which markup cannot carry); the spread rule, client and server, still refuses every control on purpose.
-- **A URL property reads its attribute resolved against the page's URL, and `about:blank` hides it.** On a page with a
-  real URL, in Chromium 159, Firefox 159 and WebKit 27.2 (Playwright 1.65, headless, 2026-11-23, identical): 20
-  reflected properties (`a.href`, `area.href`, `link.href`, `img.src`, `img.lowsrc`, `img.longDesc`, `iframe.src`,
-  `iframe.longDesc`, `embed.src`, `script.src`, `source.src`, `track.src`, `input.src`, `object.data`,
-  `object.codeBase`, `video.poster`, and `cite` on `blockquote`, `q`, `del`, `ins`) answer `''` when absent, the value
-  resolved against `document.baseURI` when it parses (`zz` → `http://host/dir/zz`, spaces trimmed and encoded), and the
-  value as written when it does not (`http://[bad`). On `about:blank` a relative value does not parse, so each read back
-  exactly what was written. `base.href`, `form.action` and `formAction` answer the document's URL when absent and
-  differ between engines (Chromium keeps the fragment in an absent `base.href` and reads `http://[bad` in `action` as
-  `http://[bad/`). Consequence: `@verajs/ssr`'s DOM reads the 20 as `url` rows, resolved the same way; the four stay
-  out of its table; the reflection table is measured on a page with a URL.
-- **Fragment parsing never attaches a declarative shadow root; the document parser and `setHTMLUnsafe` do.** In Chromium
-  159 (Playwright 1.65, headless, 2026-11-23): `<div><template shadowrootmode="open"><p>x</p><slot></slot></template>
-  <i>l</i></div>` assigned with `innerHTML` keeps the `<template>` as the host's first child, with no children, its
-  markup in `content` (2 nodes) and `shadowRootMode` `'open'`, and no `shadowRoot` on the host; the same markup parsed
-  by the document or by `setHTMLUnsafe` attaches the root (`host.shadowRoot.innerHTML` is the template's markup) and
-  leaves no template. A plain `<template>` is a template with content in all three ways. Consequence: `@verajs/ssr`'s
-  DOM parses markup as `innerHTML` does (the template keeps its markup as `content`, never its children), and has no
-  `setHTMLUnsafe` or `parseHTMLUnsafe`: `renderToString` decides where a declarative root is written.
