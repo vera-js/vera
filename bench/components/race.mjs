@@ -13,7 +13,8 @@
  * checkout built (`VERA_ROOT`, its `dist/*.min.js`, through the import map its components page writes).
  *
  * BAR (written before the data): per engine, each Vera arm's median <= the fastest competitor's median. CONTROL, every
- * sample: the page holds N controls of the race's role whose accessible name is the race's name (Playwright's own
+ * sample: when the clock stops, N of the race's controls are already rendered (counted in that same task, through
+ * shadow roots), and afterwards the page holds N controls of the race's role whose accessible name is the race's name (Playwright's own
  * computation, across shadow roots), so an arm that rendered nothing cannot read as fast.
  *
  * Run (from bench/): node components/race.mjs <field|checkbox> [samples per arm] [chromium|firefox|webkit]
@@ -74,6 +75,8 @@ const RACES = {
   field: {
     n: 300,
     role: 'textbox',
+    /** What the clock must already see rendered when it stops: N of these, in light DOM or any shadow root. */
+    atStop: 'input[type="email"]',
     name: 'Email',
     vera: {
       'vera field+input': {
@@ -97,6 +100,7 @@ const RACES = {
   checkbox: {
     n: 200,
     role: 'checkbox',
+    atStop: 'input[type="checkbox"]',
     name: 'Email me the newsletter',
     vera: {
       'vera checkbox': { load: ['checkbox'], ran: ['input[data-vera-checkbox]'], markup: `<vera-checkbox><label><input type="checkbox" name="news"> Email me the newsletter</label></vera-checkbox>` },
@@ -213,13 +217,25 @@ try {
     page.on('pageerror', (e) => said.push(e.message));
     await page.goto(`${origin}/page/${encodeURIComponent(arm)}`);
     await page.waitForFunction(() => window.ready === true, null, { timeout: 60000 });
-    const ms = await page.evaluate(async (n) => {
+    const { ms, seen } = await page.evaluate(async ([n, selector]) => {
       await new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(settled, 100))));
       const t0 = performance.now();
       await window.mount(n);
       void document.body.offsetHeight;
-      return performance.now() - t0;
-    }, N);
+      const t1 = performance.now();
+      /**
+       * Counted in the same task as the clock's stop, with nothing able to run in between: the controls the timed work
+       * rendered, through every shadow root, so a library that renders after the clock (a later microtask or frame)
+       * fails here rather than reading fast.
+       */
+      const deep = (root) => {
+        let found = root.querySelectorAll(selector).length;
+        for (const el of root.querySelectorAll('*')) if (el.shadowRoot) found += deep(el.shadowRoot);
+        return found;
+      };
+      return { ms: t1 - t0, seen: deep(document) };
+    }, [N, race.atStop]);
+    if (seen !== N) failed.push(`${arm}: ${seen} of ${race.atStop} rendered when the clock stopped`);
     const named = await page.getByRole(race.role, { name: race.name, exact: true }).count();
     if (named !== N || said.length) failed.push(`${arm}: ${named} named ${race.role}es${said.length ? `; ${said[0]}` : ''}`);
     for (const mark of race.vera[arm]?.ran ?? []) {
