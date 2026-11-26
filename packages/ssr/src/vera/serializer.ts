@@ -978,6 +978,30 @@ const compile = (strings: unknown, depth: number): Plan | null => {
   }
 
   /**
+   * **A static attribute written after a binding of its own name is never the client's** (2026-11-26). The client's
+   * parse of the template keeps the FIRST attribute of a name, any case, in foreign content too — the bound one — and
+   * drops a later static one, so `<a title=${v} title=x>` is `title` from `v` or no `title` at all. The server wrote the
+   * static after it, and when the binding wrote nothing (`null`, `undefined`, `?hidden=${false}`) the browser's parse of
+   * the served tag kept that static: `title="x"` served where the client has none (jsdom, both builds; also two holes in
+   * one tag, a static between them, a quoted static holding the name or a `>`). Each such static is removed here, from
+   * the static after the binding up to the tag's end, as `readTag` reads it: once per template, nothing per render, and
+   * only bytes the parser would discard when the binding does write. A static BEFORE a binding of its name is the
+   * other order, which the binding's `strip` already handles; a spread's keys are runtime data and are not seen here.
+   */
+  for (let i = 0, element = -1, bound: string[] = []; i < kinds.length; i++) {
+    const kind = kinds[i];
+    if (kind !== ATTRIBUTE && kind !== BOOLEAN) continue;
+    /** An attribute's earlier holes sit inside its value: only after its last one does the next static continue the tag. */
+    if (kind === ATTRIBUTE && groups[i]!.last !== i) continue;
+    if (elements[i] !== element) {
+      element = elements[i]!;
+      bound = [];
+    }
+    bound.push(names[i]!);
+    parts[i + 1] = withoutNames(parts[i + 1]!, bound);
+  }
+
+  /**
    * **A template ends where it began.** The client parses every template on its own, so whatever one leaves open — a
    * comment, a `<style>`, a `<textarea>`, an `<svg>` — the parser closes at its end. The server concatenates, and
    * left open, that state swallowed the PARENT's markup: `${html`<svg>`}<style>${x}</style>` wrote `x` raw inside what
@@ -1872,6 +1896,24 @@ const nextTag = (text: string, name: string, from: number): number => {
     if (c === first && isTagAt(text, at, name)) return at;
   }
   return -1;
+};
+
+/**
+ * `part` — a static that continues an open tag — without any attribute of the tag named in `names`, read up to the
+ * tag's end; the rest of the static is kept as it is (see `compile`, where a binding's own name was written first).
+ */
+const withoutNames = (part: string, names: readonly string[]): string => {
+  const tag = '<' + part;
+  const spans: number[] = [];
+  readTag(tag, 0, spans);
+  let out = tag;
+  for (let k = spans.length - 6; k >= 0; k -= 6)
+    for (let n = 0; n < names.length; n++)
+      if (nameIs(tag, spans[k + 1]!, spans[k + 2]!, names[n]!)) {
+        out = out.slice(0, spans[k]) + out.slice(spans[k + 5]);
+        break;
+      }
+  return out === tag ? part : out.slice(1);
 };
 
 /** `tag` without any attribute named `name`. Every copy goes: see `stripAttribute`. */

@@ -310,7 +310,9 @@ neither may carry anything from a request unsanitized. Everything else is checke
   client's `setAttribute` stores it, so nothing a value holds can end the attribute or start another.
   A hole that is the whole value omits the attribute for `null` and `undefined`, as the client does — an
   earlier static write of the same name included (`<a title=x title=${null}>` serves `<a>`); a hole joined
-  with statics contributes empty text.
+  with statics contributes empty text. A static of the same name AFTER a binding is never served, in any case
+  (`<a title=${null} TITLE=x>` serves `<a>`, `?hidden=${false} hidden` no `hidden`): the client's parse of the
+  template keeps only the first of a name, the bound one.
 - **A sigil binding is read by its attribute's name, whatever its value holds.** `@click="x${fn}"` and
   `&="x${r}"` are still the binding (the client ignores their statics), so nothing is written for them. A
   `?bool`, `.prop` or `!live` value with statics or several holes is one string, joined as the client joins
