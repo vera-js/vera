@@ -46,11 +46,31 @@ describe('vera-input: the stepper, wired', () => {
     const r = node.getBoundingClientRect();
     return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
   };
-  /** A real pointer press on `node`, held `ms` before release. */
+  /**
+   * A real pointer press on `node`, held `ms` before release. A short one (ms 0) is one click, down and up in a single
+   * Playwright call: as separate down and up commands, each a round trip through the runner, a loaded machine once held
+   * a short press past the 400 ms repeat delay (WebKit, a full gate: one press stepped twice). Its hold is read in the
+   * page, so a press the runner held too long says so instead of reading as a stepper that steps twice.
+   */
   const press = async (node, ms = 0) => {
+    if (ms === 0) {
+      let down = 0;
+      let held = -1;
+      const onDown = () => (down = performance.now());
+      const onUp = () => (held = performance.now() - down);
+      node.addEventListener('pointerdown', onDown);
+      node.addEventListener('pointerup', onUp);
+      await sendMouse({ type: 'click', position: center(node) });
+      node.removeEventListener('pointerdown', onDown);
+      node.removeEventListener('pointerup', onUp);
+      await sendMouse({ type: 'move', position: [0, 0] });
+      expect(held, `${ON}: CONTROL: the press reached the part, down and up`).to.be.at.least(0);
+      expect(held, `${ON}: the runner held a short press ${held.toFixed(0)} ms, past the stepper's 400 ms repeat delay; this reading is void, not the stepper's`).to.be.below(400);
+      return;
+    }
     await sendMouse({ type: 'move', position: center(node) });
     await sendMouse({ type: 'down' });
-    if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms));
+    await new Promise((resolve) => setTimeout(resolve, ms));
     await sendMouse({ type: 'up' });
     await sendMouse({ type: 'move', position: [0, 0] });
   };
