@@ -283,36 +283,40 @@ it('transition-mode play: the compositor animates, reverses from current, and li
   expect(y < -2, `the synthesized linear() carried the dip PAST the resting value (translateY ${y} at 70%)`).to.equal(true);
   await until(() => Math.abs(opacityOf(t) - 0.9) < 0.02, 'and landed on the authored end', 3000);
 
-  /** Reverse mid-flight: back above the line partway through a fresh run — the platform
-   *  reverses from the CURRENT value, retimed (the ratified semantics). */
   /**
-   * Reversed from a value that IS mid-flight. The compositor runs the entry while the main thread may be stalled, so a
-   * poll can miss the whole mid-range of one run (a loaded Firefox did, on Windows, 2026-11-21): up to three entries are
-   * tried, each from rest. Back at rest first: two frames into the 500 ms reverse the element still read ~0.8, so an
-   * entry started there never passed through the mid-range it is read in.
+   * Reverse mid-flight: back above the line partway through a run, and the platform reverses from the CURRENT value,
+   * retimed (the ratified semantics). Read with the transitions PAUSED, never as real-time samples: two frames after the
+   * scroll a loaded gate read the value 0.28 away from where the entry had been (WebKit, Windows, 2026-11-26), the same
+   * class as the ease row above. The entry is caught (a finished transition leaves getAnimations(), so up to three
+   * entries, each from rest), paused at half its duration and read; the scroll back flips the attribute, which starts the
+   * reversing transition from that paused value; paused at its own start (its delay), it must read that value. An
+   * endpoint start reads ~0.1 or ~0.9 there.
    */
-  let midFlight;
-  for (let attempt = 0; attempt < 3 && midFlight === undefined; attempt++) {
+  let entry;
+  for (let attempt = 0; attempt < 3 && entry === undefined; attempt++) {
     await scrollTo(0);
     await until(() => !t.hasAttribute('data-vm-on') && Math.abs(opacityOf(t) - 0.1) < 0.02, 'back at rest before the entry', 5000);
     window.scrollTo(0, t.offsetTop);
-    let seen;
-    if (await ever(() => ((seen = opacityOf(t)) > 0.3 && seen < 0.7), 2000)) midFlight = seen;
+    if (await ever(() => t.hasAttribute('data-vm-on') && t.getAnimations().some((a) => a.transitionProperty === 'filter'), 2000))
+      entry = t.getAnimations().find((a) => a.transitionProperty === 'filter');
   }
-  expect(midFlight, 'an entry was caught mid-flight, in three tries').to.be.a('number');
+  expect(entry, 'an entry transition was caught running, in three tries').to.not.equal(undefined);
+  entry.pause();
+  entry.currentTime = entry.effect.getTiming().delay + entry.effect.getTiming().duration * 0.5;
+  const midFlight = opacityOf(t);
+  expect(midFlight > 0.3 && midFlight < 0.7, `the entry paused at half is mid-flight (${midFlight})`).to.equal(true);
   window.scrollTo(0, 0);
-  await new Promise((r) => requestAnimationFrame(r));
-  await new Promise((r) => requestAnimationFrame(r));
-  const justAfter = opacityOf(t);
-  expect(Math.abs(justAfter - midFlight), 'reversal starts FROM the current value, never an endpoint')
-    .to.be.below(0.2);
-  const t1 = performance.now();
-  let back = false;
-  while (performance.now() - t1 < 2000) {
-    await new Promise((r) => requestAnimationFrame(r));
-    if (Math.abs(opacityOf(t) - 0.1) < 0.02) { back = true; break; }
-  }
-  expect(back, 'and settles back at the start').to.equal(true);
+  await until(() => !t.hasAttribute('data-vm-on'), 'the scroll back flipped the attribute', 3000);
+  await until(() => t.getAnimations().some((a) => a.transitionProperty === 'filter' && a !== entry), 'the reversing transition started', 3000);
+  const reverse = t.getAnimations().find((a) => a.transitionProperty === 'filter' && a !== entry);
+  reverse.pause();
+  /** At its start: a reversing transition may carry a shortened duration and an adjusted delay, so its own delay (never below 0). */
+  const { delay, duration } = reverse.effect.getTiming();
+  reverse.currentTime = Math.max(0, delay);
+  const start = opacityOf(t);
+  expect(Math.abs(start - midFlight), `reversal starts FROM the current value, never an endpoint (${start} vs ${midFlight}; delay ${delay}, duration ${duration})`).to.be.below(0.02);
+  reverse.play();
+  await until(() => Math.abs(opacityOf(t) - 0.1) < 0.02, 'and settles back at the start', 3000);
 });
 
 it('teardown returns the element to its natural state with the page scrolled anywhere', async () => {
@@ -353,13 +357,39 @@ it('a RAMP-KEPT play reverses on gate close — a reversed play, never a snap (t
   await settled();
   el.classList.add('go');
   const q = () => Number(el.style.getPropertyValue('--q'));
-  await until(() => q() > 0.99, 'the play to reach its end', 3000);
+  /** All the way: a ramp still running keeps its real frame queued, and the held clock below would step nothing. */
+  await until(() => q() === 1, 'the play to reach its end', 3000);
 
-  el.classList.remove('go');
-  /** Read at every poll on the way back, not at a chosen instant: a sweep shows a value between the ends; a snap never. */
-  expect(await ever(() => q() > 0.05 && q() < 0.95, 1500), 'mid-reverse the value is BETWEEN the ends — sweeping, not teleporting')
+  /**
+   * The reverse is stepped on a clock the test holds, frame by frame, and read at every frame: a sweep shows a value
+   * between the ends, a snap never. Polled in real time it was not: the ramp computes its value from elapsed time, so
+   * a main thread stalled past the 250 ms reverse (a loaded gate) took its first tick straight home, and the poll saw
+   * only the ends (the class of the reversal row above, 2026-11-26). The ramp reads `performance.now()` when it starts
+   * and each rAF's timestamp after, so those two are held for the reverse and put back after it — on the element's
+   * window, which motion's checks read (here the test's own, the module's too: the ramp ticks on its module's window).
+   */
+  const view = el.ownerDocument.defaultView;
+  expect(view === window, "the element's window is the module's: one clock to hold").to.equal(true);
+  const queued = [];
+  let now = view.performance.now();
+  const raf = view.requestAnimationFrame;
+  view.requestAnimationFrame = (callback) => queued.push(callback);
+  Object.defineProperty(view.performance, 'now', { value: () => now, configurable: true });
+  const swept = [];
+  try {
+    el.classList.remove('go');
+    await new Promise((r) => setTimeout(r, 0));
+    for (let k = 0; k < 60 && q() !== 0; k++) {
+      now += 16;
+      for (const callback of queued.splice(0)) callback(now);
+      swept.push(q());
+    }
+  } finally {
+    view.requestAnimationFrame = raf;
+    delete view.performance.now;
+  }
+  expect(swept.some((v) => v > 0.05 && v < 0.95), `mid-reverse the value is BETWEEN the ends — sweeping, not teleporting (${swept.join(' ')})`)
     .to.equal(true);
-  await until(() => q() === 0, 'the reverse to arrive home', 3000);
   expect(q(), 'and it arrived home').to.equal(0);
   el.remove();
   await settled();
