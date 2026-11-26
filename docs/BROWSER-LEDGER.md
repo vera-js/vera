@@ -271,6 +271,17 @@ from another machine, or after that is undone, has a variable changed.
   element is tracked and over-escaped, no breakout acts), never the foreign namespace below it; read as MathML there,
   a value written raw after the `<table>` closed the browser's title and injected. (Chromium 159, Firefox 159, WebKit
   27.2, headless, 2026-11-22.)
+- **Inside SVG or MathML, an end tag that matches no open foreign element is handed to the HTML rules at the first HTML
+  ancestor, and those can close an element outside the server's template.** The foreign-content rules walk up the open
+  elements; an SVG or MathML element of the tag's name is popped to, and otherwise the tag goes to the HTML rules for
+  "any other end tag", which close an HTML element of that name anywhere above. With the page's `<div id="host">`
+  around the template, `<math></div>` closes the host and the `<math>` with it, so the parse is in HTML; with no such
+  ancestor the tag is ignored and the parse stays in MathML. Served `<math></div><script><b><style>`, the `<script>` was
+  HTML raw text in the browser, while the SSR scan read it as a MathML element and let the `<b>` break out to HTML, so
+  the value in the `<style>` was written raw and its `</script>` ended the browser's script. Consequence: inside SVG or
+  MathML, an end tag that closes no element the scan opened makes the namespace unknown at that depth (the scan tracks
+  every foreign element, so a matched `</g>` keeps it known). (The browser fuzz on two rotated seeds, Chromium and
+  Firefox in CI, 2026-11-26; replayed here on Chromium and Firefox 159, and the rows read with jsdom's parser.)
 - **With scripting off, `<noscript>` content is HTML, and a text element left open in it takes the `</noscript>`.**
   `<noscript><textarea>`, `<title>`, `<style>` or `<xmp>` left open makes the server's `</noscript>`, and the page after
   it, the element's text. The `/` of `<textarea/>` is ignored, as on any HTML element. Consequence: the SSR scan tracks

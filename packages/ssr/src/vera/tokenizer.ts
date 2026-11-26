@@ -354,6 +354,23 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
     opens.push({ name: tagName, foreign, inert, space });
     return foreign;
   }
+  if (closing && (space === 'svg' || space === 'math') && tagName !== 'svg' && tagName !== 'math' && closeTo(opens, tagName) === -1) {
+    /**
+     * **An end tag in SVG or MathML that closes no element this scan opened** (2026-11-26, the browser fuzz on a
+     * rotated seed). The parser walks up the open elements, and at the first HTML one it hands the tag to the HTML
+     * rules, which close an HTML element of that name anywhere above, outside the template too: a page's
+     * `<div id="host">` around `<math></div><script><b><style>${v}` is closed by the `</div>`, the `<math>` with it,
+     * and the `<script>` is HTML raw text, where a value's `</script>` ends it and its `<img onerror>` ran (Chromium and
+     * Firefox). With no such element above, the tag is ignored and the parse stays in MathML. The scan cannot see the
+     * page, so the namespace becomes UNKNOWN at this depth, as at an integration point (above): a later `<script>` or
+     * `<style>` is tracked and over-escaped in both readings. Every foreign element is tracked (below), so an end tag
+     * of one the template opened (`<svg><g></g>`) closes it and keeps the namespace known. `</svg>` and `</math>` are
+     * the two names no HTML element has (their start tags always make SVG and MathML elements), so the HTML rules close
+     * nothing for them and they stay ignored, as `closeTo` says.
+     */
+    opens.push({ name: '', foreign, inert, space: '?' });
+    return foreign;
+  }
   if (closing || selfClosed) return foreign;
   /**
    * **Foreign content: raw text exists only for HTML elements.** Inside `<svg>`/`<math>`, `<style>`, `<title>`,
@@ -361,7 +378,8 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
    * would be served unquoted, unescaped and unrefused (an attribute hole became a live handler). So raw text is
    * recognized only at depth 0, which an HTML integration point restores for its content (see `SVG_POINTS`).
    * A breakout tag (`<svg><p>`) leaves it (see `BREAKOUT`). Deliberately incomplete on the SAFE side: an end tag
-   * the parser ignores keeps the depth, and so does a `<font>` whose `color`, `face` or `size` holds a hole (see
+   * the parser ignores keeps the depth (one it may hand to an element outside the template makes it unknown, above),
+   * and so does a `<font>` whose `color`, `face` or `size` holds a hole (see
    * `FONT_BREAKOUT`) — both only ever read raw text as markup, which over-escapes, never injects. `<noscript>` counts as foreign: markup to a parser with scripting off and raw text
    * to one with it on, so it is scanned as the first and escaped as neither can misread (see `TEXT_ONLY`), and
    * nothing inside it is an integration point. The depth a hole sits at is recorded for the template rendered
@@ -430,9 +448,14 @@ const structural = (opens: Open[], tagName: string, closing: boolean, selfClosin
      * So is one whose namespace is unknown (`space` is `''`: a template that inherited its depth, or inside
      * `<noscript>`/`<select>`), 2026-11-21: `html\`<svg>${html\`<script>${v}</script>\`}</svg>\`` read the child's
      * script as neither, wrote the hole as escaped text, which does nothing to code, and it ran in all three engines.
+     *
+     * **And every other element opened in SVG or MathML** (2026-11-26), so its end tag is told apart from one that
+     * closes nothing the template opened, which may close an element outside it (see the end-tag rule above). A
+     * breakout pops these with the rest of the foreign content (`breakOut`), and `closersOf` closes one a template
+     * leaves open, as the client's parse of that template does.
      */
     opens.push({ name: tagName, foreign, inert, space });
-  }
+  } else if (space === 'svg' || space === 'math') opens.push({ name: tagName, foreign, inert, space });
   return foreign;
 };
 

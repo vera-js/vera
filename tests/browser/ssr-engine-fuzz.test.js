@@ -23,7 +23,7 @@ import { expect } from '@esm-bundle/chai';
  * reaching the serializer shows; and no static of the alphabet holds the detector's id, so only a hole's value can.
  */
 
-const BASE = [777, 4242, 90001];
+const BASE = [777, 4242, 90001, 1020563245, 1504043507];
 const COUNT = 5000;
 const PLANT_EVERY = 500;
 const PLANT = '<div id="host"><img id=pwn src=x></div>';

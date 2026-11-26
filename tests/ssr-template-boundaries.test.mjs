@@ -104,7 +104,8 @@ test('a child that leaves state open cannot change how its parent parses', () =>
 test('the end closes what the template opened, innermost first — the client’s own end-of-input rule', () => {
   assert.match(served.rows['svg → style'].out, /^<div><svg><\/svg><style>/);
   assert.match(served.rows['twoDeep → style'].out, /^<div><svg><math><\/math><\/svg><style>/);
-  assert.match(served.rows['svgThenStyle → style'].out, /^<div><svg><style><\/svg><style>/);
+  /** An SVG `<style>` is an element the scan tracks like any foreign one, so the end closes it too. */
+  assert.match(served.rows['svgThenStyle → style'].out, /^<div><svg><style><\/style><\/svg><style>/);
   assert.match(served.rows['comment → style'].out, /^<div><!----><style>/);
   assert.match(served.rows['noscriptSlash → style'].out, /^<div><noscript\/><\/noscript><style>/, '`<noscript/>` opens a noscript');
 });
