@@ -557,6 +557,12 @@
       "message": "{where}: is not a selector this library will use — :has() and a few others are refused."
     },
     {
+      "code": "motion-ssr-not-a-page",
+      "params": [],
+      "message": "renderMotion takes the rendered page as a full document, and this one has no <head> — the server DOM's global document is not the page (a render returns a string), and an XML document has none.",
+      "fix": "Parse the rendered HTML into a document first — new JSDOM(html).window.document — and pass that."
+    },
+    {
       "code": "motion-stagger-no-descendants",
       "params": [],
       "message": "stagger needs animated descendants — it goes on the parent."

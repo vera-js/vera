@@ -131,16 +131,16 @@
       "gzip": 3865
     },
     "directives-motion": {
-      "raw": 80952,
-      "gzip": 26591
+      "raw": 81049,
+      "gzip": 26624
     },
     "motion": {
       "raw": 38061,
       "gzip": 12626
     },
     "motion-ssr": {
-      "raw": 38524,
-      "gzip": 12505
+      "raw": 38621,
+      "gzip": 12536
     },
     "motion-client": {
       "raw": 8561,

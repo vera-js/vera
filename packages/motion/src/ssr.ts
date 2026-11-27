@@ -26,7 +26,7 @@ import { generateSimple, inlineCssFor } from './generate.js';
 
 import { STAGGER_PROPERTY } from './registry.js';
 
-import { problemLine, registerVocabulary, setProblemReporter } from './schema.js';
+import { pageProblem, problemLine, registerVocabulary, setProblemReporter } from './schema.js';
 import type { DroppedElement, Generated, RenderMotionOptions, RenderMotionReport } from './types.js';
 
 
@@ -193,6 +193,17 @@ const emitDiagnostics = (
 export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): RenderMotionReport => {
   const problems: { code: string; args: readonly string[] }[] = [];
   setProblemReporter((code, args) => problems.push({ code, args: (args ?? []).map(String) }));
+  /**
+   * **A document without a real `<head>` is not a page, and is refused** (2026-11-27): the server DOM's global
+   * `document` (a render returns a string, so that document never holds the page; its `head` only hoists styles) and
+   * an XML document (`head` is null). The document sheet goes into `head`'s children, so both threw a bare TypeError
+   * once a motion element was found, and the server DOM's answered nothing for an empty body. Checked once per call,
+   * on the document only: a shadow root is its own sheet's parent.
+   */
+  if (!doc.head?.children) {
+    pageProblem('motion-ssr-not-a-page');
+    return { rendered: 0, skipped: 0, rules: 0, problems };
+  }
 
   const seams = ssrSeams(problems);
   for (const entry of options.wire ?? []) {

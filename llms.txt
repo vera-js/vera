@@ -1548,8 +1548,10 @@ one, `tick` may be the whole animation (no `keyframes` needed), and a throwing t
 its own element and reported, never the page. The escape hatch, not the road — it is a per-frame JS
 call, so prefer `keyframes` or `progress` wherever CSS can express the effect.
 **First frame everywhere** — the page is designed complete and motion derives from it, so the
-first frame can be server-made in ANY stack: vera SSR calls `renderMotion(document, { wire })`
-(host-agnostic — jsdom at build works for Astro/Next/Eleventy/anything); static HTML gets
+first frame can be server-made in ANY stack. `renderMotion(document, { wire })` takes the rendered
+page as a full document: parse vera SSR's output (a string) with jsdom and pass that. The server
+DOM's global `document` is not the page and is refused (`motion-ssr-not-a-page`). That is
+host-agnostic: jsdom at build works for Astro/Next/Eleventy/anything. Static HTML gets
 `npx vera-motion-emit dist/**/*.html` (jsdom as a devDependency), which post-processes built
 files through the same pipeline; buildless pages either load the script as a BLOCKING tag at the
 end of `<body>` (beats first paint on most pages), opt into `data-vd-cloak` (hidden until

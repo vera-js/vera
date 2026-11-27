@@ -15,7 +15,7 @@ their own runtime, or emit first frames at build time.
 | entry | size (min+gzip) | what |
 | --- | --- | --- |
 | `@verajs/motion` / `./core` | <!--size:motion.gzip.bytes-->12 626 B<!--/size:motion.gzip.bytes--> | compiler + writer: parse the attribute, generate the CSS, name it deterministically |
-| `./ssr` | <!--size:motion-ssr.gzip.bytes-->12 505 B<!--/size:motion-ssr.gzip.bytes--> | `renderMotion(document)` — mark every in-scope element, emit one sheet per tree |
+| `./ssr` | <!--size:motion-ssr.gzip.bytes-->12 536 B<!--/size:motion-ssr.gzip.bytes--> | `renderMotion(document)` — mark every in-scope element, emit one sheet per tree |
 | `./client` | <!--size:motion-client.gzip.bytes-->3 149 B<!--/size:motion-client.gzip.bytes--> | the reader: delivery, drive and registered functions, **no compiler** — the front-end cost when a server generated everything |
 
 `./internal` also exists: the first-party seam the directives pack wires. It carries no stability
@@ -34,6 +34,10 @@ text, audio; the attribute names a function and never contains one).
 `vera-motion-emit` (this package's bin) rewrites static HTML files so motion elements paint their
 first frame from emitted CSS before any JavaScript loads — the same output `renderMotion`
 produces on a live server. Any toolchain that ends in HTML files can run it as a build step.
+
+`renderMotion(document, { wire })` takes the rendered page as a full document: parse vera SSR's
+output (a string) with jsdom and pass that. The server DOM's global `document` is not the page and
+is refused (`motion-ssr-not-a-page`).
 
 ### Seeing what the server refused
 

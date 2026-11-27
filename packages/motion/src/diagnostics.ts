@@ -18,6 +18,11 @@ export const PROSE: Record<string, Prose> = {
    * caller composes the prefix itself.
    */
   'motion-no-value': () => ['motion: no value — name a preset or write an object.'],
+  'motion-ssr-not-a-page': () => [
+    'renderMotion takes the rendered page as a full document, and this one has no <head> — the server DOM\'s ' +
+    'global document is not the page (a render returns a string), and an XML document has none.',
+    'Parse the rendered HTML into a document first — new JSDOM(html).window.document — and pass that.',
+  ],
   'motion-not-object': () => ['motion: the braced form must be an object of keys.'],
   'motion-keyframes-not-object': () => [
     'motion: keyframes takes an object of properties.',
