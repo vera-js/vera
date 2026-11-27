@@ -470,6 +470,15 @@ const textOf = (container: ContainerShim): string => {
 export const parseChunks = (container: ContainerShim): void => {
   if (container._parsed) return;
   container._parsed = true;
+  /** Parsed in the space the container's content is in (an `<svg>`'s interior as SVG, 2026-11-18). */
+  const space = contentSpace(container as unknown as Parameters<typeof contentSpace>[0]);
+  /**
+   * **An HTML `<html>` element's content is not parsed** (2026-11-27): there the engines run the before-head, in-head
+   * and after-head modes, which put `<div>a</div>` inside an implied `<body>` and add an implied `<head>`, and Chromium
+   * 159, Firefox 159, WebKit 27.2 and jsdom agreed on 12 rows of which a plain fragment parse got 7 wrong. The markup
+   * stays a string, as any declined markup does.
+   */
+  if (space === 'html' && (container as { localName?: string }).localName === 'html') return;
   const entries: EntryShim[] = [];
   let gained = false;
   for (const entry of container._entries) {
@@ -477,12 +486,11 @@ export const parseChunks = (container: ContainerShim): void => {
       entries.push(entry);
       continue;
     }
-    /** Parsed in the space the container's content is in (an `<svg>`'s interior as SVG, 2026-11-18). */
     const parsed = parseFragment(entry, {
       element: (name: string, namespaceURI?: string) => build(name, namespaceURI),
       text: (data: string) => new TextShim(data),
       comment: (data: string) => new CommentShim(data),
-    }, contentSpace(container as unknown as Parameters<typeof contentSpace>[0]));
+    }, space);
     let round = '';
     if (parsed) for (const node of parsed) round += serializeEntry(node);
     if (!parsed || round !== entry) {
