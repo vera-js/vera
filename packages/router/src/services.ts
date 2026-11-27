@@ -800,12 +800,11 @@ export const navigate = async (
   committedId = id;
 
   /**
-   * History first (hashless path, query kept), fragment second: `applyHash` needs the routed
-   * content in the DOM to scroll to, and its `location.replace` swaps the entry just written, so
-   * the whole navigation costs exactly one entry. Under `pushHash: false` the fragment never
-   * reaches the URL — it is handed to `hashChangeFunction` alone.
+   * History first (the page, `pageOf`: its path's trailing slash stripped, its query as written), fragment second:
+   * `applyHash` needs the routed content in the DOM to scroll to, and its `location.replace` swaps the entry just
+   * written, so the whole navigation costs exactly one entry. Under `pushHash: false` the fragment never reaches the
+   * URL — it is handed to `hashChangeFunction` alone.
    */
-  /** The address the history gets: the page (`pageOf`), its path's trailing slash stripped and its query as written. */
   updateHistory(page, trigger);
   if (hashIndex > 0) applyHash(hash, trigger);
   else {
