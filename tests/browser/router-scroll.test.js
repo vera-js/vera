@@ -27,8 +27,12 @@ const startPath = location.pathname;
 const spacer = document.createElement('div');
 spacer.style.height = '5000px';
 
+/** Every router a test mounts, removed after it even when it fails, so a red row cannot lengthen the next one's page. */
+const mounted = [];
+
 beforeEach(() => document.body.appendChild(spacer));
 afterEach(() => {
+  for (const el of mounted.splice(0)) el.remove();
   spacer.remove();
   scrollTo(0, 0);
   history.replaceState(null, '', startPath);
@@ -39,6 +43,7 @@ it('Back restores a scrolled entry, lands an unscrolled one at the top, and a pu
   const view = document.createElement('main');
   el.appendChild(view);
   document.body.appendChild(el);
+  mounted.push(el);
   initRouter(el, { view, handleInitial: false, focusView: false }).addRoutes([
     { path: '/bs-a', component: () => '<p>a</p>' },
     { path: '/bs-b', component: () => '<p>b</p>' },
@@ -78,6 +83,7 @@ const fragmentRouter = (prefix) => {
   const view = document.createElement('main');
   el.appendChild(view);
   document.body.appendChild(el);
+  mounted.push(el);
   initRouter(el, { view, handleInitial: false, focusView: false }).addRoutes([
     { path: `/${prefix}-c`, component: () => `<h2 id="${prefix}-sec">c</h2><div style="height:3000px"></div>` },
     { path: `/${prefix}-d`, component: () => '<p>d</p>' },
@@ -142,6 +148,7 @@ it('Back to an entry scrolled past the end of the next, shorter route comes back
   const view = document.createElement('main');
   el.appendChild(view);
   document.body.appendChild(el);
+  mounted.push(el);
   initRouter(el, { view, handleInitial: false, focusView: false }).addRoutes([
     { path: '/bl-long', component: () => '<div style="height:6000px"></div>' },
     { path: '/bl-short', component: () => '<p>short</p>' },
@@ -165,6 +172,7 @@ it('a scroll made while the next route loads is the position Back comes back to'
   const view = document.createElement('main');
   el.appendChild(view);
   document.body.appendChild(el);
+  mounted.push(el);
   let loaded;
   initRouter(el, { view, handleInitial: false, focusView: false }).addRoutes([
     { path: '/bw-long', component: () => '<div style="height:6000px"></div>' },
@@ -195,6 +203,7 @@ it('a scroll made while an async component is pending is not kept: Back comes ba
   const view = document.createElement('main');
   el.appendChild(view);
   document.body.appendChild(el);
+  mounted.push(el);
   let paint;
   initRouter(el, { view, handleInitial: false, focusView: false }).addRoutes([
     { path: '/bc-long', component: () => '<div style="height:6000px"></div>' },
