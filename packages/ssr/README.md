@@ -567,7 +567,12 @@ markup itself is served byte for byte as it was written.
   PARSES is closed at the template's end on the server too — a comment, `<style>`/`<script>`, `<textarea>` and the
   other text-only elements, `<svg>`, `<math>`, `<noscript>`, `<template>` — so a child can never reach its
   parent's markup. A plain `<b>` or `<div>` left open is not closed, so the parent's next markup nests inside it
-  on the server and beside it on the client. Close every element inside the template that opens it.
+  on the server and beside it on the client. Close every element inside the template that opens it. That
+  includes the elements whose end tag HTML lets you omit: a template ending in `<p>text` or `<li>item` lets the
+  parent's next markup into that paragraph or item on the server. An end tag the browser ignores leaves its element
+  open the same way: `</div>` cannot close across an open `<table>`, and `</noscript>` or `</foreignObject>` does not
+  close while a `<div>` inside it is open. The server does not warn about any of this, because a check that parsed
+  every template flagged well-formed markup (a table written without `<tbody>`) as well as the real leaks.
 - **A value inside a comment keeps the server's spacing.** Neither side writes a value into a comment, but where a
   binding is dropped the server leaves one space, so the statics on either side cannot join into another token:
   `<!--a${x}b-->` is served as `<!--a b-->` where the client writes `<!--ab-->`. Hydration keeps a comment's text,
