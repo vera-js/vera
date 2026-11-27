@@ -193,3 +193,15 @@ export const removeHashFragment = (str: string): [string, number] => {
   const trimmedHref = hashIndex > 0 ? str.substring(0, hashIndex) : str;
   return [trimmedHref, hashIndex];
 };
+
+/**
+ * **A URL's page**: its path with the trailing slash stripped, then its query as written, without the fragment
+ * (2026-11-27). Only the path loses a trailing slash: a slash at the end of a query or a fragment is the author's. One
+ * rule for both sides of "is this the same page" (so `/p/?q=1#x` while on `/p?q=1` is a hash change, whichever side
+ * spells the slash) and for the address the history is given.
+ */
+export const pageOf = (url: string): string => {
+  const [withoutHash] = removeHashFragment(url);
+  const queryIndex = withoutHash.indexOf('?');
+  return queryIndex === -1 ? stripTrailingSlash(withoutHash) : stripTrailingSlash(withoutHash.slice(0, queryIndex)) + withoutHash.slice(queryIndex);
+};

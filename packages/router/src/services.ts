@@ -3,7 +3,7 @@ import type { ElementsData, MatchFunction, ParamData, Route, RouteParams, RouteT
 import type { Inserts } from '@verajs/inserts';
 
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
-import { emitEvent, focusView, removeHashFragment } from './utils.js';
+import { emitEvent, focusView, pageOf, removeHashFragment } from './utils.js';
 import { warnStringVerdict } from './events.js';
 import { diagnostic, hasWarned, misuse, SHARED, stripTrailingSlash, warnOnce } from '@verajs/shared-utils';
 import { PROSE } from './diagnostics.js';
@@ -640,8 +640,8 @@ export const navigate = async (
    *  leaves the committed pair exactly as it was. */
   state.pendingParams = {};
 
-  const [newPath, hashIndex] = removeHashFragment(path);
-  const [oldPath] = removeHashFragment(state.currentPath);
+  const hashIndex = path.indexOf('#');
+  const page = pageOf(path);
 
   /**
    * The query rides along in the URL but never reaches pattern matching — `/users?page=2` must
@@ -651,13 +651,13 @@ export const navigate = async (
    * end of either is the author's. Stripping the whole URL first took `/p#!/x/`'s fragment slash, and
    * left `/p/#top/` and `/p/?q=a/` with their path slash, so they matched no route at all.
    */
-  const queryIndex = newPath.indexOf('?');
-  const matchPath = stripTrailingSlash(queryIndex === -1 ? newPath : newPath.slice(0, queryIndex));
-  const query = new URLSearchParams(queryIndex === -1 ? '' : newPath.slice(queryIndex));
+  const queryIndex = page.indexOf('?');
+  const matchPath = queryIndex === -1 ? page : page.slice(0, queryIndex);
+  const query = new URLSearchParams(queryIndex === -1 ? '' : page.slice(queryIndex));
   const hash = hashIndex > 0 ? path.substring(hashIndex) : hashIndex === 0 ? path : '';
 
   /** If the path is the same but the hash is the source of the change */
-  if ((hashIndex > -1 && newPath === oldPath) || hashIndex === 0) {
+  if ((hashIndex > -1 && page === pageOf(state.currentPath)) || hashIndex === 0) {
     hashChange(hash);
     /** The native hash assignment (under `pushHash`) already created the entry — record only. */
     state.currentPath = path;
@@ -805,8 +805,8 @@ export const navigate = async (
    * the whole navigation costs exactly one entry. Under `pushHash: false` the fragment never
    * reaches the URL — it is handed to `hashChangeFunction` alone.
    */
-  /** The address the history gets: the path as matched (its trailing slash stripped) and the query as written. */
-  updateHistory(queryIndex === -1 ? matchPath : matchPath + newPath.slice(queryIndex), trigger);
+  /** The address the history gets: the page (`pageOf`), its path's trailing slash stripped and its query as written. */
+  updateHistory(page, trigger);
   if (hashIndex > 0) applyHash(hash, trigger);
   else {
     /**

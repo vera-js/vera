@@ -93,3 +93,23 @@ test("navigating to a URL with a trailing slash in its path, query or fragment: 
       assert.equal(window.location.hash, url.hash, `${href}: the fragment`);
     }
 });
+
+/**
+ * **The same page with a new fragment is a hash change, however the path's trailing slash is spelled** (2026-11-27): the
+ * "same page" test compares the two URLs' paths and queries, each with the path's trailing slash stripped, so a
+ * navigation that only adds a fragment never re-runs the route. Each row lands on one spelling and navigates to the
+ * other with a fragment; the route snapshot's trigger says which branch ran.
+ */
+for (const [from, to] of [['/p?q=1', '/p/?q=1#x'], ['/q', '/q/#x'], ['/r/?q=1', '/r?q=1#x'], ['/search/', '/search#x']])
+  test(`on ${from}, navigating to ${to} is a hash change: the route does not run again`, async () => {
+    const landed = await landRoute(from);
+    assert.ok(landed, 'CONTROL: the landing routed');
+    const seen = [];
+    window.addEventListener('vera:after-route', (event) => seen.push(event.detail), { once: true });
+    await navigate(to);
+    await tick();
+    assert.equal(window.location.hash, '#x', 'the fragment applied');
+    assert.equal(currentRoute().hash, '#x', 'currentRoute() has it');
+    assert.equal(seen.length, 1, 'CONTROL: after-route fired once');
+    assert.equal(seen[0]?.currentRoute?.trigger, 'hashchange', 'a hash change, not a navigation');
+  });
