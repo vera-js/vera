@@ -14,7 +14,7 @@ await import('@verajs/ssr');
 const real = new JSDOM('<!doctype html><body></body>').window.document;
 const shim = globalThis.document;
 
-const describe = (n) => n.nodeType === 3 ? JSON.stringify(n.data) : `${n.localName}(${[...n.childNodes].map(describe).join(',')})`;
+const describe = (n) => n.nodeType === 3 ? JSON.stringify(n.data) : n.nodeType === 8 ? `<!--${n.data}-->` : `${n.localName}(${[...n.childNodes].map(describe).join(',')})`;
 
 /** Every warning a block prints, so a decline is seen as one rather than inferred from an empty answer. */
 const warnings = (run) => {
@@ -53,16 +53,33 @@ test('a fragment holding html, head or body tags is declined, served as assigned
   assert.equal(declined, 1, 'the decline warned, once');
 });
 
-test('markup without those tags still parses (the decline is by name, not by everything)', () => {
-  const markup = '<ul><li>a<li>b</ul><p>x<b>y</b></p>';
-  const theirs = real.createElement('div');
-  theirs.innerHTML = markup;
-  const host = shim.createElement('div');
-  host.innerHTML = markup;
-  assert.equal(describe(host), describe(theirs));
-  assert.equal(host.innerHTML, markup);
+test('markup without those tags still parses: the decline is by exact name, and only on a tag', () => {
+  const ROWS = [
+    '<ul><li>a<li>b</ul><p>x<b>y</b></p>',
+    /** Names that only begin like the declined ones. */
+    '<header>h</header><bodyx>b</bodyx><head-er>c</head-er>',
+    /** The names inside raw text, RCDATA, a comment and an attribute value are not tags. */
+    '<script>"</body>"</script>', '<textarea></body></textarea>', '<title></html></title>', '<!-- </head> -->x',
+    '<p title="</body>">x</p>',
+    /** A `<template>`'s interior is kept whole (`OPAQUE`), as it was before. */
+    '<template><body>t</body></template>',
+  ];
+  for (const markup of ROWS) {
+    const theirs = real.createElement('div');
+    theirs.innerHTML = markup;
+    assert.ok(theirs.childNodes.length > 0, `CONTROL: the parser read ${markup}`);
+    const host = shim.createElement('div');
+    host.innerHTML = markup;
+    assert.ok(host.childNodes.length > 0, `${markup}: parsed, not declined`);
+    assert.equal(describe(host), describe(theirs), markup);
+    assert.equal(host.innerHTML, markup, `${markup}: served as assigned`);
+  }
 });
 
+/**
+ * After a declined assignment the document still answers, but not as a browser does: `title` is `''` where a browser
+ * reads the `<title>` it parsed. That is the decline's cost, so only "answers without throwing" is asserted, never ''.
+ */
 test('an html element\'s content is declined, and the document still answers body and title', () => {
   for (const markup of ['<head><title>t</title></head><body>x</body>', '<div>a</div>']) {
     const theirs = real.createElement('html');
@@ -72,6 +89,6 @@ test('an html element\'s content is declined, and the document still answers bod
     assert.equal(shim.documentElement.childNodes.length, 0, `${markup}: declined`);
     assert.equal(shim.documentElement.innerHTML, markup, `${markup}: served as assigned`);
     assert.equal(shim.body.localName, 'body');
-    assert.equal(shim.title, '');
+    assert.equal(typeof shim.title, 'string');
   }
 });
