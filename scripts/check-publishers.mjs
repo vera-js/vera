@@ -15,7 +15,8 @@
  *     nothing shows that npm will take CI's token for it; or
  *   - the package was never published at all (a first publish is made by hand, by rule, before a release includes it).
  *
- * A registry it cannot read is red too, never a pass: "could not check" must not read as "checked".
+ * A registry it cannot read is red too, never a pass: "could not check" must not read as "checked". Each read is tried
+ * three times first (`readRecord`), so one dropped request does not turn the gate or CI red.
  *
  * What it cannot see: npm binds a package's Trusted Publisher to the publishing workflow BY FILE NAME
  * (`.github/workflows/release.yml`). Renaming that file breaks every publish while each verdict here still reads ok.
@@ -28,18 +29,12 @@
 import { readFileSync } from 'node:fs';
 import { sep } from 'node:path';
 import { packageDirs } from './packages.mjs';
-import { entry, verdict } from './publisher-verdict.mjs';
+import { entry, readRecord, verdict } from './publisher-verdict.mjs';
 
 const REGISTRY = (process.env.VERA_NPM_REGISTRY ?? 'https://registry.npmjs.org').replace(/\/$/, '');
-const TIMEOUT_MS = 15_000;
 
-/** The registry's record of a package, `null` for one it does not know; throws when the registry cannot be read. */
-const record = async (name) => {
-  const response = await fetch(`${REGISTRY}/${name.replace('/', '%2f')}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`the registry answered ${response.status} for ${name}`);
-  return response.json();
-};
+/** The registry's record of a package, `null` for one it does not know; throws when three reads in a row fail. */
+const record = (name) => readRecord(name, { registry: REGISTRY });
 
 const read = process.argv.indexOf('--read');
 try {
