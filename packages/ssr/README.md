@@ -510,7 +510,8 @@ dependency involved.
   markup, and the page serves it as it reads: a `<script>` in it runs when the page loads, and a
   `<template shadowrootmode>` attaches a shadow root, where a browser's own assignment does neither. Assign only
   markup you trust, as in a browser, where an assignment already runs an `<img onerror>` handler in it. Markup that
-  holds a script is bound with `.innerHTML=${markup}`, which serves the script inert.
+  holds a script or a declarative shadow root is bound with `.innerHTML=${markup}`, which serves the script inert
+  and leaves the shadow root unattached.
 - **A created or parsed `<pre>`, `<listing>` or `<textarea>` whose text begins with a line feed reads back with
   one extra line feed from `innerHTML`/`outerHTML`.** The parser takes one line feed right after those start tags,
   and a browser's own serialization does not account for it — Chromium, Firefox and WebKit serialize the text
