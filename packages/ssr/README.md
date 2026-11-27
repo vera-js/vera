@@ -506,6 +506,11 @@ dependency involved.
   detached element in a browser. A `style` value is kept as written (`url("data:…")` keeps its quotes).
 - `insertAdjacentHTML` with `beforebegin` or `afterend` on an element with no parent (a component's own root)
   raises `NoModificationAllowedError`, as a browser does; on any element inside one it places the markup beside it.
+- **Markup a component assigns is served as written.** `innerHTML`, `outerHTML` and `insertAdjacentHTML` store the
+  markup, and the page serves it as it reads: a `<script>` in it runs when the page loads, and a
+  `<template shadowrootmode>` attaches a shadow root, where a browser's own assignment does neither. Assign only
+  markup you trust, as in a browser, where an assignment already runs an `<img onerror>` handler in it. Markup that
+  holds a script is bound with `.innerHTML=${markup}`, which serves the script inert.
 - **A created or parsed `<pre>`, `<listing>` or `<textarea>` whose text begins with a line feed reads back with
   one extra line feed from `innerHTML`/`outerHTML`.** The parser takes one line feed right after those start tags,
   and a browser's own serialization does not account for it — Chromium, Firefox and WebKit serialize the text

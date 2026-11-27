@@ -1911,6 +1911,9 @@ Rules an assistant must not guess around:
   effects reach the markup through BOTH entry points.
 - Renders take a turn each across both entry points, so concurrent calls cannot see each other's
   state. Pass `location` per call; never assign `globalThis.location`.
+- **Markup a component assigns is served as written**: `innerHTML`, `outerHTML` and `insertAdjacentHTML` on the
+  server store it, so a `<script>` in it runs when the served page loads, where a browser's own assignment never runs
+  one. Assign only trusted markup; for markup with a script, bind `.innerHTML=${markup}`, which serves it inert.
 - **What every render shares is put back when it ends**: the title, the `<html>` and `<body>` elements and their
   attributes (`lang`), and `document.cookie` (`undefined` until a render writes it). A module's top-level writes stay; a write from work a finished
   render left running is refused.
