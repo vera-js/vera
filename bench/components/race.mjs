@@ -42,6 +42,18 @@ const ENGINE = process.argv[4] ?? 'chromium';
  * work after idle. `RAMP_MS=0` times the settled page as before.
  */
 const RAMP_MS = Number(process.env.RAMP_MS ?? 100);
+/**
+ * **Every page is cross-origin isolated** (COOP same-origin + COEP require-corp, 2026-11-27), and Firefox is launched with
+ * `privacy.reduceTimerPrecision` off: isolated, an engine gives `performance.now()` its fine resolution instead of whole
+ * milliseconds (on this laptop: Firefox's step 1 ms without it, under 0.1 µs with it; WebKit's 20 µs with it), so a
+ * ~30 ms sample is read in far more than thirty steps. Everything the pages load is served from this origin, so the policy blocks nothing. Each sample
+ * asserts `crossOriginIsolated`, and the race prints the smallest step the clock took, as `bench/dom/race.mjs --coi` does.
+ */
+const ISOLATION = { 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' };
+const LAUNCH = {
+  headless: false,
+  ...(ENGINE === 'firefox' ? { firefoxUserPrefs: { 'privacy.reduceTimerPrecision': false, 'privacy.reduceTimerPrecision.unconditional': false } } : {}),
+};
 const OUT = join(HERE, '.out');
 mkdirSync(OUT, { recursive: true });
 
@@ -183,12 +195,12 @@ const server = createServer((req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
   const send = (path) => {
     try {
-      res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream' }).end(readFileSync(path));
+      res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream', ...ISOLATION }).end(readFileSync(path));
     } catch {
       res.writeHead(404).end();
     }
   };
-  if (url.startsWith('/page/')) return res.writeHead(200, { 'content-type': 'text/html' }).end(PAGES[url.slice(6)]);
+  if (url.startsWith('/page/')) return res.writeHead(200, { 'content-type': 'text/html', ...ISOLATION }).end(PAGES[url.slice(6)]);
   if (url.startsWith('/out/')) return send(join(OUT, url.slice(5)));
   if (url.startsWith('/sl/')) return send(join(BENCH, 'node_modules/@shoelace-style/shoelace/dist/themes', url.slice(4)));
   if (url.startsWith('/packages/')) return send(join(VERA_ROOT, url));
@@ -213,19 +225,20 @@ for (let i = order.length - 1; i > 0; i--) {
 const engine = { chromium, firefox, webkit }[ENGINE];
 const times = Object.fromEntries(Object.keys(PAGES).map((arm) => [arm, []]));
 const failed = [];
+const ticks = [];
 /** Firefox gets a fresh browser per page (its process reuse carries state between pages); the others a fresh page. */
-let browser = ENGINE === 'firefox' ? null : await engine.launch({ headless: false });
+let browser = ENGINE === 'firefox' ? null : await engine.launch(LAUNCH);
 let version = '';
 try {
   for (const arm of order) {
-    if (ENGINE === 'firefox') browser = await engine.launch({ headless: false });
+    if (ENGINE === 'firefox') browser = await engine.launch(LAUNCH);
     version = browser.version();
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const said = [];
     page.on('pageerror', (e) => said.push(e.message));
     await page.goto(`${origin}/page/${encodeURIComponent(arm)}`);
     await page.waitForFunction(() => window.ready === true, null, { timeout: 60000 });
-    const { ms, seen } = await page.evaluate(async ([n, selector, ramp]) => {
+    const { ms, seen, isolated, tick } = await page.evaluate(async ([n, selector, ramp]) => {
       await new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(settled, 100))));
       const ramped = performance.now() + ramp;
       while (performance.now() < ramped);
@@ -243,8 +256,18 @@ try {
         for (const el of root.querySelectorAll('*')) if (el.shadowRoot) found += deep(el.shadowRoot);
         return found;
       };
-      return { ms: t1 - t0, seen: deep(document) };
+      const seen = deep(document);
+      /** The clock's smallest step, read after the timed window (so it costs the sample nothing). */
+      let tick = Infinity;
+      for (let i = 0, last = performance.now(); i < 2000; i++) {
+        const now = performance.now();
+        if (now > last) tick = Math.min(tick, now - last);
+        last = now;
+      }
+      return { ms: t1 - t0, seen, isolated: globalThis.crossOriginIsolated === true, tick };
     }, [N, race.atStop, RAMP_MS]);
+    if (!isolated) failed.push(`${arm}: the page is not cross-origin isolated`);
+    ticks.push(tick);
     if (seen !== N) failed.push(`${arm}: ${seen} of ${race.atStop} rendered when the clock stopped`);
     const named = await page.getByRole(race.role, { name: race.name, exact: true }).count();
     if (named !== N || said.length) failed.push(`${arm}: ${named} named ${race.role}es${said.length ? `; ${said[0]}` : ''}`);
@@ -267,6 +290,7 @@ const median = (xs) => {
 };
 const m = Object.fromEntries(Object.entries(times).map(([arm, xs]) => [arm, median(xs)]));
 console.log(`${RACE} x${N}, ${ENGINE} ${version}, ${SAMPLES} fresh pages per arm, settled then a ${RAMP_MS} ms spin before t0`);
+console.log(`cross-origin isolated; the clock's smallest step ${(Math.max(...ticks) * 1000).toFixed(2)} µs (the coarsest page)`);
 console.log(`versions: react ${versionOf('react')}, @mui/material ${versionOf('@mui/material')}, @chakra-ui/react ${versionOf('@chakra-ui/react')}, @shoelace-style/shoelace ${versionOf('@shoelace-style/shoelace')}`);
 for (const [arm, ms] of Object.entries(m).sort((a, b) => a[1] - b[1]))
   console.log(`  ${arm.padEnd(22)} ${ms.toFixed(2).padStart(8)} ms   (min ${Math.min(...times[arm]).toFixed(2)}, max ${Math.max(...times[arm]).toFixed(2)})`);

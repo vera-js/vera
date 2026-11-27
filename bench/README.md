@@ -113,7 +113,9 @@ Chakra's `Checkbox`, Shoelace's `<sl-checkbox>`, and the floor. The time runs fr
 each sample in a fresh page that has settled first (two frames and 100 ms: an arm whose script runs inline would
 otherwise start before the page's first render and read about 3x cheap) and then spun busy for 100 ms (`RAMP_MS`: on
 an Apple Silicon laptop, an idle before a cold window makes it time a slowed core), the arms shuffled by a seed, in a
-real headed browser. Every sample must hold N controls with the race's role and accessible name, or the run reports the arm as
+real headed browser. Every page is cross-origin isolated (COOP and COEP, with Firefox's timer coarsening off), so
+Firefox and WebKit time with a fine clock rather than whole milliseconds; a sample whose page is not isolated fails the
+control. Every sample must hold N controls with the race's role and accessible name, or the run reports the arm as
 failed: an arm that rendered nothing cannot read as fast. Each Vera arm must also hold N of the marks its setup writes
 (`data-vera-field`, `data-vera-input`, `data-vera-checkbox`): the plain inputs inside their labels hold the role and
 name with no script at all, so without it an arm whose script never ran read as the fastest. And the clock must have
@@ -141,6 +143,9 @@ Measured 2026-11-26, Windows 11, Playwright's engines, 15 settled pages per arm,
 | Shoelace `sl-checkbox` | 47.4 | 75 | 49 |
 | MUI `Checkbox` | 93.3 | 166 | 96 |
 | Chakra `Checkbox` | 181.7 | 281 | 169 |
+
+Both tables were taken by the harness as it was before the busy spin and the isolation (2026-11-27): settled pages, and
+Firefox and WebKit on whole milliseconds.
 
 ## Caveats
 
