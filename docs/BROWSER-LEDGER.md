@@ -666,7 +666,25 @@ from another machine, or after that is undone, has a variable changed.
   anchor row that scrolled before the initial callback passed was green against a planted bug, because the callback
   re-placed the layer. A row measuring a listener other than the observer waits the initial callback out first.
   (2026-11-20; `tests/browser/anchor-measured.test.js`)
-
+- **On this Apple Silicon laptop, idle before a cold sample makes the sample time a slowed core, even a short idle:
+  the same cold window ran about 2.3 times longer after a second of idle than after a short busy spin.** Playwright
+  Chromium 159.0.8154.6, headless, macOS 27.2.1 (a fanless Apple Silicon laptop, thermal pressure 0), 2026-11-26, one
+  run with the same build in every arm and the arm order balanced (each arm in each slot equally often): a page building
+  20 light classes × 140 instances and forcing one style read read 55.3 ms after `setTimeout(1000)` and a frame (its
+  identical copy −0.5%), 36.2 ms after an idle of 100 ms, 27.8 ms after one of 30 ms, and 23.7 ms after the second of
+  idle followed by a 100 ms busy spin. An earlier run whose arm order was not balanced agreed (55.1 ms after the second
+  of idle, 43.6 ms after a 20 ms spin, 23.6 ms after a 100 ms spin, 22.8 ms with no idle at all), and in it a 20 ms spin
+  placed at the window's start added only about 9–11 ms to the window, while the same spin placed at its end added its
+  full length, so the work after an early spin ran faster. That is consistent with the core slowing during idle and a
+  busy spin bringing it back up (not measured: no frequency or core-type read). Separate runs of the same settings did
+  not agree with each other (only within one run do the copies agree), so the settings must share one run. Headed, on
+  all three engines, the same page timed after the second of idle alone (140 instances per class) and after the idle
+  plus a 100 ms spin (300 instances), client / served cold medians: Chromium 159.0.8154.6 55.9 / 65.9 ms and 50.1 / 67.1
+  ms; Firefox 159.0 54.1 / 55.5 ms and 46.4 / 48.4 ms; WebKit 27.2 117.0 / 133.9 ms and 164.3 / 199.4 ms (different page
+  sizes, so not a ratio). Consequence (the same-size comparison measured on headless Chromium only): a cold sample timed
+  on this machine starts after a short busy spin (100 ms), not after idle, or it times a slowed core, since a real page
+  load does not begin after a second of idle; a plant that is a timed spin is not a fixed cost in such a window, so a plant is work
+  of the kind being measured.
 ## Process and garbage
 
 - **Same-site pages in one Firefox share a content process**, so one page's garbage is collected inside the next
