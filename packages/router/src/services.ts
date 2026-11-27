@@ -640,19 +640,21 @@ export const navigate = async (
    *  leaves the committed pair exactly as it was. */
   state.pendingParams = {};
 
-  const strippedHref = stripTrailingSlash(path);
-  const [newPath, hashIndex] = removeHashFragment(strippedHref);
+  const [newPath, hashIndex] = removeHashFragment(path);
   const [oldPath] = removeHashFragment(state.currentPath);
 
   /**
    * The query rides along in the URL but never reaches pattern matching — `/users?page=2` must
    * match the `/users` route (it previously matched nothing, silently dead-ending the link).
-   * The parsed query is handed to routes on the snapshot.
+   * The parsed query is handed to routes on the snapshot. **Only the path loses a trailing slash**
+   * (2026-11-27): it is stripped after the fragment and the query are split off, since a slash at the
+   * end of either is the author's. Stripping the whole URL first took `/p#!/x/`'s fragment slash, and
+   * left `/p/#top/` and `/p/?q=a/` with their path slash, so they matched no route at all.
    */
   const queryIndex = newPath.indexOf('?');
-  const matchPath = queryIndex === -1 ? newPath : newPath.slice(0, queryIndex);
+  const matchPath = stripTrailingSlash(queryIndex === -1 ? newPath : newPath.slice(0, queryIndex));
   const query = new URLSearchParams(queryIndex === -1 ? '' : newPath.slice(queryIndex));
-  const hash = hashIndex > 0 ? strippedHref.substring(hashIndex) : hashIndex === 0 ? strippedHref : '';
+  const hash = hashIndex > 0 ? path.substring(hashIndex) : hashIndex === 0 ? path : '';
 
   /** If the path is the same but the hash is the source of the change */
   if ((hashIndex > -1 && newPath === oldPath) || hashIndex === 0) {
@@ -803,8 +805,9 @@ export const navigate = async (
    * the whole navigation costs exactly one entry. Under `pushHash: false` the fragment never
    * reaches the URL — it is handed to `hashChangeFunction` alone.
    */
-  updateHistory(newPath, trigger);
-  if (hashIndex > 0) applyHash(strippedHref.substring(hashIndex), trigger);
+  /** The address the history gets: the path as matched (its trailing slash stripped) and the query as written. */
+  updateHistory(queryIndex === -1 ? matchPath : matchPath + newPath.slice(queryIndex), trigger);
+  if (hashIndex > 0) applyHash(hash, trigger);
   else {
     /**
      * Back/forward restores the position stamped on the entry; a fresh navigation lands at the
