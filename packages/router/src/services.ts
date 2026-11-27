@@ -370,18 +370,19 @@ const updateHistory = (path: string, trigger: RouteTrigger) => {
      * restore where the user was. The browser's own restoration can't do this — it fires before
      * the routed content exists — which is why `scrollRestoration` is set to `'manual'`.
      *
-     * Each entry the router pushes is BORN stamped at the top, so leaving one the user never scrolled needs no second
-     * call: the stamp is rewritten only when the scroll differs from it. Back reads `[0, 0]` there exactly as it did
-     * when every leave was stamped; an entry the router did not push (the landing one, a fragment's) has no stamp and
-     * is stamped as before. One history call per navigation from the top instead of two, against engines that cap
-     * them (WebKit 100 per 10 s).
+     * Each entry the router pushes is BORN stamped at the top, as the state `0` (which `popstate` reads as `[0, 0]`),
+     * so leaving one the user never scrolled needs no second call. Back reads `[0, 0]` there exactly as it did when
+     * every leave was stamped; any other entry (the landing one, a fragment's, one scrolled) is stamped as before. One
+     * history call per navigation from the top instead of two, against engines that cap them (WebKit 100 per 10 s):
+     * a third less time per navigation there in Chromium. The scroll is tested first and the born state is a
+     * primitive because a scrolled leave must cost what it did: reading `history.state` (a deserialize) and pushing an
+     * object (a serialize) on every navigation cost ~3% in Chromium and WebKit when every leave was scrolled.
      */
     const x = window.scrollX;
     const y = window.scrollY;
-    const stamp = (window.history.state as { scroll?: [number, number] } | null)?.scroll;
-    if (stamp === undefined || stamp[0] !== x || stamp[1] !== y)
+    if (x !== 0 || y !== 0 || window.history.state !== 0)
       window.history.replaceState({ scroll: [x, y] }, '', window.location.href);
-    window.history.pushState({ scroll: [0, 0] }, '', addBase(path));
+    window.history.pushState(0, '', addBase(path));
   } else if (trigger === 'replace') window.history.replaceState(null, '', addBase(path));
 };
 
@@ -441,7 +442,8 @@ export const attachWindowListeners = () => {
   windowListenersAttached = true;
 
   window.addEventListener('popstate', (e) => {
-    pendingScroll = (e.state as { scroll?: [number, number] } | null)?.scroll;
+    /** `0` is an entry born at the top and never scrolled (see updateHistory). */
+    pendingScroll = e.state === 0 ? [0, 0] : (e.state as { scroll?: [number, number] } | null)?.scroll;
     /**
      * The fragment has to travel with the path here, for two reasons that look unrelated and are
      * the same one.

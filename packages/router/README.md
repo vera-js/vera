@@ -363,7 +363,9 @@ router.on('after-route', (to) => {
 Fresh navigation lands at the top, like a page load. Back and forward restore the position the user
 left that entry at: the router stamps the scroll offset into history state on the way out and
 restores it after the content renders, which is why it sets `history.scrollRestoration = 'manual'` —
-the browser's own restoration fires before a routed view exists.
+the browser's own restoration fires before a routed view exists. An entry the router pushes carries
+`0` as its history state until the router stamps a scroll position on it, so leaving a page the user
+never scrolled is one history call, not two.
 
 `scrollBehavior` replaces both — for a list that should keep its offset, a view that scrolls its own
 container rather than the window, or smooth scrolling:

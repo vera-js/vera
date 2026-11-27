@@ -1300,7 +1300,8 @@ Semantics worth stating:
 - Active links: exact match gets `.active` + `aria-current="page"`; ancestor links (`/users`
   while at `/users/5`, segment-boundary, root excluded) get `.active-within`.
 - Scroll: fresh navigation lands at top; back/forward restores the position the user left that
-  entry at (the router stamps it into history state and restores after content renders).
+  entry at (the router stamps it into history state and restores after content renders; an entry
+  the router pushes carries `0` as its history state until a scroll position is stamped on it).
   `initRouter(el, { scrollBehavior: (to, saved) => … })` replaces both — `saved` is the stamped
   position on a `popstate` and absent otherwise.
 
