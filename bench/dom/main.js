@@ -56,6 +56,18 @@ const params = new URLSearchParams(location.search);
 /** `?batch[=ms]`: the time box of one batched sample (50 ms), about 2% of resolution on a whole-millisecond clock. */
 const BATCH = params.has('batch') ? Number(params.get('batch')) || 50 : 0;
 const LAYOUT = params.has('layout');
+/**
+ * **`&ramp=ms`: a busy spin after the settle, before each sample** (2026-11-26; 100 ms, `&ramp=0` as before): on the Apple
+ * Silicon laptop these tables are taken on, an idle before a sample makes it time a slowed core (a cold window read
+ * 27.8 ms after a 30 ms idle and 23.7 ms after a 100 ms spin; BROWSER-LEDGER), and the 30 ms settle is such an idle. A
+ * timed wait is fine here, since its length is not measured. Limit: a re-batched row's later runs follow a paint only,
+ * unramped (a 100 ms spin per run would cost seconds a sample).
+ */
+const RAMP = params.has('ramp') ? Number(params.get('ramp')) || 0 : 100;
+const ramp = () => {
+  const end = performance.now() + RAMP;
+  while (performance.now() < end);
+};
 /** `&plant=N`: the positive control's planted work, in loop iterations (see the `-dom` rows). */
 const PLANT = Number(params.get('plant')) || 0;
 /**
@@ -235,6 +247,7 @@ async function measure(impl, op) {
     await op.setup(app);
     await painted();
     await settle();
+    ramp();
 
     let dt;
     if (BATCH && op.rebatch) {

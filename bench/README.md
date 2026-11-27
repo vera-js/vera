@@ -111,8 +111,9 @@ each arm: Vera's `<vera-field>` around a `<vera-input>`, Vera's field around a p
 Chakra's `Checkbox`, Shoelace's `<sl-checkbox>`, and the floor. The time runs from the mount to the library's own
 "done" (React's first commit by `flushSync`, Shoelace's `updateComplete`, Vera's `flush()`) plus one forced layout,
 each sample in a fresh page that has settled first (two frames and 100 ms: an arm whose script runs inline would
-otherwise start before the page's first render and read about 3x cheap), the arms shuffled by a seed, in a real headed
-browser. Every sample must hold N controls with the race's role and accessible name, or the run reports the arm as
+otherwise start before the page's first render and read about 3x cheap) and then spun busy for 100 ms (`RAMP_MS`: on
+an Apple Silicon laptop, an idle before a cold window makes it time a slowed core), the arms shuffled by a seed, in a
+real headed browser. Every sample must hold N controls with the race's role and accessible name, or the run reports the arm as
 failed: an arm that rendered nothing cannot read as fast. Each Vera arm must also hold N of the marks its setup writes
 (`data-vera-field`, `data-vera-input`, `data-vera-checkbox`): the plain inputs inside their labels hold the role and
 name with no script at all, so without it an arm whose script never ran read as the fastest. And the clock must have

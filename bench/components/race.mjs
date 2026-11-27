@@ -6,7 +6,8 @@
  * script and no look (the floor).
  *
  * Timed, after the library has loaded and the page has settled (two frames and 100 ms, for every arm: an arm whose
- * script runs inline starts before the page's first render and reads about 3x cheap, measured): mounting the N, until
+ * script runs inline starts before the page's first render and reads about 3x cheap, measured) and then spun busy
+ * for `RAMP_MS` (100 ms, so the window times a running core, not one slowed by the settle's idle): mounting the N, until
  * the library says it is done (React's first commit by `flushSync`, Shoelace's `updateComplete` on every element,
  * Vera's `flush()`), then one forced layout. Each sample is a fresh page, the arms shuffled by a seed. Production
  * builds: the React arms bundled by esbuild with NODE_ENV=production and minified; Vera's arms load the bundles a
@@ -34,6 +35,13 @@ const VERA_ROOT = process.env.VERA_ROOT ?? REPO;
 const RACE = process.argv[2];
 const SAMPLES = Number(process.argv[3] ?? 15);
 const ENGINE = process.argv[4] ?? 'chromium';
+/**
+ * A busy spin between the settle and t0, in ms (2026-11-26): on the Apple Silicon laptop these tables are taken on, an
+ * idle before a cold sample makes it time a slowed core (a cold window read 27.8 ms after a 30 ms idle, 36.2 ms after
+ * 100 ms, 55.3 ms after a second, and 23.7 ms after a 100 ms spin; BROWSER-LEDGER), and a real page does not begin its
+ * work after idle. `RAMP_MS=0` times the settled page as before.
+ */
+const RAMP_MS = Number(process.env.RAMP_MS ?? 100);
 const OUT = join(HERE, '.out');
 mkdirSync(OUT, { recursive: true });
 
@@ -217,8 +225,10 @@ try {
     page.on('pageerror', (e) => said.push(e.message));
     await page.goto(`${origin}/page/${encodeURIComponent(arm)}`);
     await page.waitForFunction(() => window.ready === true, null, { timeout: 60000 });
-    const { ms, seen } = await page.evaluate(async ([n, selector]) => {
+    const { ms, seen } = await page.evaluate(async ([n, selector, ramp]) => {
       await new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(settled, 100))));
+      const ramped = performance.now() + ramp;
+      while (performance.now() < ramped);
       const t0 = performance.now();
       await window.mount(n);
       void document.body.offsetHeight;
@@ -234,7 +244,7 @@ try {
         return found;
       };
       return { ms: t1 - t0, seen: deep(document) };
-    }, [N, race.atStop]);
+    }, [N, race.atStop, RAMP_MS]);
     if (seen !== N) failed.push(`${arm}: ${seen} of ${race.atStop} rendered when the clock stopped`);
     const named = await page.getByRole(race.role, { name: race.name, exact: true }).count();
     if (named !== N || said.length) failed.push(`${arm}: ${named} named ${race.role}es${said.length ? `; ${said[0]}` : ''}`);
@@ -256,7 +266,7 @@ const median = (xs) => {
   return (s[s.length >> 1] + s[(s.length - 1) >> 1]) / 2;
 };
 const m = Object.fromEntries(Object.entries(times).map(([arm, xs]) => [arm, median(xs)]));
-console.log(`${RACE} x${N}, ${ENGINE} ${version}, ${SAMPLES} fresh pages per arm, settled before t0`);
+console.log(`${RACE} x${N}, ${ENGINE} ${version}, ${SAMPLES} fresh pages per arm, settled then a ${RAMP_MS} ms spin before t0`);
 console.log(`versions: react ${versionOf('react')}, @mui/material ${versionOf('@mui/material')}, @chakra-ui/react ${versionOf('@chakra-ui/react')}, @shoelace-style/shoelace ${versionOf('@shoelace-style/shoelace')}`);
 for (const [arm, ms] of Object.entries(m).sort((a, b) => a[1] - b[1]))
   console.log(`  ${arm.padEnd(22)} ${ms.toFixed(2).padStart(8)} ms   (min ${Math.min(...times[arm]).toFixed(2)}, max ${Math.max(...times[arm]).toFixed(2)})`);
