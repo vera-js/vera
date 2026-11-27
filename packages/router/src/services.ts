@@ -405,6 +405,11 @@ const throttled = (error?: unknown): void => {
   if (error !== undefined && (error as { name?: unknown } | null)?.name !== 'SecurityError') return;
   warnOnce('router', 'navigate()', 'router-history-throttled', __DEV__ && (() => PROSE['router-history-throttled'](state.currentPath, window.location.href)));
 };
+/**
+ * The written URL as the browser's parser keeps it, resolved against the document's base as `pushState` resolves it.
+ * `navigate` already rewrites every target through `new URL` before it gets here, so comparing the raw string would
+ * read the same today; the parse stays so this check does not depend on that rewrite staying where it is.
+ */
 const keptHistory = (path: string, trigger: RouteTrigger, base: string): void => {
   const written = new URL(addBase(path, base), document.baseURI).href;
   try {
