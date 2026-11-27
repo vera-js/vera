@@ -1,5 +1,5 @@
 {
-  "taken": "2026-11-26",
+  "taken": "2026-11-27",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {

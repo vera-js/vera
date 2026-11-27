@@ -1,5 +1,13 @@
 # @verajs/ssr
 
+## 0.3.11
+
+### Patch Changes
+
+- 4b01a79: A JSON data block in `.innerHTML` markup (`<script type="application/json">`, any type ending in `json`) is served with its own `type` instead of the inert one, so page code finds it by its type. It never runs, in a page or in an assignment; every other script in the markup is served inert as before.
+- 6d14d38: A render's `styles` opens with the layer-order statement, `@layer theme, base, vera, components, utilities;`, whenever it holds any CSS, for `@verajs/styles`' light defaults in `@layer vera`: serve `styles` first in `<head>`, before any other layered CSS, and a server-rendered page needs no setup.
+- Works with `@verajs/styles` 0.1 and 0.2: its peer range is `^0.1.5 || ^0.2.0`, so updating `@verajs/ssr` alone installs as before. With 0.1, a render serves the layer-order statement and then 0.1's unlayered blocks as they were.
+
 ## 0.3.10
 
 ### Patch Changes
