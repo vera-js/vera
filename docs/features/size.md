@@ -126,7 +126,7 @@ describing the bytes honestly.)*
 | `@verajs/lite` | 4 315 B | the lite tier: `define`, `signal`, `html`, a renderer that patches in place |
 | `@verajs/static` | 1 777 B | the static tier: `define` and `html` rendered once into markup, values never code |
 | `@verajs/renderer` | 6 452 B | keyed template renderer, refs, `hold` |
-| `@verajs/router` | 4 521 B | nested routes, params, wildcards, redirects, scroll memory |
+| `@verajs/router` | 4 546 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 911 B | lazy component discovery |
 | `@verajs/styles` | 1 419 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 704 B | `${spread(props)}` — runtime-named bindings |

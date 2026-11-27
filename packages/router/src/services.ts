@@ -369,9 +369,19 @@ const updateHistory = (path: string, trigger: RouteTrigger) => {
      * Stamp the scroll position onto the entry being **left**, so traversing back to it can
      * restore where the user was. The browser's own restoration can't do this — it fires before
      * the routed content exists — which is why `scrollRestoration` is set to `'manual'`.
+     *
+     * Each entry the router pushes is BORN stamped at the top, so leaving one the user never scrolled needs no second
+     * call: the stamp is rewritten only when the scroll differs from it. Back reads `[0, 0]` there exactly as it did
+     * when every leave was stamped; an entry the router did not push (the landing one, a fragment's) has no stamp and
+     * is stamped as before. One history call per navigation from the top instead of two, against engines that cap
+     * them (WebKit 100 per 10 s).
      */
-    window.history.replaceState({ scroll: [window.scrollX, window.scrollY] }, '', window.location.href);
-    window.history.pushState(null, '', addBase(path));
+    const x = window.scrollX;
+    const y = window.scrollY;
+    const stamp = (window.history.state as { scroll?: [number, number] } | null)?.scroll;
+    if (stamp === undefined || stamp[0] !== x || stamp[1] !== y)
+      window.history.replaceState({ scroll: [x, y] }, '', window.location.href);
+    window.history.pushState({ scroll: [0, 0] }, '', addBase(path));
   } else if (trigger === 'replace') window.history.replaceState(null, '', addBase(path));
 };
 
