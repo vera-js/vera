@@ -1305,7 +1305,9 @@ Semantics worth stating:
   while at `/users/5`, segment-boundary, root excluded) get `.active-within`.
 - Scroll: fresh navigation lands at top; back/forward restores the position the user left that
   entry at (the router stamps it into history state and restores after content renders; an entry
-  the router pushes carries `0` as its history state until a scroll position is stamped on it).
+  the router pushes carries `0` as its history state until a scroll position is stamped on it). The
+  position kept is the one when the next route began rendering (after its guards and `load`, before
+  an async `component`); a fragment entry comes back there too, to its anchor only if never left.
   `initRouter(el, { scrollBehavior: (to, saved) => … })` replaces both — `saved` is the stamped
   position on a `popstate` and absent otherwise.
 

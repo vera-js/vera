@@ -369,7 +369,11 @@ router.on('after-route', (to) => {
 Fresh navigation lands at the top, like a page load. Back and forward restore the position the user
 left that entry at: the router stamps the scroll offset into history state on the way out and
 restores it after the content renders, which is why it sets `history.scrollRestoration = 'manual'` —
-the browser's own restoration fires before a routed view exists. An entry the router pushes carries
+the browser's own restoration fires before a routed view exists. The position kept is the one when
+the new route began rendering, after its guards and `load`: a scroll made while a route loads is
+kept, one made while an async `component` or `action` is pending is not. An entry with a fragment
+comes back where it was left too, as a page does across a real load; only one never left by a
+navigation goes to its anchor. An entry the router pushes carries
 `0` as its history state until the router stamps a scroll position on it, so leaving a page the user
 never scrolled is one history call, not two.
 

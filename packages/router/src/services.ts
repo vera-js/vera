@@ -369,7 +369,7 @@ export const resolve = (name: string, params: RouteParams = {}) => resolveIn(nam
  * already exists. Both were confirmed in jsdom before this guard existed. `replace` swaps the
  * current entry — redirects should not leave the abandoned path in history.
  */
-const updateHistory = (path: string, trigger: RouteTrigger, base: string) => {
+const updateHistory = (path: string, trigger: RouteTrigger, base: string, x: number, y: number) => {
   if (trigger === 'navigate') {
     /**
      * Stamp the scroll position onto the entry being **left**, so traversing back to it can
@@ -383,9 +383,9 @@ const updateHistory = (path: string, trigger: RouteTrigger, base: string) => {
      * a third less time per navigation there in Chromium. The scroll is tested first and the born state is a
      * primitive because a scrolled leave must cost what it did: reading `history.state` (a deserialize) and pushing an
      * object (a serialize) on every navigation cost ~3% in Chromium and WebKit when every leave was scrolled.
+     *
+     * `x` and `y` are where the entry was left, read by `navigate` before the new route rendered (see there).
      */
-    const x = window.scrollX;
-    const y = window.scrollY;
     if (x !== 0 || y !== 0 || window.history.state !== 0)
       window.history.replaceState({ scroll: [x, y] }, '', window.location.href);
     window.history.pushState(0, '', addBase(path, base));
@@ -410,10 +410,10 @@ const throttled = (error?: unknown): void => {
  * `navigate` already rewrites every target through `new URL` before it gets here, so comparing the raw string would
  * read the same today; the parse stays so this check does not depend on that rewrite staying where it is.
  */
-const keptHistory = (path: string, trigger: RouteTrigger, base: string): void => {
+const keptHistory = (path: string, trigger: RouteTrigger, base: string, x: number, y: number): void => {
   const written = new URL(addBase(path, base), document.baseURI).href;
   try {
-    updateHistory(path, trigger, base);
+    updateHistory(path, trigger, base, x, y);
   } catch (error) {
     throttled(error);
     throw error;
@@ -471,7 +471,16 @@ const applyHash = (hash: string, trigger: RouteTrigger) => {
       window.location.replace(hash);
       return;
     }
-    document.getElementById(hash.slice(1))?.scrollIntoView?.();
+    /**
+     * Back or Forward to a fragment entry returns to where the entry was left, as every engine does across documents
+     * (Chromium 159, Firefox 159, WebKit 27.2, 2026-11-27), not to its anchor. Only an entry stamped on the way out
+     * (`{ scroll }`) knows where that was; one still in its birth state `0`, or null (the engine's own fragment entry,
+     * or Chromium's and Firefox's after the `location.replace` above), was never left by a navigation, so its anchor is
+     * the best answer. `history.state` is read only on this traversal-to-a-fragment branch, never on a navigation.
+     */
+    const left = trigger === 'popstate' && window.history.state !== 0 ? pendingScroll : undefined;
+    if (left) window.scrollTo?.(left[0], left[1]);
+    else document.getElementById(hash.slice(1))?.scrollIntoView?.();
   }
   routerSettings.hashChangeFunction?.(hash);
 };
@@ -806,6 +815,15 @@ export const navigate = async (
   }));
   if (id !== navigationId) return false;
 
+  /**
+   * Where the page is being left, read before the new route renders: read after, a shorter route has already clamped
+   * it to its own end, and Back came back short (a page scrolled to 5028 left for a short one was stamped 4458 in
+   * Chromium 159). Before the swap the layout is clean, so the read forces none. Read here, after the guards and every
+   * `load`, so a scroll made while a route loads is kept; one made while an async `component` or `action` is pending
+   * is not (reading at the first paint would need a store on every navigation to cover that wait).
+   */
+  const leftX = window.scrollX;
+  const leftY = window.scrollY;
   let routed = false;
   const routeAll = async (): Promise<void> => {
     for (const [element, pass] of prepared) {
@@ -872,8 +890,8 @@ export const navigate = async (
    * written, so the whole navigation costs exactly one entry. Under `pushHash: false` the fragment never reaches the
    * URL — it is handed to `hashChangeFunction` alone.
    */
-  if (__DEV__) keptHistory(page, trigger, base);
-  else updateHistory(page, trigger, base);
+  if (__DEV__) keptHistory(page, trigger, base, leftX, leftY);
+  else updateHistory(page, trigger, base, leftX, leftY);
   if (hashIndex > 0) {
     if (__DEV__) keptHash(hash, trigger);
     else applyHash(hash, trigger);
