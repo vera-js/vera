@@ -1212,6 +1212,10 @@ Semantics worth stating:
 - `navigate(path)` is programmatic navigation — the trigger defaults to `'navigate'`. All routers
   on a page share the URL and all follow every navigation; history gets one entry per user
   navigation, none for back/forward or initial load.
+- Browsers cap history writes (Chromium and Firefox 200, WebKit 100, per 10 seconds), and the router
+  cannot make a throttled browser keep one: past the cap the view routes while the URL stays behind.
+  Debounce a per-keystroke writer (a type-ahead or slider that navigates or writes the query on every
+  input). A development build warns `router-history-throttled` once when a write was not kept.
 - A newer navigation **supersedes** an older one. If a `component` or guard is still awaiting when
   the user goes somewhere else, the abandoned pass stops at its next checkpoint and commits
   nothing — no render, no history entry, no title.

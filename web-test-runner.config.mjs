@@ -69,6 +69,22 @@ const fuzzSeeds = async (ctx, next) => {
   ctx.body = JSON.stringify(extendSeeds(base));
 };
 
+/**
+ * **The engines' own history limits, for the suites under `tests/browser/limits/`** (2026-11-27). Playwright launches
+ * Chromium with `--disable-ipc-flooding-protection` and sets Firefox's `dom.navigation.navigationRateLimit.count` to 0,
+ * which turns off the cap a real browser puts on history writes (200 per 10 s in both; WebKit's 100 is left on), so a
+ * suite about what happens past the cap read nothing under the default launch. `VERA_DEFAULT_LIMITS=1` runs those suites
+ * alone, with both restored; a normal run leaves them out. `scripts/browser-all.mjs` runs both passes on every engine.
+ */
+const defaultLimits = process.env.VERA_DEFAULT_LIMITS === '1';
+const launchOptionsFor = (product) => {
+  const chromiumArgs = { args: ['--js-flags=--expose-gc'] };
+  if (!defaultLimits) return product === 'chromium' ? chromiumArgs : undefined;
+  if (product === 'chromium') return { ...chromiumArgs, ignoreDefaultArgs: ['--disable-ipc-flooding-protection'] };
+  if (product === 'firefox') return { firefoxUserPrefs: { 'dom.navigation.navigationRateLimit.count': 200 } };
+  return undefined;
+};
+
 export default {
   /**
    * **The root in its canonical spelling, not the launching shell's.** On Windows the drive letter's case follows how the
@@ -79,7 +95,7 @@ export default {
    * directory, not the cwd, is the checkout, so a run with `--config` from another directory roots here too.
    */
   rootDir: realpathSync.native(fileURLToPath(new URL('.', import.meta.url))),
-  files: 'tests/browser/**/*.test.js',
+  files: defaultLimits ? 'tests/browser/limits/**/*.test.js' : ['tests/browser/**/*.test.js', '!tests/browser/limits/**'],
   nodeResolve: true,
   /**
    * A real SSE wire for the stream suite: the runner's own server pushes one JSON patch and one
@@ -121,7 +137,7 @@ export default {
          * node as retained even after `disconnect()`, which is its own bookkeeping. Ignored by the
          * other engines, whose suites skip those checks.
          */
-        launchOptions: product === 'chromium' ? { args: ['--js-flags=--expose-gc'] } : undefined,
+        launchOptions: launchOptionsFor(product),
         /**
          * The second half of the load-tolerance pair with `browserStartTimeout` below: raising
          * that knob alone moved the same WebKit failure one step later, into Playwright's OWN 30s

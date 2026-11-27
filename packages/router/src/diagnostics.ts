@@ -19,6 +19,11 @@ export const PROSE: Record<string, Prose> = {
     `navigating to ${path} threw, so the view was left as it was.`,
     'A link click has nobody to reject to: listen for `vera:route-error` (it bubbles, composed) to handle it; the error is printed beside this line.',
   ],
+  'router-history-throttled': (shown, kept) => [
+    `the browser did not keep a history write: the view shows ${shown}, and the URL is still ${kept}. Browsers cap ` +
+    'history writes (Chromium and Firefox 200, WebKit 100, per 10 s), and past the cap a write is dropped or refused.',
+    'Debounce the writer: a type-ahead or a slider that navigates, or writes the query, on every input is the usual cause.',
+  ],
   'router-redirect-loop': (path) => [
     `a redirect loop at ${path} — ten redirects in one navigation, so it was stopped.`,
     'Check the routes whose `redirect` lead back to each other.',

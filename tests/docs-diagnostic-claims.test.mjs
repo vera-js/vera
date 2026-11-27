@@ -241,6 +241,8 @@ const CLAIMS = new Map([
   ['packages/router/README.md#fa48cfe868', 'router-no-match'], // **A path that matches nothing does nothing, and development says so.** `navigate` returns 
   ['packages/router/README.md#7fc72a994a', 'router-no-match'], // The warning names the path.
   ['packages/router/README.md#d53c74196e', 'router-no-outlet'], // If the parent's template renders no matching outlet the route does not apply, and says so 
+  ['packages/router/README.md#3ffe99b021', 'router-history-throttled'], // a development build checks each history write and warns once when the browser did not keep it
+  ['llms.txt#929db7cd9c', 'router-history-throttled'], // the same, in the AI-facing spec
   ['packages/router/README.md#7b892d775b', 'router-no-outlet'], // Those levels fall back to searching inside the level above for a bare `<div view>`, and a 
   ['packages/router/README.md#f7348f4d9d', 'router-string-guard'], // Development warns when a guard returns a string.
   ['packages/router/README.md#5c763d362b', 'not a promise: history: what no longer warns'], // `navigate('login')` from `/shop/items` now goes to `/shop/login` rather than dead-ending w

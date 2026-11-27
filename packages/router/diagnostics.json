@@ -35,6 +35,15 @@
       "fix": "Catch inside the handler what it can recover from; the error itself is printed beside this line."
     },
     {
+      "code": "router-history-throttled",
+      "params": [
+        "shown",
+        "kept"
+      ],
+      "message": "the browser did not keep a history write: the view shows {shown}, and the URL is still {kept}. Browsers cap history writes (Chromium and Firefox 200, WebKit 100, per 10 s), and past the cap a write is dropped or refused.",
+      "fix": "Debounce the writer: a type-ahead or a slider that navigates, or writes the query, on every input is the usual cause."
+    },
+    {
       "code": "router-href-base",
       "params": [
         "href",

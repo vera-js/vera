@@ -247,6 +247,12 @@ one name warn in development.
 Every router on the page follows every navigation, because they all share one URL. History gets one
 entry per user navigation, and none for back/forward or the initial load.
 
+Browsers cap history writes (Chromium and Firefox 200, WebKit 100, per 10 seconds), and the router
+cannot make a throttled browser keep one: past the cap the view routes while the URL stays behind.
+So debounce a writer that fires per keystroke, such as a type-ahead or a slider that navigates or
+writes the query on every input. A development build checks each write and warns
+`router-history-throttled` once when the browser did not keep it.
+
 A newer navigation **supersedes** an older one. If a route's `component` fetches and the user clicks
 something else while it is in flight, the abandoned pass stops at its next checkpoint and commits
 nothing — no render, no history entry, no title.

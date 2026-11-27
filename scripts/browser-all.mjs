@@ -7,9 +7,12 @@
 import { spawnSync } from 'node:child_process';
 
 const failed = [];
+/** Each engine twice: the suite under Playwright's launch, then `tests/browser/limits/` under the engine's own history limits. */
 for (const engine of ['chromium', 'firefox', 'webkit']) {
-  const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', `VERA_BROWSERS=${engine}`, 'web-test-runner', '--config', 'web-test-runner.config.mjs'], { stdio: 'inherit' });
-  if (run.status !== 0) failed.push(`${engine} (${run.status ?? run.signal})`);
+  for (const limits of ['0', '1']) {
+    const run = spawnSync(process.execPath, ['scripts/test-batch.mjs', '--light', `VERA_BROWSERS=${engine}`, `VERA_DEFAULT_LIMITS=${limits}`, 'web-test-runner', '--config', 'web-test-runner.config.mjs'], { stdio: 'inherit' });
+    if (run.status !== 0) failed.push(`${engine}${limits === '1' ? ' (default limits)' : ''} (${run.status ?? run.signal})`);
+  }
 }
 if (failed.length > 0) {
   console.error(`browser suite failed on: ${failed.join(', ')}`);

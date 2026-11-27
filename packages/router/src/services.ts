@@ -392,6 +392,40 @@ const updateHistory = (path: string, trigger: RouteTrigger, base: string) => {
   } else if (trigger === 'replace') window.history.replaceState(null, '', addBase(path, base));
 };
 
+/**
+ * **Development only: did the browser keep the write?** (2026-11-27). Browsers cap history writes (Chromium 159 and
+ * Firefox 159 200 per 10 s, dropped silently; WebKit 27.2 100, refused with a `SecurityError`), so past the cap the view
+ * routes while the URL stays behind, and Back, a reload or a shared link lands on a page already left. Holding the URL
+ * in step costs every navigation in production (+2 to +4% in the races), so production does not check; this reads back
+ * what the platform KEPT, not how many calls the router made, because another writer (the query directive) counts
+ * against the same cap. Called in place of `updateHistory` and `applyHash` behind `__DEV__`, so a production bundle
+ * carries none of it. Said once per page.
+ */
+const throttled = (error?: unknown): void => {
+  if (error !== undefined && (error as { name?: unknown } | null)?.name !== 'SecurityError') return;
+  warnOnce('router', 'navigate()', 'router-history-throttled', __DEV__ && (() => PROSE['router-history-throttled'](state.currentPath, window.location.href)));
+};
+const keptHistory = (path: string, trigger: RouteTrigger, base: string): void => {
+  const written = new URL(addBase(path, base), document.baseURI).href;
+  try {
+    updateHistory(path, trigger, base);
+  } catch (error) {
+    throttled(error);
+    throw error;
+  }
+  if ((trigger === 'navigate' || trigger === 'replace') && window.location.href !== written) throttled();
+};
+const keptHash = (hash: string, trigger: RouteTrigger): void => {
+  try {
+    applyHash(hash, trigger);
+  } catch (error) {
+    throttled(error);
+    throw error;
+  }
+  /** Compared as the browser's parser keeps it: an empty fragment reads back as '', a non-ASCII one percent-encoded. */
+  if (routerSettings.pushHash && trigger !== 'init' && window.location.hash !== new URL(hash, window.location.href).hash) throttled();
+};
+
 /** Scroll position carried by the entry a `popstate` traversal landed on, applied after routing. */
 let pendingScroll: [number, number] | undefined;
 
@@ -833,9 +867,12 @@ export const navigate = async (
    * written, so the whole navigation costs exactly one entry. Under `pushHash: false` the fragment never reaches the
    * URL — it is handed to `hashChangeFunction` alone.
    */
-  updateHistory(page, trigger, base);
-  if (hashIndex > 0) applyHash(hash, trigger);
-  else {
+  if (__DEV__) keptHistory(page, trigger, base);
+  else updateHistory(page, trigger, base);
+  if (hashIndex > 0) {
+    if (__DEV__) keptHash(hash, trigger);
+    else applyHash(hash, trigger);
+  } else {
     /**
      * Back/forward restores the position stamped on the entry; a fresh navigation lands at the
      * top, like a page load. `scrollBehavior` replaces both — for a list that should keep its
