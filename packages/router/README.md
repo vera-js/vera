@@ -349,8 +349,8 @@ limitation people plan around has to be described accurately.
 A query rides in the URL but never reaches pattern matching, so `/users?page=2` matches the `/users`
 route. The parsed `URLSearchParams` is `to.query` on every snapshot.
 
-`navigate('/docs#install')` costs a single history entry, scrolls to the anchor and sets `:target`,
-and a deep-linked fragment scrolls once the routed content exists rather than before it. With
+`navigate('/docs#install')` costs a single history entry, scrolls to the anchor and sets `:target`
+(with or without a `<base>` element: the fragment is written against the page's own URL), and a deep-linked fragment scrolls once the routed content exists rather than before it. With
 `pushHash: false`, fragments never reach the URL at all — they go to `hashChangeFunction` alone.
 
 The fragment is on every snapshot as `to.hash`, `#` included. A **hash-only** change does not

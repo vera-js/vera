@@ -38,11 +38,7 @@ const throttledLines = async (run) => {
 };
 
 const PATHS = ['/kept/café', '/kept/q?q=a b+c', '/kept/a%2Fb', '/kept/trail?', '/kept/x/../y', '/kept/./z'];
-/**
- * Fragments run without a `<base>` element only: the router writes one with `location.replace('#…')`, which resolves
- * against the document's base URL, so under a `<base>` whose path is not the page's it leaves the page (a separate
- * defect, measured on all three engines, not this check's).
- */
+/** Fragments run under every configuration, a `<base>` element included: the router writes them as an absolute URL. */
 const FRAGMENTS = ['/kept/frag#', '/kept/hash#café', '/kept/hash#a b'];
 
 afterEach(() => {
@@ -60,7 +56,7 @@ for (const [label, configure, targets] of [
     base.href = '/sub/';
     base.dataset.kept = '';
     document.head.append(base);
-  }, PATHS],
+  }, [...PATHS, ...FRAGMENTS]],
 ]) {
   it(`${label}: every kept write is silent`, async () => {
     configure();

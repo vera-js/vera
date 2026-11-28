@@ -456,6 +456,33 @@ from another machine, or after that is undone, has a variable changed.
   Playwright's WebKit 27.2 on Windows 11 sends `Macintosh; Intel Mac OS X 10_15_7` in its user agent (a probe, the same
   day), so a row that sniffed it read "a Mac" there and went red.
 
+- **`location.replace('#x')` resolves against the document's base, so under a `<base>` on another path it leaves the
+  page.** On a top-level page with `<base href="/other/">`, a relative fragment replace navigated to `/other/#x` (the
+  window and its `performance.timeOrigin` gone) on all three engines; under a `<base>` on another origin Chromium landed
+  on an error page, Firefox went to that origin and WebKit dropped the write. `location.replace(new URL('#x',
+  location.href).href)` matched the no-base control on every row: same document, `hashchange` once (none for the same
+  fragment), `:target` set, no history entry added. `location.hash = …` is resolved against the document's URL and
+  was unaffected by any base. Consequence: the router writes a fragment as an absolute URL, the page's own URL up to
+  its fragment plus the new one. (Playwright's Chromium 159, Firefox 159, WebKit 27.2, headless, macOS, 2026-11-27.)
+- **A fragment `location.replace` resets `history.state` on Chromium and Firefox, and keeps it on WebKit.** After the
+  router pushed an entry with the state `0` and then replaced its fragment, a leave from it made one history call on
+  WebKit (30 navigations, 31 calls with the landing entry's stamp) and two on Chromium and Firefox (60): the state was
+  `null` there, so the entry was stamped on the way out. Consequence: the born-at-the-top state saves no call on a
+  fragment navigation in Chromium and Firefox; Back to a fragment entry rests on that stamp, which a browser row checks
+  for a scrolled entry and one left at its anchor. (Playwright's Chromium 159, Firefox 159, WebKit 27.2, 2026-11-27.)
+- **Back to a fragment entry the user scrolled away from returns to where it was left, not to its anchor, across
+  documents on every engine; within one document it depends.** An anchor at y 2020, scrolled to 4000, left: after a real
+  load in between, Back restored 4000 on all three; within the document under `scrollRestoration = 'auto'`, Firefox and
+  WebKit restored 4000 and Chromium went to the anchor (2020), though it restored a plain entry; under `'manual'` nothing
+  restored. Consequence: the router, which sets `'manual'`, restores a fragment entry's stamp on Back and goes to the
+  anchor only when the entry carries none. (Playwright's Chromium 159, Firefox 159, WebKit 27.2, headless, macOS,
+  2026-11-27.)
+- **A scroll position read after the DOM changed is already clamped to the new content.** Leaving a page scrolled to
+  5028 for a route that rendered short, `scrollY` read after the render answered 4458 (the new maximum) in Chromium 159;
+  read before the render it answered 5028. A read on a clean layout cost 0.25 µs (WebKit 27.2) and 0.55 µs (Chromium);
+  after a DOM write it cost a forced layout, 29.75 and 6.68 µs, the same as `offsetHeight` there. Consequence: the
+  router reads where an entry is being left before it renders the next route. (Playwright, macOS, 2026-11-27.)
+
 ## CSS and the cascade
 
 - **A layer-order statement a script prepends to `<head>` orders layers the page's sheets already declared, and adopted

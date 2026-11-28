@@ -468,7 +468,18 @@ let committedId = 0;
 const applyHash = (hash: string, trigger: RouteTrigger) => {
   if (routerSettings.pushHash) {
     if (trigger !== 'init' && window.location.hash !== hash) {
-      window.location.replace(hash);
+      /**
+       * **Absolute, not `'#…'`** (2026-11-27): a relative URL resolves against the document's base, so under a `<base>`
+       * on another path the replace left the page (to `/other/#…`; under the common `<base href="/">`, to `/#…`), and on
+       * another origin it failed or was dropped (Chromium 159, Firefox 159, WebKit 27.2). The page's own URL up to its
+       * fragment, plus this one, is the same-document fragment replace it was meant to be: one entry, `hashchange` once,
+       * `:target` set, on every engine with or without a base. Built by string because `hash` is already the parser's
+       * (`navigate` takes it from `new URL`) and `location.href`'s first `#` starts its fragment: a `new URL` here cost a
+       * fragment navigation ~2%.
+       */
+      const href = window.location.href;
+      const at = href.indexOf('#');
+      window.location.replace((at === -1 ? href : href.slice(0, at)) + hash);
       return;
     }
     /**

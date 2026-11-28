@@ -1288,7 +1288,8 @@ Semantics worth stating:
 - Hash fragments: the fragment is on every snapshot as `to.hash` (`#` included). A hash-only change
   does not re-route — the route did not change — but each router's `currentRoute` takes the new
   fragment and `after-route` fires with `trigger: 'hashchange'`. `path#hash` navigation costs one
-  history entry, scrolls to the anchor, and sets `:target`; deep-linked anchors scroll after the
+  history entry, scrolls to the anchor, and sets `:target`, under a `<base>` too (the fragment is
+  written against the page's own URL); deep-linked anchors scroll after the
   initial route renders. `navigate(path,
   'replace')` swaps the current entry. With `pushHash: false` fragments never reach
   the URL — they go to `hashChangeFunction` only.
