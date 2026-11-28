@@ -404,6 +404,37 @@ test('a routed href pointing outside the base is diagnosed', { skip: isProductio
 
 
 /**
+ * **A link click strips the base once.** The handler used to strip the clicked URL and hand that to `navigate`, which
+ * strips every string it is given, so a route whose own path begins with the base's segments (`/app/inbox` under
+ * `/app`) was stripped twice: `href="/app/app/inbox"` reached `/inbox`. A click and a `navigate` call of the same
+ * URL now route the same.
+ */
+test('a link click strips the base once, as navigate does', async () => {
+  setBasePath('/app');
+  let reached = null;
+  const { host } = mount([
+    { path: '/app/inbox', component: () => { reached = 'app-inbox'; return ''; } },
+    { path: '/inbox', component: () => { reached = 'inbox'; return ''; } },
+  ]);
+  await reset();
+  await navigate('/app/app/inbox');
+  await tick();
+  assert.equal(reached, 'app-inbox', 'CONTROL: navigate strips /app/app/inbox once, to /app/inbox');
+  await navigate('/', 'replace');
+  await tick();
+  reached = null;
+  const link = doc.createElement('a');
+  link.setAttribute('route', '');
+  link.setAttribute('href', '/app/app/inbox');
+  host.appendChild(link);
+  link.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+  await tick();
+  assert.equal(reached, 'app-inbox', 'the click reaches the same route as navigate');
+  assert.equal(window.location.pathname, '/app/app/inbox', 'and writes the URL as clicked');
+  setBasePath(null);
+});
+
+/**
  * The base composed with supersession (run-2's committedId fix): the same-path early return and
  * the ticket bump must both operate on the SAME normalization of the path, or under a base one of
  * two things breaks — "already there" false-negatives (an extra render, harmless) or

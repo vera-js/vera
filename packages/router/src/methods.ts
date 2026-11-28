@@ -79,7 +79,12 @@ const addLinkListener = (element: HTMLElement) => {
       if (base !== '' && !url.pathname.startsWith(base))
         warnOnce('router', '<a route>', 'router-href-base', __DEV__ && (() => PROSE['router-href-base'](href, base, url.pathname)), href);
     }
-    const path = stripBase(url.pathname) + url.search + url.hash;
+    /**
+     * The URL as clicked, base included: `navigate` strips every string it is given with the base it reads once for
+     * the navigation, so stripping here too was a second walk of the document per click on a page with no `<base>`
+     * (and a second strip, which took a route whose own path begins with the base's segments one level too far).
+     */
+    const target = url.pathname + url.search + url.hash;
     /**
      * **A click has nobody to reject to.**
      *
@@ -95,8 +100,10 @@ const addLinkListener = (element: HTMLElement) => {
      * rejection cannot be caught at the point it matters.
      */
     try {
-      await navigate(path, 'navigate', element);
+      await navigate(target, 'navigate', element);
     } catch (error) {
+      /** The route path, as the event and the line have always named it: read only when a navigation threw. */
+      const path = stripBase(url.pathname) + url.search + url.hash;
       element.dispatchEvent(
         new CustomEvent('vera:route-error', {
           bubbles: true,

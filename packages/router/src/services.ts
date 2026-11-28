@@ -304,6 +304,32 @@ export const back = () => go(-1);
 export const forward = () => go(1);
 
 /**
+ * `resolve`, given the base: `navigate({ name })` has already read it once for the whole navigation (see there), and
+ * reading it again here was one more walk of the document on a page with no `<base>`.
+ */
+const resolveIn = (name: string, params: RouteParams = {}, base: string): string => {
+  const pattern = names.get(name);
+  if (pattern === undefined) {
+    if (__DEV__) console.warn(diagnostic('router', 'resolve()', 'router-unknown-name', __DEV__ && PROSE['router-unknown-name'](name)));
+    return '';
+  }
+  return addBase(pattern.replace(/\/?[:*]([^/:|?]+)\??/g, (token, key: string) => {
+    /**
+     * **A missing param fills from the CURRENT route, so "the same place, different view" is one
+     * call.** `navigate({ name: 'user-settings' })` from `/users/5/profile` should not force a
+     * component to know or thread the `5` — the page already knows it. Explicit params always win,
+     * and `key in params` rather than `??` so that an EXPLICIT `undefined` still means "omit this
+     * optional segment" instead of silently refilling it. With no committed navigation (a server
+     * pass, a fresh page) the fill finds nothing and behavior is exactly what it always was.
+     */
+    const value = key in params ? params[key] : state.params[key];
+    /** An absent optional param takes its segment with it; an absent required one is left visible. */
+    if (value === undefined) return token.endsWith('?') ? '' : token;
+    return `/${(Array.isArray(value) ? value : [value]).map(encodeURIComponent).join('/')}`;
+  }), base);
+};
+
+/**
  * Builds the path for a named route.
  *
  * ```js
@@ -334,27 +360,7 @@ export const forward = () => go(1);
  * `navigate({ name, params })` — which calls straight through here — still routes. With no base the
  * two are the same string, so this changes nothing for an app at the origin root.
  */
-export const resolve = (name: string, params: RouteParams = {}) => {
-  const pattern = names.get(name);
-  if (pattern === undefined) {
-    if (__DEV__) console.warn(diagnostic('router', 'resolve()', 'router-unknown-name', __DEV__ && PROSE['router-unknown-name'](name)));
-    return '';
-  }
-  return addBase(pattern.replace(/\/?[:*]([^/:|?]+)\??/g, (token, key: string) => {
-    /**
-     * **A missing param fills from the CURRENT route, so "the same place, different view" is one
-     * call.** `navigate({ name: 'user-settings' })` from `/users/5/profile` should not force a
-     * component to know or thread the `5` — the page already knows it. Explicit params always win,
-     * and `key in params` rather than `??` so that an EXPLICIT `undefined` still means "omit this
-     * optional segment" instead of silently refilling it. With no committed navigation (a server
-     * pass, a fresh page) the fill finds nothing and behavior is exactly what it always was.
-     */
-    const value = key in params ? params[key] : state.params[key];
-    /** An absent optional param takes its segment with it; an absent required one is left visible. */
-    if (value === undefined) return token.endsWith('?') ? '' : token;
-    return `/${(Array.isArray(value) ? value : [value]).map(encodeURIComponent).join('/')}`;
-  }));
-};
+export const resolve = (name: string, params: RouteParams = {}) => resolveIn(name, params, currentBase());
 
 /**
  * Writes a history entry **only for user navigation**. `popstate` means the browser already moved
@@ -502,8 +508,18 @@ export const navigate = async (
    */
   if (__DEV__ && (target === null || (typeof target !== 'string' && typeof target !== 'object')))
     throw new TypeError(misuse('navigate', 'router-navigate-target', __DEV__ && PROSE['router-navigate-target'](String(target))));
+  /**
+   * The mount point, read once per navigation and passed to every use: a named target's `resolve`, the target's
+   * strip, the active links and the history write. Each read is a `querySelector('base[href]')`, and on a page with
+   * no `<base>` that walks the whole document: per read, 14 µs at 5,000 nodes and 146 µs at 50,000 in Chromium 159,
+   * 18 and 208 µs in WebKit 27.2 (Firefox 159 answers in under 0.1 µs at any size), and a navigation made three to
+   * five (a link click and a named target each added one). One navigation, one base: a
+   * `<base>` a guard or a component rewrites applies from the next navigation, where the strip and the write could
+   * otherwise disagree within one.
+   */
+  const base = currentBase();
   /** `navigate({ name, params })` is the same call through `resolve` — Vue Router's shape. */
-  let path = typeof target === 'string' ? target : resolve(target.name, target.params);
+  let path = typeof target === 'string' ? target : resolveIn(target.name, target.params, base);
   /**
    * **An unknown name must not claim success.** `resolve` answers `''` for a name it does not know
    * (a real pattern is always at least `/`), and an empty string then resolves to the CURRENT page —
@@ -513,15 +529,6 @@ export const navigate = async (
    * the behavioral half, and it holds in production too.
    */
   if (typeof target !== 'string' && path === '') return false;
-  /**
-   * The mount point, read once per navigation and passed to every use: the target's strip, the active links and the
-   * history write. Each read is a `querySelector('base[href]')`, and on a page with no `<base>` that walks the whole
-   * document: per read, 14 µs at 5,000 nodes and 146 µs at 50,000 in Chromium 159, 18 and 208 µs in WebKit 27.2
-   * (Firefox 159 answers in under 0.1 µs at any size), and a navigation made three. One navigation, one base: a
-   * `<base>` a guard or a component rewrites applies from the next navigation, where the strip and the write could
-   * otherwise disagree within one.
-   */
-  const base = currentBase();
 
   /**
    * **A path that names an origin is checked against this one**, exactly as a routed link is.
