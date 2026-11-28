@@ -113,6 +113,8 @@ const TEST_SHAPED = /\.(test|spec)\.[cm]?[jt]s$/;
 const suites = [
   ...readdirSync(`${root}tests`).filter((name) => TEST_SHAPED.test(name)).map((name) => `tests/${name}`),
   ...readdirSync(`${root}tests/browser`).filter((name) => TEST_SHAPED.test(name)).map((name) => `tests/browser/${name}`),
+  /** The browser suite's pass under the engines' own history limits (`VERA_DEFAULT_LIMITS=1`). */
+  ...readdirSync(`${root}tests/browser/limits`).filter((name) => TEST_SHAPED.test(name)).map((name) => `tests/browser/limits/${name}`),
 ];
 
 
@@ -137,7 +139,7 @@ const everyTestFile = (dir, prefix = 'tests') => {
 /**
  * **THE FRAME CHECK — a floor validates the SAMPLE and says nothing about the SPACE.**
  *
- * Every assertion in this file is a claim about EVERY suite, and the two `readdirSync` calls above
+ * Every assertion in this file is a claim about EVERY suite, and the `readdirSync` calls above
  * are non-recursive and extension-specific. Add `tests/unit/thing.test.mjs` tomorrow and this rule
  * silently narrows to a smaller tree and goes on reporting a clean sweep — and the floors it
  * already carries CANNOT NOTICE, because a floor asks "did I find enough of what I looked at",
@@ -161,7 +163,7 @@ test('the rule looks at every test file that exists, not merely at the ones it k
     [],
     `these test files exist and this rule never looked at them, so every "clean sweep" above was ` +
       `over a smaller tree than the one that ships:\n  ${unseen.join('\n  ')}\n\n` +
-      `Widen the two walks at the top of this file — do not add an exemption.`
+      `Widen the walks at the top of this file — do not add an exemption.`
   );
 });
 
@@ -324,10 +326,11 @@ test('every suite that discovers a corpus and asserts emptiness has a floor', ()
   /**
    * **Identity, not only quantity** — and most of all here, since a rule that polices floors while
    * holding only a count is the joke writing itself. A count is satisfied by any corpus of the
-   * right size; repoint the root at a sibling directory and it stays green. Two known members, one
-   * per directory, so a walk reading the wrong tree fails by name.
+   * right size; repoint the root at a sibling directory and it stays green. One known member per
+   * directory, so a walk reading the wrong tree fails by name.
    */
-  assert.ok(suites.includes('tests/dropped-element-bindings.test.mjs') && suites.includes('tests/browser/markup-grammar.test.js'),
+  assert.ok(suites.includes('tests/dropped-element-bindings.test.mjs') && suites.includes('tests/browser/markup-grammar.test.js') &&
+    suites.includes('tests/browser/limits/router-history-throttled.test.js'),
     `found ${suites.length} suite(s) but not the ones this rule was written against — it is reading the wrong tree`);
 
   assert.deepEqual(

@@ -1,5 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { initRouter, navigate, setRouterRenderer } from '../../packages/router/dist/development/vera-router.js';
+import { until } from './until.js';
 
 /**
  * **A fragment navigation under a `<base>` stays on the page** (2026-11-27). The router writes the fragment with
@@ -27,77 +28,82 @@ afterEach(() => {
   history.replaceState(null, '', startPath);
 });
 
-for (const [label, base] of [['no <base>', null], ['a <base href="/sub/">', '/sub/'], ['a <base href="/">', '/']]) {
+const BASES = [['no <base>', null], ['a <base href="/sub/">', '/sub/'], ['a <base href="/">', '/']];
+
+const withBase = (base) => {
+  if (!base) return;
+  const element = document.createElement('base');
+  element.href = base;
+  element.dataset.hashBase = '';
+  document.head.append(element);
+};
+
+/** Every `hashchange`'s fragment, in order, from here to `settle`, and the page and history as they were. */
+const watch = () => {
+  const seen = { fragments: [], marker: (window.__hashBaseMarker = Math.random()), length: history.length };
+  seen.count = (event) => seen.fragments.push(new URL(event.newURL).hash);
+  addEventListener('hashchange', seen.count);
+  return seen;
+};
+
+/**
+ * The barrier for "no further `hashchange`": a fragment replace of the page's own URL to a sentinel. Its `hashchange`
+ * is queued on the same task source as any the navigation queued, so it arrives after them; the fragments seen before
+ * it are every one the navigation caused. Run after the row has read the URL and `:target`, which it moves.
+ */
+const SENTINEL = '#hash-base-sentinel';
+const settle = async (seen) => {
+  location.replace(location.href.split('#')[0] + SENTINEL);
+  await until(() => seen.fragments.includes(SENTINEL), 'the sentinel fragment replace to fire hashchange', 5000);
+  removeEventListener('hashchange', seen.count);
+  expect(window.__hashBaseMarker, 'the page was not left').to.equal(seen.marker);
+  return seen.fragments.slice(0, seen.fragments.indexOf(SENTINEL));
+};
+
+for (const [label, base] of BASES) {
   for (const fragment of ['#sec', '#café']) {
     it(`${label}: navigate to a path with ${fragment} stays on the page, fires hashchange once, sets :target, one entry`, async () => {
-      if (base) {
-        const element = document.createElement('base');
-        element.href = base;
-        element.dataset.hashBase = '';
-        document.head.append(element);
-      }
-      const marker = (window.__hashBaseMarker = Math.random());
-      let hashchanges = 0;
-      const count = () => hashchanges++;
-      addEventListener('hashchange', count);
-      const before = history.length;
+      withBase(base);
+      const seen = watch();
       const prefix = base === '/sub/' ? '/sub' : '';
-      await navigate(`/rh/${fragment === '#sec' ? 'a' : 'b'}${fragment}`);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      removeEventListener('hashchange', count);
-      expect(window.__hashBaseMarker, 'the page was not left').to.equal(marker);
-      expect(location.pathname, 'the path is the routed one').to.equal(`${prefix}/rh/${fragment === '#sec' ? 'a' : 'b'}`);
-      expect(location.hash, 'the fragment is in the URL').to.equal(new URL(fragment, location.href).hash);
-      expect(hashchanges, 'hashchange fired once').to.equal(1);
+      const path = `/rh/${fragment === '#sec' ? 'a' : 'b'}`;
+      await navigate(`${path}${fragment}`);
+      await until(() => seen.fragments.length > 0, "the fragment navigation's hashchange", 5000);
+      expect(window.__hashBaseMarker, 'the page was not left').to.equal(seen.marker);
+      expect(location.pathname, 'the path is the routed one').to.equal(`${prefix}${path}`);
+      const hash = location.hash;
+      expect(hash, 'the fragment is in the URL').to.equal(new URL(fragment, location.href).hash);
       expect(document.querySelector(':target')?.id, ':target is the anchor').to.equal(fragment.slice(1));
-      expect(history.length - before, 'the navigation cost one entry').to.equal(1);
+      expect(history.length - seen.length, 'the navigation cost one entry').to.equal(1);
+      expect(await settle(seen), 'hashchange fired once').to.deep.equal([hash]);
     });
   }
 }
 
 /** The empty fragment and the same fragment again, under both bases: what the page would do, and nothing more. */
-for (const [label, base] of [['no <base>', null], ['a <base href="/sub/">', '/sub/'], ['a <base href="/">', '/']]) {
-  const withBase = () => {
-    if (!base) return;
-    const element = document.createElement('base');
-    element.href = base;
-    element.dataset.hashBase = '';
-    document.head.append(element);
-  };
-  const watch = () => {
-    const seen = { hashchanges: 0, marker: (window.__hashBaseMarker = Math.random()), length: history.length };
-    seen.count = () => seen.hashchanges++;
-    addEventListener('hashchange', seen.count);
-    return seen;
-  };
-  const settle = async (seen) => {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    removeEventListener('hashchange', seen.count);
-    expect(window.__hashBaseMarker, 'the page was not left').to.equal(seen.marker);
-  };
-
+for (const [label, base] of BASES) {
   it(`${label}: '#' is no fragment: a plain navigation, no hashchange, no :target, one entry`, async () => {
-    withBase();
+    withBase(base);
     const seen = watch();
     await navigate('/rh/d#');
-    await settle(seen);
     expect(location.hash).to.equal('');
-    expect(seen.hashchanges).to.equal(0);
     expect(document.querySelector(':target')).to.equal(null);
     expect(history.length - seen.length).to.equal(1);
+    expect(await settle(seen), 'no hashchange').to.deep.equal([]);
   });
 
   it(`${label}: the same fragment again fires nothing and adds no entry`, async () => {
-    withBase();
+    withBase(base);
+    const first = watch();
     await navigate('/rh/c#sec');
     /** That navigation's own hashchange is a queued task: let it land before counting. */
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await until(() => first.fragments.length > 0, "the first navigation's hashchange", 5000);
+    removeEventListener('hashchange', first.count);
     const seen = watch();
     await navigate('/rh/c#sec');
-    await settle(seen);
     expect(location.hash).to.equal('#sec');
-    expect(seen.hashchanges, 'no hashchange for the same fragment').to.equal(0);
     expect(document.querySelector(':target')?.id).to.equal('sec');
     expect(history.length - seen.length, 'no entry').to.equal(0);
+    expect(await settle(seen), 'no hashchange for the same fragment').to.deep.equal([]);
   });
 }
